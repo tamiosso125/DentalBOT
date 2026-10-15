@@ -32,6 +32,13 @@ describe.skipIf(!url)("PrismaConversationStore (Postgres)", () => {
     await db.$disconnect();
   });
 
+  it("returns one conversation when a new number's messages arrive at the same time", async () => {
+    const convs = await Promise.all(
+      Array.from({ length: 8 }, () => store.getOrCreateConversation(clinicId, "5511900000009")),
+    );
+    expect(new Set(convs.map((c) => c.id)).size).toBe(1);
+  });
+
   it("stores contacts and bodies encrypted, and dedupes messages", async () => {
     expect(await store.findClinicByPhoneNumberId(phoneNumberId)).toMatchObject({ id: clinicId });
 

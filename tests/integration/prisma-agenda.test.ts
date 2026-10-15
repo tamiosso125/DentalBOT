@@ -56,6 +56,15 @@ describe.skipIf(!url)("PrismaAgendaRepository (Postgres)", () => {
     expect(await agenda.buscarPaciente({ phone: "5511900000001" })).toEqual(p);
   });
 
+  it("registers a patient once when the same number arrives twice at the same time", async () => {
+    const ps = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        agenda.cadastrarPaciente({ name: "Paciente Exemplo", phone: "5511900000008" }),
+      ),
+    );
+    expect(new Set(ps.map((p) => p.id)).size).toBe(1);
+  });
+
   it("never double-books under concurrent requests", async () => {
     const p = (await agenda.buscarPaciente({ phone: "5511900000001" }))!;
     const [slot] = await agenda.listarHorarios({ procedureId, from: "2026-10-20", days: 1 });

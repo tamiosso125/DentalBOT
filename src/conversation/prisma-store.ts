@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { upsertRace } from "../lib/upsert-race.js";
 import type { FieldCipher } from "../privacy/index.js";
 import type {
   ClinicInfo,
@@ -27,11 +28,14 @@ export class PrismaConversationStore implements ConversationStore {
 
   async getOrCreateConversation(clinicId: string, contact: string): Promise<ConversationRecord> {
     const contactHash = this.cipher.hash(contact);
-    const conv = await this.db.conversation.upsert({
-      where: { clinicId_contactHash: { clinicId, contactHash } },
-      create: { clinicId, contactHash, contactEncrypted: this.cipher.encrypt(contact) },
-      update: {},
-    });
+    // A new number often sends a few messages at once, processed in parallel.
+    const conv = await upsertRace(() =>
+      this.db.conversation.upsert({
+        where: { clinicId_contactHash: { clinicId, contactHash } },
+        create: { clinicId, contactHash, contactEncrypted: this.cipher.encrypt(contact) },
+        update: {},
+      }),
+    );
     return {
       id: conv.id,
       clinicId: conv.clinicId,
