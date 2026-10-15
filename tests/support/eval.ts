@@ -6,6 +6,7 @@ import { AnthropicLlm, type LlmClient } from "../../src/ai/llm.js";
 import { ScriptedLlm } from "../../src/ai/scripted-llm.js";
 import { handleWhatsAppEvent } from "../../src/conversation/handler.js";
 import { normalize } from "../../src/conversation/intents.js";
+import { zonedToUtc } from "../../src/scheduling/time.js";
 import { normalizeWebhook, previewText } from "../../src/whatsapp/index.js";
 import {
   buttonPayload,
@@ -13,6 +14,7 @@ import {
   echoPayload,
   listPayload,
   makeDeps,
+  PATIENT,
   textPayload,
 } from "./fixtures.js";
 
@@ -27,6 +29,10 @@ const expectation = z
     handoff: z.boolean().optional(),
     /** Active (not cancelled) appointments in the agenda after this step. */
     appointments: z.number().int().nonnegative().optional(),
+    /** Status of the last appointment booked. */
+    appointment_status: z
+      .enum(["PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED", "NO_SHOW", "COMPLETED"])
+      .optional(),
     /** true = the bot sent a list of time slots in this step. */
     list: z.boolean().optional(),
     /** true = the quote PDF went out in this step. */
@@ -79,6 +85,20 @@ const step = z.union([
     })
     .strict(),
   z.object({ advance_minutes: z.number().int().positive() }).strict(),
+  /** The front desk books an appointment for the case's patient ("YYYY-MM-DDTHH:MM", clinic time). */
+  z
+    .object({
+      clinic_books: z
+        .object({
+          procedureId: z.string(),
+          at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+        })
+        .strict(),
+      expect: expectation.optional(),
+    })
+    .strict(),
+  /** The hourly job that sends tomorrow's appointment reminders runs now. */
+  z.object({ run_reminders: z.literal(true), expect: expectation.optional() }).strict(),
 ]);
 
 export const caseSchema = z
@@ -122,7 +142,18 @@ export async function runCase(
 ): Promise<CaseResult> {
   const scripted = c.ai && !opts.live ? new ScriptedLlm() : undefined;
   const llm: LlmClient | undefined = c.ai ? (scripted ?? new AnthropicLlm()) : undefined;
-  const { deps, channel, store, clock, agendaRepo, quotes, quoteRepo, payments } = makeDeps({
+  const {
+    deps,
+    channel,
+    store,
+    clock,
+    agenda,
+    agendaRepo,
+    appointmentReminders,
+    quotes,
+    quoteRepo,
+    payments,
+  } = makeDeps({
     llm,
     patientCpf: c.patient_cpf ? undefined : null,
   });
@@ -157,6 +188,10 @@ export async function runCase(
       });
       quoteId = created.id;
       sentVia = (await quotes.send(CLINIC_ID, quoteId)).via;
+    } else if ("clinic_books" in s) {
+      await book(s.clinic_books);
+    } else if ("run_reminders" in s) {
+      await appointmentReminders.run(clock.now);
     } else {
       await deliver(s, where);
     }
@@ -165,15 +200,43 @@ export async function runCase(
   }
   return { file, name: c.name, critical: c.critical, failures };
 
+  async function book(input: { procedureId: string; at: string }) {
+    const [date, time] = input.at.split("T") as [string, string];
+    const [h, m] = time.split(":").map(Number) as [number, number];
+    const procedure = (await agenda.listarProcedimentos()).find((p) => p.id === input.procedureId);
+    if (!procedure) throw new Error(`procedimento ${input.procedureId} não existe`);
+    const startsAt = zonedToUtc(date, h * 60 + m, agenda.timeZone);
+    const patient =
+      (await agenda.buscarPaciente({ phone: PATIENT })) ??
+      (await agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: PATIENT }));
+    await agenda.reservar({
+      patientId: patient.id,
+      slot: {
+        dentistId: "dentist_dev",
+        procedureId: procedure.id,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + procedure.durationMinutes * 60_000),
+      },
+    });
+  }
+
   async function deliver(
-    s: Exclude<Step, { advance_minutes: number } | { clinic_sends_quote: unknown }>,
+    s: Extract<
+      Step,
+      { patient: string } | { button: string } | { list: string } | { reception: string }
+    >,
     where: string,
   ) {
+    /** "{appointment}" in a button id is the last appointment in the agenda. */
+    const appointmentId = agendaRepo.appointments.at(-1)?.id ?? "";
     const payload =
       "patient" in s
         ? textPayload(s.patient)
         : "button" in s
-          ? buttonPayload(s.button.replace("{quote}", quoteId), s.title)
+          ? buttonPayload(
+              s.button.replace("{quote}", quoteId).replace("{appointment}", appointmentId),
+              s.title,
+            )
           : "list" in s
             ? listPayload(s.list, s.title)
             : echoPayload(s.reception);
@@ -210,6 +273,14 @@ export async function runCase(
       if (active !== expect.appointments)
         failures.push(`${where}: ${active} consulta(s) na agenda, esperado ${expect.appointments}`);
     }
+    const appointment = agendaRepo.appointments.at(-1);
+    if (
+      expect.appointment_status !== undefined &&
+      appointment?.status !== expect.appointment_status
+    )
+      failures.push(
+        `${where}: consulta ${appointment?.status ?? "inexistente"}, esperado ${expect.appointment_status}`,
+      );
     if (expect.handoff !== undefined) {
       const conv = [...store.conversations.values()][0];
       const paused = !!conv?.botPausedUntil && conv.botPausedUntil > clock.now;

@@ -1,0 +1,38 @@
+name: Com a IA ligada, Remarcar no lembrete remarca pela conversa
+ai: true
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - run_reminders: true
+  - button: "appt:{appointment}:reschedule"
+    title: "Remarcar"
+    model:
+      route: agenda
+      replies:
+        - tool: minhas_consultas
+        - tool: listar_horarios
+          input: { procedimento: "avaliação", a_partir_de: "2026-10-22" }
+        - text: "Claro! Achei sua avaliação de terça. Escolha o novo horário na lista abaixo."
+    expect:
+      list: true
+      contains: ["qui 22/10 08:00"]
+      handoff: false
+  - list: "slot:1"
+    title: "qui 22/10 08:00"
+    model:
+      replies:
+        - text: "Confirma mudar a avaliação para quinta-feira, 22/10 às 08:00?"
+  - patient: "sim"
+    model:
+      route: agenda
+      replies:
+        - tool: remarcar
+          input: { consulta: 1, opcao: 1 }
+        - text: "Feito! Sua avaliação agora é quinta-feira, 22/10 às 08:00."
+    expect:
+      contains: ["quinta-feira, 22/10 às 08:00"]
+      appointments: 1
+  # The new date gets its own reminder on Wednesday.
+  - advance_minutes: 2880
+  - run_reminders: true
+    expect:
+      contains: ["amanhã, quinta-feira, 22/10 às 08:00"]

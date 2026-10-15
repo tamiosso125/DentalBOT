@@ -113,4 +113,57 @@ describe("AgendaService", () => {
     const [appt] = await agenda.consultasDoPaciente({ patientId: p.id, from: now });
     expect(appt!.startsAt).toEqual(later.startsAt);
   });
+
+  it("confirms only the owner's upcoming appointment, idempotently", async () => {
+    const { agenda, repo } = setup();
+    const owner = await agenda.cadastrarPaciente({ name: "Dona", phone: "5511900000001" });
+    const other = await agenda.cadastrarPaciente({ name: "Outra", phone: "5511900000002" });
+    const [slot] = await agenda.listarHorarios({
+      procedureId: "proc_avaliacao",
+      from: "2026-10-20",
+      days: 1,
+    });
+    const { appointmentId } = await agenda.reservar({ patientId: owner.id, slot: slot! });
+
+    await expect(agenda.confirmar({ appointmentId, patientId: other.id })).rejects.toBeInstanceOf(
+      AppointmentNotFoundError,
+    );
+    expect(repo.appointments[0]!.status).toBe("PENDING_CONFIRMATION");
+
+    expect(await agenda.confirmar({ appointmentId, patientId: owner.id })).toEqual({
+      startsAt: slot!.startsAt,
+    });
+    await agenda.confirmar({ appointmentId, patientId: owner.id });
+    expect(repo.appointments[0]!.status).toBe("CONFIRMED");
+
+    // Moving it asks for confirmation again; a cancelled one cannot be confirmed.
+    const [, later] = await agenda.listarHorarios({
+      procedureId: "proc_avaliacao",
+      from: "2026-10-21",
+      days: 1,
+    });
+    await agenda.remarcar({ appointmentId, patientId: owner.id, slot: later! });
+    expect(repo.appointments[0]!.status).toBe("PENDING_CONFIRMATION");
+    await agenda.cancelar({ appointmentId, patientId: owner.id });
+    await expect(agenda.confirmar({ appointmentId, patientId: owner.id })).rejects.toBeInstanceOf(
+      AppointmentNotFoundError,
+    );
+  });
+
+  it("does not confirm an appointment that already started", async () => {
+    const repo = new InMemoryAgendaRepository(demoAgendaSeed("clinic_a"));
+    let clock = now;
+    const agenda = new AgendaService(repo, { now: () => clock });
+    const p = await agenda.cadastrarPaciente({ name: "Paciente", phone: "5511900000001" });
+    const [slot] = await agenda.listarHorarios({
+      procedureId: "proc_avaliacao",
+      from: "2026-10-20",
+      days: 1,
+    });
+    const { appointmentId } = await agenda.reservar({ patientId: p.id, slot: slot! });
+    clock = slot!.startsAt;
+    await expect(agenda.confirmar({ appointmentId, patientId: p.id })).rejects.toBeInstanceOf(
+      AppointmentNotFoundError,
+    );
+  });
 });

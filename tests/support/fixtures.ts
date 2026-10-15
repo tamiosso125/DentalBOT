@@ -7,6 +7,10 @@ import { QuoteBillingService } from "../../src/quotes/quote-billing.js";
 import { InMemoryQuoteRepository } from "../../src/quotes/quote-repository.js";
 import { QuoteService } from "../../src/quotes/quote-service.js";
 import { AgendaService } from "../../src/scheduling/agenda-service.js";
+import {
+  AppointmentReminders,
+  InMemoryAppointmentReminderRepository,
+} from "../../src/scheduling/appointment-reminders.js";
 import { demoAgendaSeed, InMemoryAgendaRepository } from "../../src/scheduling/memory-agenda.js";
 import {
   fakeAppEcho,
@@ -77,25 +81,44 @@ export function makeDeps(
     billing: new QuoteBillingService({ repo: quoteRepo, gateway: payments, logger: silentLogger }),
     now: () => clock.now,
   });
+  const agendaFor = async (clinicId: string) => (clinicId === CLINIC_ID ? agenda : null);
+  const appointmentReminders = new AppointmentReminders({
+    repo: new InMemoryAppointmentReminderRepository(agendaRepo, "Clínica Sorriso"),
+    channel,
+    store,
+    logger: silentLogger,
+  });
   const deps: HandlerDeps = {
     store,
     channel,
     logger: silentLogger,
     now: () => clock.now,
     quotes,
+    agendaFor,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
       ? {
           ai: {
             llm: opts.llm,
             store,
-            agendaFor: async (clinicId: string) => (clinicId === CLINIC_ID ? agenda : null),
+            agendaFor,
             logger: silentLogger,
           },
         }
       : {}),
   };
-  return { store, channel, clock, deps, agenda, agendaRepo, quotes, quoteRepo, payments };
+  return {
+    store,
+    channel,
+    clock,
+    deps,
+    agenda,
+    agendaRepo,
+    appointmentReminders,
+    quotes,
+    quoteRepo,
+    payments,
+  };
 }
 
 export const textPayload = (text: string, from = PATIENT) =>

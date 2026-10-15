@@ -1,0 +1,11 @@
+name: Confirmar no lembrete funciona com a recepção atendendo
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-20T09:00" }
+  - run_reminders: true
+  - patient: "oi, posso levar meu filho junto?"
+  - reception: "Pode sim, Maria!"
+  - button: "appt:{appointment}:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["está confirmada"]
+      appointment_status: CONFIRMED

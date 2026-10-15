@@ -177,16 +177,18 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id          String            @id @default(cuid())
-  clinicId    String
-  patientId   String
-  dentistId   String
-  procedureId String
-  startsAt    DateTime
-  endsAt      DateTime
-  status      AppointmentStatus @default(PENDING_CONFIRMATION)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  clinicId       String
+  patientId      String
+  dentistId      String
+  procedureId    String
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(PENDING_CONFIRMATION)
+  /// When the day-before reminder went out (cleared when the appointment moves).
+  reminderSentAt DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   clinic    Clinic    @relation(fields: [clinicId], references: [id])
   patient   Patient   @relation(fields: [patientId], references: [id])
@@ -195,6 +197,7 @@ model Appointment {
 
   @@index([dentistId, startsAt])
   @@index([patientId])
+  @@index([status, startsAt])
 }
 
 // ---------- Quotes and billing ----------

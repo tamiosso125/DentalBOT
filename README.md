@@ -28,6 +28,12 @@ AI_ATTENDANT_EFFORT=medium     # low | medium | high
 
 O roteador (Claude Haiku 5.5) classifica cada mensagem e o atendente (Claude Sonnet 5.5) agenda, remarca e cancela pela conversa, usando só as ferramentas de `src/ai/tools.ts`. Antes de ligar em produção, rode `pnpm eval --live`.
 
+Na véspera de cada consulta (entre 9h e 19h no fuso da clínica) o bot manda o template `lembrete_consulta` com os botões Confirmar e Remarcar. Confirmar marca a consulta como confirmada, mesmo com a recepção atendendo; Remarcar abre a remarcação pela conversa com a IA ligada, ou passa para a recepção. Consulta remarcada recebe um lembrete novo. Para mudar a frequência da verificação:
+
+```bash
+APPOINTMENT_REMINDER_INTERVAL_MINUTES=60   # 0 desliga
+```
+
 ## Orçamentos
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.

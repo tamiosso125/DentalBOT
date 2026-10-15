@@ -35,8 +35,12 @@ export interface AgendaRepository {
   insertAppointment(input: { patientId: string; slot: Slot }): Promise<string | null>;
   /** Same atomic overlap check, ignoring the appointment being moved. */
   moveAppointment(appointmentId: string, slot: Slot): Promise<boolean>;
-  appointmentOwner(appointmentId: string): Promise<{ patientId: string; status: string } | null>;
+  appointmentOwner(
+    appointmentId: string,
+  ): Promise<{ patientId: string; status: string; startsAt: Date } | null>;
   cancelAppointment(appointmentId: string): Promise<void>;
+  /** PENDING_CONFIRMATION -> CONFIRMED; any other status is left as is. */
+  confirmAppointment(appointmentId: string): Promise<void>;
   patientAppointments(patientId: string, from: Date): Promise<AppointmentInfo[]>;
   findPatientByPhone(phone: string): Promise<PatientRef | null>;
   createPatient(name: string, phone: string): Promise<PatientRef>;
@@ -146,6 +150,13 @@ export class AgendaService implements AgendaProvider {
     await this.repo.cancelAppointment(input.appointmentId);
   }
 
+  async confirmar(input: { appointmentId: string; patientId: string }) {
+    const owner = await this.assertOwner(input.appointmentId, input.patientId);
+    if (owner.startsAt <= this.now()) throw new AppointmentNotFoundError();
+    await this.repo.confirmAppointment(input.appointmentId);
+    return { startsAt: owner.startsAt };
+  }
+
   consultasDoPaciente(input: { patientId: string; from: Date }) {
     return this.repo.patientAppointments(input.patientId, input.from);
   }
@@ -162,6 +173,7 @@ export class AgendaService implements AgendaProvider {
     const owner = await this.repo.appointmentOwner(appointmentId);
     if (!owner || owner.patientId !== patientId || owner.status === "CANCELLED")
       throw new AppointmentNotFoundError();
+    return owner;
   }
 
   /** A slot must still be one we would offer now (working hours, notice, duration). */
