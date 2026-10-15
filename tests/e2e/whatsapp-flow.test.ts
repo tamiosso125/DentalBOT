@@ -70,6 +70,9 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
           name: "Paciente Exemplo",
           phoneHash: cipher.hash(PATIENT),
           phoneEncrypted: cipher.encrypt(PATIENT),
+          // Fictitious CPF from the test convention; Asaas needs one to bill.
+          cpfHash: cipher.hash("52998224725"),
+          cpfEncrypted: cipher.encrypt("52998224725"),
         },
       })
     ).id;
@@ -230,28 +233,36 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     expect(out.map((m) => m.kind)).toEqual(["document", "buttons"]);
     expect(out[0]!.bytes).toBeGreaterThan(1000);
 
-    // The patient approves: status, installments and the handoff land in Postgres.
+    // The patient approves: status and installments land in Postgres, each installment is
+    // billed in Asaas (mock) and the patient gets the first payment link.
+    await clearOutbox();
     await webhook(button(`quote:${id}:accept`, "Aprovar"));
     const quote = await until(async () => {
       const q = await app.db.quote.findUnique({ where: { id }, include: { installments: true } });
-      return q?.status === "ACCEPTED" && q;
+      return q?.status === "ACCEPTED" && q.installments.every((i) => i.status === "BILLED") && q;
     });
     expect(quote.installments.map((i) => i.amountCents).sort()).toEqual([350_00, 350_00]);
-    await until(async () => (await conversationOf(PATIENT))?.botPausedUntil);
+    const patient = await app.db.patient.findUniqueOrThrow({ where: { id: patientId } });
+    expect(patient.asaasCustomerId).toMatch(/^cus_mock_/);
+    const [reply] = await replies(1);
+    expect(reply!.body).toContain("Pix, boleto ou cartão");
+    expect((await conversationOf(PATIENT))!.botPausedUntil).toBeNull();
 
-    // The front desk billed installment 1 in Asaas; its payment webhook marks it paid.
+    // Asaas confirms installment 1 by webhook (matched by our installment id, too).
     const first = quote.installments.find((i) => i.number === 1)!;
-    await app.db.installment.update({
-      where: { id: first.id },
-      data: { asaasPaymentId: `pay_e2e_${id}`, status: "BILLED" },
-    });
     const asaas = await fetch(`${base}/webhooks/asaas`, {
       method: "POST",
       headers: { "content-type": "application/json", "asaas-access-token": ASAAS_TOKEN },
       body: JSON.stringify({
         id: `evt_e2e_${id}`,
         event: "PAYMENT_RECEIVED",
-        payment: { id: `pay_e2e_${id}`, status: "RECEIVED", value: 350, paymentDate: "2026-10-20" },
+        payment: {
+          id: first.asaasPaymentId,
+          status: "RECEIVED",
+          value: 350,
+          externalReference: first.id,
+          paymentDate: "2026-10-20",
+        },
       }),
     });
     expect(asaas.status).toBe(200);

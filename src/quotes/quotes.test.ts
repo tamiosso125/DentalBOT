@@ -11,6 +11,8 @@ import { detectIntent } from "../conversation/intents.js";
 import { CloudApiChannel, normalizeWebhook, toCloudApiBody } from "../whatsapp/index.js";
 import { formatCents } from "../lib/money.js";
 import { renderQuotePdf, splitInstallments } from "./quote-pdf.js";
+import { silentLogger } from "../lib/logger.js";
+import { QuoteBillingService } from "./quote-billing.js";
 import { addMonths, QuoteValidationError } from "./quote-service.js";
 
 const NEW_QUOTE = {
@@ -185,20 +187,102 @@ describe("quote buttons in the conversation", () => {
     expect(ctx.channel.outbox.map((m) => m.kind)).toEqual(["text", "document", "buttons"]);
   });
 
-  it("accepting records the installments and hands off to the front desk", async () => {
+  it("accepting records the installments, bills them in Asaas and sends the first link", async () => {
     const ctx = makeDeps();
     const id = await sentQuote(ctx);
     await tap(ctx, `quote:${id}:accept`);
     const stored = ctx.quoteRepo.quotes.find((q) => q.id === id)!;
     expect(stored.status).toBe("ACCEPTED");
-    expect(stored.installments).toEqual([
+    expect(
+      stored.installments.map(({ number, amountCents, dueDate }) => ({
+        number,
+        amountCents,
+        dueDate,
+      })),
+    ).toEqual([
       { number: 1, amountCents: 316_68, dueDate: "2026-10-22" },
       { number: 2, amountCents: 316_66, dueDate: "2026-11-22" },
       { number: 3, amountCents: 316_66, dueDate: "2026-12-22" },
     ]);
+
+    // One Asaas customer (by CPF) and one charge per installment, no procedure names.
+    expect(ctx.payments.customers).toMatchObject([
+      { cpfCnpj: "52998224725", externalReference: "patient_dev" },
+    ]);
+    expect(ctx.payments.charges.map((c) => [c.amountCents, c.dueDate, c.billingType])).toEqual([
+      [316_68, "2026-10-22", "UNDEFINED"],
+      [316_66, "2026-11-22", "UNDEFINED"],
+      [316_66, "2026-12-22", "UNDEFINED"],
+    ]);
+    expect(ctx.payments.charges[0]!.description).toBe("Parcela 1/3 - Clínica Sorriso");
+    expect(stored.installments.every((i) => i.status === "BILLED" && i.asaasPaymentId)).toBe(true);
+
+    const last = ctx.channel.outbox.at(-1)!;
+    expect(last.kind === "text" && last.body).toContain(ctx.payments.charges[0]!.invoiceUrl);
+    expect(last.kind === "text" && last.body).toContain("22/10/2026");
+    // Billed automatically: the bot stays on, no handoff.
+    const conv = await ctx.store.getOrCreateConversation(CLINIC_ID, PATIENT);
+    expect(conv.botPausedUntil).toBeNull();
+  });
+
+  it("without a CPF on file the front desk takes over the billing", async () => {
+    const ctx = makeDeps();
+    const id = await sentQuote(ctx, { ...NEW_QUOTE, patientId: "patient_other" });
+    await tap(ctx, `quote:${id}:accept`, OTHER_PATIENT);
+    expect(ctx.payments.charges).toEqual([]);
+    const last = ctx.channel.outbox.at(-1)!;
+    expect(last.kind === "text" && last.body).toContain("CPF");
+    const conv = await ctx.store.getOrCreateConversation(CLINIC_ID, OTHER_PATIENT);
+    expect(conv.botPausedUntil).not.toBeNull();
+  });
+
+  it("if Asaas fails the approval stays and the front desk is called", async () => {
+    const ctx = makeDeps();
+    const id = await sentQuote(ctx);
+    ctx.payments.createCharge = async () => {
+      throw new Error("Asaas POST /payments failed: HTTP 503 (?)");
+    };
+    await tap(ctx, `quote:${id}:accept`);
+    expect(ctx.quoteRepo.quotes.find((q) => q.id === id)!.status).toBe("ACCEPTED");
+    const last = ctx.channel.outbox.at(-1)!;
+    expect(last.kind === "text" && last.body).toContain("recepção vai te mandar a cobrança");
     const conv = await ctx.store.getOrCreateConversation(CLINIC_ID, PATIENT);
     expect(conv.botPausedUntil).not.toBeNull();
-    expect(ctx.channel.outbox.at(-1)).toMatchObject({ kind: "text" });
+  });
+
+  it("billing again after a crash reuses the Asaas customer and charges", async () => {
+    const ctx = makeDeps();
+    const id = await sentQuote(ctx);
+    await tap(ctx, `quote:${id}:accept`);
+    const billing = new QuoteBillingService({
+      repo: ctx.quoteRepo,
+      gateway: ctx.payments,
+      logger: silentLogger,
+    });
+    // As if the process died after Asaas created the charges but before we saved them.
+    const stored = ctx.quoteRepo.quotes.find((q) => q.id === id)!;
+    for (const i of stored.installments)
+      Object.assign(i, { status: "PENDING", asaasPaymentId: null });
+    const again = await billing.bill(CLINIC_ID, id);
+    expect(again.status).toBe("billed");
+    expect(ctx.payments.customers).toHaveLength(1);
+    expect(ctx.payments.charges).toHaveLength(3);
+    expect(stored.installments.map((i) => i.asaasPaymentId)).toEqual(
+      ctx.payments.charges.map((c) => c.id),
+    );
+  });
+
+  it("a quote fully covered by insurance has nothing to bill", async () => {
+    const ctx = makeDeps();
+    const id = await sentQuote(ctx, {
+      ...NEW_QUOTE,
+      items: [{ procedureId: "proc_avaliacao", coverage: "INSURANCE" as const }],
+      installmentCount: 1,
+    } as typeof NEW_QUOTE);
+    await tap(ctx, `quote:${id}:accept`);
+    expect(ctx.payments.charges).toEqual([]);
+    const last = ctx.channel.outbox.at(-1)!;
+    expect(last.kind === "text" && last.body).toContain("Não há valor particular");
   });
 
   it("a second tap does not answer twice", async () => {

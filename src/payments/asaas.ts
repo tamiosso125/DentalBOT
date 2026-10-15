@@ -6,7 +6,8 @@ import { z } from "zod";
  * cents; Asaas uses decimal reais, so conversion happens only here.
  */
 
-export type BillingType = "PIX" | "BOLETO" | "CREDIT_CARD";
+/** UNDEFINED lets the patient pick Pix, boleto or card on the Asaas invoice page. */
+export type BillingType = "PIX" | "BOLETO" | "CREDIT_CARD" | "UNDEFINED";
 
 export type CreateCustomerInput = {
   name: string;
@@ -36,7 +37,11 @@ export type Charge = {
 
 export interface PaymentsGateway {
   createCustomer(input: CreateCustomerInput): Promise<{ id: string }>;
+  /** Customer created earlier for this patient (retry after a crash), if any. */
+  findCustomer(externalReference: string): Promise<{ id: string } | null>;
   createCharge(input: CreateChargeInput): Promise<Charge>;
+  /** Charge created earlier for this installment (retry after a crash), if any. */
+  findCharge(externalReference: string): Promise<Charge | null>;
   getPixQrCode(chargeId: string): Promise<{ payload: string; encodedImage: string }>;
 }
 
@@ -90,6 +95,23 @@ export class AsaasHttpGateway implements PaymentsGateway {
     return { id: data.id };
   }
 
+  async findCustomer(externalReference: string) {
+    const page = await this.request<{ data: Array<{ id: string; deleted?: boolean }> }>(
+      "GET",
+      `/customers?externalReference=${encodeURIComponent(externalReference)}`,
+    );
+    const found = page.data.find((c) => !c.deleted);
+    return found ? { id: found.id } : null;
+  }
+
+  async findCharge(externalReference: string) {
+    const page = await this.request<{ data: Array<Charge & { deleted?: boolean }> }>(
+      "GET",
+      `/payments?externalReference=${encodeURIComponent(externalReference)}`,
+    );
+    return page.data.find((c) => !c.deleted) ?? null;
+  }
+
   async createCharge(input: CreateChargeInput) {
     return this.request<Charge>("POST", "/payments", {
       customer: input.customerId,
@@ -118,6 +140,15 @@ export class MockPaymentsGateway implements PaymentsGateway {
     const id = `cus_mock_${randomUUID().slice(0, 8)}`;
     this.customers.push({ ...input, id });
     return { id };
+  }
+
+  async findCustomer(externalReference: string) {
+    const c = this.customers.find((x) => x.externalReference === externalReference);
+    return c ? { id: c.id } : null;
+  }
+
+  async findCharge(externalReference: string) {
+    return this.charges.find((x) => x.externalReference === externalReference) ?? null;
   }
 
   async createCharge(input: CreateChargeInput) {

@@ -35,6 +35,8 @@ const expectation = z
     quote_status: z.enum(["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"]).optional(),
     /** Installments recorded for the last quote. */
     installments: z.number().int().nonnegative().optional(),
+    /** Asaas charges created so far (one per installment of an approved quote). */
+    charges: z.number().int().nonnegative().optional(),
     /** How the clinic's quote went out: inside the 24h window or by template. */
     sent_via: z.enum(["session", "template"]).optional(),
   })
@@ -87,6 +89,10 @@ export const caseSchema = z
     critical: z.boolean().default(false),
     /** true = the Claude orchestrator is on (scripted offline, real models with --live). */
     ai: z.boolean().default(false),
+    /** false = the case's patient has no CPF on file (Asaas cannot bill without one). */
+    patient_cpf: z.boolean().default(true),
+    /** true = every Asaas call fails, as if Asaas were down. */
+    asaas_down: z.boolean().default(false),
     steps: z.array(step).min(1),
   })
   .strict();
@@ -116,7 +122,21 @@ export async function runCase(
 ): Promise<CaseResult> {
   const scripted = c.ai && !opts.live ? new ScriptedLlm() : undefined;
   const llm: LlmClient | undefined = c.ai ? (scripted ?? new AnthropicLlm()) : undefined;
-  const { deps, channel, store, clock, agendaRepo, quotes, quoteRepo } = makeDeps({ llm });
+  const { deps, channel, store, clock, agendaRepo, quotes, quoteRepo, payments } = makeDeps({
+    llm,
+    patientCpf: c.patient_cpf ? undefined : null,
+  });
+  if (c.asaas_down) {
+    const down = async () => {
+      throw new Error("Asaas unavailable (eval)");
+    };
+    Object.assign(payments, {
+      createCustomer: down,
+      findCustomer: down,
+      createCharge: down,
+      findCharge: down,
+    });
+  }
   const failures: string[] = [];
   /** Button ids may say "{quote}" for the id of the last quote the clinic sent. */
   let quoteId = "";
@@ -207,6 +227,10 @@ export async function runCase(
     )
       failures.push(
         `${where}: ${quote?.installments.length ?? 0} parcela(s), esperado ${expect.installments}`,
+      );
+    if (expect.charges !== undefined && payments.charges.length !== expect.charges)
+      failures.push(
+        `${where}: ${payments.charges.length} cobrança(s) no Asaas, esperado ${expect.charges}`,
       );
     if (expect.sent_via !== undefined && sentVia !== expect.sent_via)
       failures.push(`${where}: orçamento enviado por ${sentVia}, esperado ${expect.sent_via}`);

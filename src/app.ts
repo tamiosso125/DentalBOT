@@ -17,6 +17,7 @@ import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-ev
 import { PrismaPanelQueries } from "./panel/panel-queries.js";
 import { FieldCipher } from "./privacy/index.js";
 import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
+import { QuoteBillingService } from "./quotes/quote-billing.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
 import { prismaAgendaFor } from "./scheduling/prisma-agenda.js";
@@ -49,11 +50,13 @@ export function createApp(env: Env, logger: Logger) {
   const conversationStore = new PrismaConversationStore(db, cipher, env.DEFAULT_CLINIC_ID);
   const paymentStore = new PrismaPaymentEventStore(db);
 
+  const quoteRepo = new PrismaQuoteRepository(db, cipher);
   const quotes = new QuoteService({
-    repo: new PrismaQuoteRepository(db, cipher),
+    repo: quoteRepo,
     channel,
     store: conversationStore,
     logger,
+    billing: new QuoteBillingService({ repo: quoteRepo, gateway: payments, logger }),
   });
 
   const ai: OrchestratorDeps | undefined =

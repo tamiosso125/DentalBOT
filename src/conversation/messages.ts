@@ -39,6 +39,21 @@ export const MESSAGES = {
   ],
   quoteAccepted:
     "Obrigado! Registramos a aprovação do seu orçamento. A recepção vai te mandar a cobrança por aqui.",
+  quoteAcceptedBilled: (amount: string, dueDate: string, url: string, remaining: number) =>
+    `Obrigado! Registramos a aprovação do seu orçamento. ` +
+    (remaining > 0
+      ? `A 1ª parcela, de ${amount}, vence em ${dueDate}. `
+      : `O pagamento, de ${amount}, vence em ${dueDate}. `) +
+    `Você pode pagar por Pix, boleto ou cartão neste link: ${url}` +
+    (remaining === 1
+      ? `\nA 2ª parcela já está registrada para o mês seguinte, e a recepção te envia o link dela.`
+      : remaining > 1
+        ? `\nAs outras ${remaining} parcelas já estão registradas, uma por mês, e a recepção te envia o link de cada uma.`
+        : ""),
+  quoteAcceptedNeedsCpf:
+    "Obrigado! Registramos a aprovação do seu orçamento. Para emitir a cobrança, a recepção vai te pedir o CPF do responsável pelo pagamento por aqui.",
+  quoteAcceptedNoCharge:
+    "Obrigado! Registramos a aprovação do seu orçamento. Não há valor particular a pagar; a recepção te chama para combinar os próximos passos.",
   quoteRejected:
     "Tudo bem, registramos que você não vai seguir com este orçamento. Se quiser conversar sobre outras opções, é só chamar a recepção por aqui.",
   quoteAlreadyAnswered: (status: "aprovado" | "não aprovado" | "vencido") =>

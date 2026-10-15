@@ -16,8 +16,10 @@ description: Use ao mexer em orçamentos, PDF do orçamento, itens, parcelas, Pi
 - `QuoteService.create` valida com Zod (`newQuoteSchema`) e checa clínica, dentista, paciente e procedimento. Preço vem da tabela (`Procedure.priceCents`) ou da dentista; item `INSURANCE` custa 0 e fica fora do total.
 - `send`: dentro da janela de 24 h manda o PDF (`document`, upload em `/media`) e os botões; fora dela só o template `orcamento_disponivel`, com payloads `quote:<id>:view` e `handoff`.
 - Botões `quote:<id>:view|accept|reject` (`detectIntent`) chegam a `handleAction`, que só atende o próprio paciente do orçamento (os outros recebem "não encontrei"). Funcionam mesmo com o bot pausado pela recepção.
-- `respond` só muda orçamento `SENT` (update condicional): toque duplo ou concorrente não grava duas vezes. Aceite cria as parcelas (`installmentPlan`: 1ª em hoje + 3 dias, depois mensais; resto dos centavos na 1ª) e passa para a recepção; vencido vira `EXPIRED` e vai para a recepção.
-- Ainda não automatizado: gerar a cobrança no Asaas depois do aceite e lembrar orçamentos sem resposta.
+- `respond` só muda orçamento `SENT` (update condicional): toque duplo ou concorrente não grava duas vezes. Aceite cria as parcelas (`installmentPlan`: 1ª em hoje + 3 dias, depois mensais; resto dos centavos na 1ª) ; vencido vira `EXPIRED` e vai para a recepção.
+- Depois do aceite, `QuoteBillingService` (`quote-billing.ts`) cria o cliente Asaas (CPF do paciente, `externalReference = Patient.id`) e uma cobrança por parcela (`billingType: UNDEFINED`, o paciente escolhe Pix, boleto ou cartão na fatura), marca a parcela `BILLED` e o bot manda o link da 1ª parcela. Antes de criar, procura por `externalReference` (retomada após falha não cobra duas vezes). A descrição é só `Parcela N/M - <clínica>`: nome de procedimento é dado de saúde e não vai para o Asaas.
+- Sem CPF no cadastro, com Asaas fora do ar ou orçamento só de convênio: a aprovação fica registrada, o paciente recebe aviso sem link e a recepção é chamada (handoff `quote:accepted:*`).
+- Ainda não automatizado: lembrete das próximas parcelas (template `cobranca_parcela`) e de orçamentos sem resposta.
 
 ## Asaas
 
@@ -30,6 +32,7 @@ description: Use ao mexer em orçamentos, PDF do orçamento, itens, parcelas, Pi
 
 - Autenticado pelo header `asaas-access-token` igual a `ASAAS_WEBHOOK_TOKEN` (comparação em tempo constante).
 - Idempotente por `event.id` (tabela `PaymentEvent`); o Asaas pode reenviar.
+- A parcela é achada pelo `asaasPaymentId` ou pelo `externalReference` (id da parcela), caso o pagamento chegue antes de gravarmos o id.
 - `PAYMENT_RECEIVED` e `PAYMENT_CONFIRMED` marcam a parcela como paga; `PAYMENT_OVERDUE` marca como vencida (nunca uma já paga).
 - O handler roda na fila; a rota só valida e enfileira.
 

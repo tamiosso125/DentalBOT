@@ -29,6 +29,21 @@ describe("Asaas gateway", () => {
     expect(JSON.parse(init.body as string).value).toBe(200);
   });
 
+  it("finds what a crashed run already created by externalReference", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) =>
+      String(url).includes("/customers")
+        ? Response.json({ data: [{ id: "cus_old", deleted: true }, { id: "cus_1" }] })
+        : Response.json({ data: [] }),
+    );
+    const gw = new AsaasHttpGateway("key_test", "https://api-sandbox.asaas.com/v3", fetchImpl);
+    expect(await gw.findCustomer("patient 1")).toEqual({ id: "cus_1" });
+    expect(await gw.findCharge("inst_1")).toBeNull();
+    expect(fetchImpl.mock.calls.map((c) => String(c[0]))).toEqual([
+      "https://api-sandbox.asaas.com/v3/customers?externalReference=patient%201",
+      "https://api-sandbox.asaas.com/v3/payments?externalReference=inst_1",
+    ]);
+  });
+
   it("mock gateway works without an account", async () => {
     const gw = new MockPaymentsGateway();
     const { id } = await gw.createCustomer({
