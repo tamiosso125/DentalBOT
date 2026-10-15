@@ -3,6 +3,13 @@
  * Fictitious data only. Prints DEFAULT_CLINIC_ID to put in .env.
  */
 import { PrismaClient } from "@prisma/client";
+import { FieldCipher } from "../src/privacy/index.js";
+
+try {
+  process.loadEnvFile(".env");
+} catch {
+  // No .env file: rely on the shell environment.
+}
 
 const db = new PrismaClient();
 
@@ -68,6 +75,27 @@ for (let weekday = 1; weekday <= 5; weekday++) {
       { dentistId: dentist.id, weekday, startMinute: 13 * 60, endMinute: 18 * 60 },
     ],
   });
+}
+
+// Demo patient for the quote API (POST /admin/quotes with patientId "patient_dev").
+// Needs the .env keys because the phone is stored encrypted.
+const { PII_ENCRYPTION_KEY, PII_HASH_SECRET } = process.env;
+if (PII_ENCRYPTION_KEY && PII_HASH_SECRET) {
+  const cipher = new FieldCipher(PII_ENCRYPTION_KEY, PII_HASH_SECRET);
+  const phone = "5511900000001";
+  await db.patient.upsert({
+    where: { id: "patient_dev" },
+    create: {
+      id: "patient_dev",
+      clinicId: clinic.id,
+      name: "Paciente Exemplo",
+      phoneHash: cipher.hash(phone),
+      phoneEncrypted: cipher.encrypt(phone),
+    },
+    update: {},
+  });
+} else {
+  console.warn("PII keys not set: skipped the demo patient.");
 }
 
 console.log(`Seed ok. DEFAULT_CLINIC_ID=${clinic.id}`);

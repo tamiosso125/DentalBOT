@@ -1,0 +1,22 @@
+name: Segundo toque no botão não muda a resposta do orçamento
+critical: true
+description: O paciente toca "Aprovar" duas vezes; as parcelas são criadas uma vez só.
+steps:
+  - patient: "oi"
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_extracao }
+        - { procedureId: proc_avaliacao, coverage: INSURANCE }
+      installmentCount: 2
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 2
+  - reception: "Oi Maria, já te mando o boleto."
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 2
+      contains: ["já está registrado como aprovado"]

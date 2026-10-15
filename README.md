@@ -26,6 +26,32 @@ AI_ATTENDANT_EFFORT=medium     # low | medium | high
 
 O roteador (Claude Haiku 5.5) classifica cada mensagem e o atendente (Claude Sonnet 5.5) agenda, remarca e cancela pela conversa, usando só as ferramentas de `src/ai/tools.ts`. Antes de ligar em produção, rode `pnpm eval --live`.
 
+## Orçamentos
+
+A dentista (por enquanto pela API; depois pelo painel) monta o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas e passa para a recepção mandar a cobrança.
+
+Ligue a API da equipe acrescentando ao `.env` um token (`openssl rand -hex 32`) e o id da clínica:
+
+```bash
+ADMIN_API_TOKEN=...
+DEFAULT_CLINIC_ID=clinic_dev
+```
+
+| Rota                          | O que faz                                                             |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `POST /admin/quotes`          | Cria o orçamento (itens da tabela ou com preço da dentista, parcelas) |
+| `GET /admin/quotes/:id`       | Mostra o orçamento e o status                                         |
+| `GET /admin/quotes/:id/pdf`   | Baixa o PDF                                                           |
+| `POST /admin/quotes/:id/send` | Envia ao paciente pelo WhatsApp                                       |
+
+Exemplo com o paciente fictício do seed:
+
+```bash
+curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TOKEN" \
+  -H "content-type: application/json" \
+  -d '{"patientId":"patient_dev","dentistId":"dentist_dev","items":[{"procedureId":"<id da limpeza>"}],"installmentCount":2}'
+```
+
 ## Verificações
 
 ```bash

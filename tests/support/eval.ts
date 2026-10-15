@@ -7,7 +7,14 @@ import { ScriptedLlm } from "../../src/ai/scripted-llm.js";
 import { handleWhatsAppEvent } from "../../src/conversation/handler.js";
 import { normalize } from "../../src/conversation/intents.js";
 import { normalizeWebhook, previewText } from "../../src/whatsapp/index.js";
-import { buttonPayload, echoPayload, listPayload, makeDeps, textPayload } from "./fixtures.js";
+import {
+  buttonPayload,
+  CLINIC_ID,
+  echoPayload,
+  listPayload,
+  makeDeps,
+  textPayload,
+} from "./fixtures.js";
 
 const expectation = z
   .object({
@@ -22,6 +29,14 @@ const expectation = z
     appointments: z.number().int().nonnegative().optional(),
     /** true = the bot sent a list of time slots in this step. */
     list: z.boolean().optional(),
+    /** true = the quote PDF went out in this step. */
+    document: z.boolean().optional(),
+    /** Status of the last quote after this step. */
+    quote_status: z.enum(["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"]).optional(),
+    /** Installments recorded for the last quote. */
+    installments: z.number().int().nonnegative().optional(),
+    /** How the clinic's quote went out: inside the 24h window or by template. */
+    sent_via: z.enum(["session", "template"]).optional(),
   })
   .strict();
 
@@ -47,6 +62,20 @@ const step = z.union([
   z.object({ button: z.string(), title: z.string(), ...turn }).strict(),
   z.object({ list: z.string(), title: z.string(), ...turn }).strict(),
   z.object({ reception: z.string() }).strict(),
+  /** The dentist creates and sends a quote (staff API) to the case's patient. */
+  z
+    .object({
+      clinic_sends_quote: z
+        .object({
+          items: z.array(z.record(z.string(), z.unknown())).min(1),
+          installmentCount: z.number().int().optional(),
+          validDays: z.number().int().optional(),
+          notes: z.string().optional(),
+        })
+        .strict(),
+      expect: expectation.optional(),
+    })
+    .strict(),
   z.object({ advance_minutes: z.number().int().positive() }).strict(),
 ]);
 
@@ -77,6 +106,9 @@ export function loadCases(dir: string): Array<{ file: string; data: Conversation
 
 export type RunOptions = { live?: boolean };
 
+type Step = ConversationCase["steps"][number];
+type Expectation = z.infer<typeof expectation>;
+
 export async function runCase(
   file: string,
   c: ConversationCase,
@@ -84,64 +116,104 @@ export async function runCase(
 ): Promise<CaseResult> {
   const scripted = c.ai && !opts.live ? new ScriptedLlm() : undefined;
   const llm: LlmClient | undefined = c.ai ? (scripted ?? new AnthropicLlm()) : undefined;
-  const { deps, channel, store, clock, agendaRepo } = makeDeps({ llm });
+  const { deps, channel, store, clock, agendaRepo, quotes, quoteRepo } = makeDeps({ llm });
   const failures: string[] = [];
+  /** Button ids may say "{quote}" for the id of the last quote the clinic sent. */
+  let quoteId = "";
+  let sentVia: string | undefined;
 
   for (const [i, s] of c.steps.entries()) {
     if ("advance_minutes" in s) {
       clock.now = new Date(clock.now.getTime() + s.advance_minutes * 60_000);
       continue;
     }
+    const where = `passo ${i + 1}`;
+    const before = channel.outbox.length;
+    if ("clinic_sends_quote" in s) {
+      const created = await quotes.create(CLINIC_ID, {
+        patientId: "patient_dev",
+        dentistId: "dentist_dev",
+        ...s.clinic_sends_quote,
+      });
+      quoteId = created.id;
+      sentVia = (await quotes.send(CLINIC_ID, quoteId)).via;
+    } else {
+      await deliver(s, where);
+    }
+    if ("reception" in s || !s.expect) continue;
+    check(s.expect, where, before);
+  }
+  return { file, name: c.name, critical: c.critical, failures };
+
+  async function deliver(
+    s: Exclude<Step, { advance_minutes: number } | { clinic_sends_quote: unknown }>,
+    where: string,
+  ) {
     const payload =
       "patient" in s
         ? textPayload(s.patient)
         : "button" in s
-          ? buttonPayload(s.button, s.title)
+          ? buttonPayload(s.button.replace("{quote}", quoteId), s.title)
           : "list" in s
             ? listPayload(s.list, s.title)
             : echoPayload(s.reception);
-    const where = `passo ${i + 1}`;
     if (scripted && "model" in s && s.model) {
       if (s.model.route) scripted.route(s.model.route);
       scripted.push(...s.model.replies);
     }
-    const before = channel.outbox.length;
     for (const e of normalizeWebhook(payload)) await handleWhatsAppEvent(e, deps);
     if (scripted && scripted.pending > 0) {
       failures.push(`${where}: ${scripted.pending} resposta(s) do modelo roteirizado não usada(s)`);
       scripted.clear();
     }
-    if ("reception" in s || !s.expect) continue;
+  }
 
+  function check(expect: Expectation, where: string, before: number) {
     const sent = channel.outbox.slice(before);
     const replies = sent.map(previewText);
     const reply = normalize(replies.join("\n"));
-    for (const want of s.expect.contains) {
+    for (const want of expect.contains) {
       if (!reply.includes(normalize(want)))
         failures.push(`${where}: resposta não contém "${want}"`);
     }
-    for (const bad of s.expect.not_contains) {
+    for (const bad of expect.not_contains) {
       if (reply.includes(normalize(bad))) failures.push(`${where}: resposta contém "${bad}"`);
     }
-    if (s.expect.silent === true && replies.length > 0)
+    if (expect.silent === true && replies.length > 0)
       failures.push(`${where}: bot respondeu, devia ficar em silêncio`);
-    if (s.expect.silent === false && replies.length === 0)
+    if (expect.silent === false && replies.length === 0)
       failures.push(`${where}: bot não respondeu`);
-    if (s.expect.list !== undefined && sent.some((m) => m.kind === "list") !== s.expect.list)
-      failures.push(`${where}: lista de horários esperada ${s.expect.list}`);
-    if (s.expect.appointments !== undefined) {
+    if (expect.list !== undefined && sent.some((m) => m.kind === "list") !== expect.list)
+      failures.push(`${where}: lista de horários esperada ${expect.list}`);
+    if (expect.appointments !== undefined) {
       const active = agendaRepo.appointments.filter((a) => a.status !== "CANCELLED").length;
-      if (active !== s.expect.appointments)
-        failures.push(
-          `${where}: ${active} consulta(s) na agenda, esperado ${s.expect.appointments}`,
-        );
+      if (active !== expect.appointments)
+        failures.push(`${where}: ${active} consulta(s) na agenda, esperado ${expect.appointments}`);
     }
-    if (s.expect.handoff !== undefined) {
+    if (expect.handoff !== undefined) {
       const conv = [...store.conversations.values()][0];
       const paused = !!conv?.botPausedUntil && conv.botPausedUntil > clock.now;
-      if (paused !== s.expect.handoff)
-        failures.push(`${where}: handoff esperado ${s.expect.handoff}, obtido ${paused}`);
+      if (paused !== expect.handoff)
+        failures.push(`${where}: handoff esperado ${expect.handoff}, obtido ${paused}`);
     }
+    const quote = quoteRepo.quotes.find((q) => q.id === quoteId);
+    if (expect.quote_status !== undefined && quote?.status !== expect.quote_status)
+      failures.push(
+        `${where}: orçamento ${quote?.status ?? "inexistente"}, esperado ${expect.quote_status}`,
+      );
+    if (
+      expect.installments !== undefined &&
+      (quote?.installments.length ?? 0) !== expect.installments
+    )
+      failures.push(
+        `${where}: ${quote?.installments.length ?? 0} parcela(s), esperado ${expect.installments}`,
+      );
+    if (expect.sent_via !== undefined && sentVia !== expect.sent_via)
+      failures.push(`${where}: orçamento enviado por ${sentVia}, esperado ${expect.sent_via}`);
+    if (
+      expect.document !== undefined &&
+      sent.some((m) => m.kind === "document") !== expect.document
+    )
+      failures.push(`${where}: PDF do orçamento esperado ${expect.document}`);
   }
-  return { file, name: c.name, critical: c.critical, failures };
 }

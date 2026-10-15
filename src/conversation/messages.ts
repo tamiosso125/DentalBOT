@@ -28,4 +28,22 @@ export const MESSAGES = {
     "Vou passar seu pedido de agendamento para a recepção, que confirma o melhor horário com você por aqui.",
   quoteSoon:
     "Vou passar seu pedido sobre orçamento ou pagamento para a recepção, que te responde por aqui.",
+  quoteIntro: (firstName: string, total: string, plan: string, validUntil: string | null) =>
+    `Olá, ${firstName}! Segue o orçamento do seu tratamento. Total particular: ${total} (${plan}).` +
+    (validUntil ? ` Válido até ${validUntil}.` : "") +
+    ` Você aprova?`,
+  quoteButtons: (quoteId: string) => [
+    { id: `quote:${quoteId}:accept`, title: "Aprovar" },
+    { id: `quote:${quoteId}:reject`, title: "Não aprovar" },
+    { id: "handoff", title: "Falar com a recepção" },
+  ],
+  quoteAccepted:
+    "Obrigado! Registramos a aprovação do seu orçamento. A recepção vai te mandar a cobrança por aqui.",
+  quoteRejected:
+    "Tudo bem, registramos que você não vai seguir com este orçamento. Se quiser conversar sobre outras opções, é só chamar a recepção por aqui.",
+  quoteAlreadyAnswered: (status: "aprovado" | "não aprovado" | "vencido") =>
+    `Este orçamento já está registrado como ${status}. Se precisar de algo, a recepção te ajuda por aqui.`,
+  quoteExpired: (validUntil: string) =>
+    `Este orçamento venceu em ${validUntil}. Já pedi para a recepção revisar e te enviar um novo.`,
+  quoteNotFound: "Não encontrei esse orçamento. Já chamei a recepção, que te responde em breve.",
 } as const;
