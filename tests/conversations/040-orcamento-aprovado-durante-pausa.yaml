@@ -1,0 +1,24 @@
+name: Botão do orçamento funciona com a recepção atendendo
+description: >
+  A recepção está na conversa (bot pausado) e manda o orçamento pelo painel. O toque em
+  "Aprovar" é resposta a algo que a clínica enviou, então é registrado mesmo na pausa.
+critical: true
+steps:
+  - patient: "oi, queria o orçamento do canal"
+  - reception: "Oi, Maria! A doutora já preparou, vou te mandar."
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_canal }
+    expect:
+      sent_via: session
+      document: true
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 1
+      charges: 1
+      contains: ["Registramos a aprovação", "O pagamento, de R$ 1.200,00"]
+  - patient: "valeu"
+    expect:
+      silent: true

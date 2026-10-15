@@ -1,0 +1,13 @@
+name: Botão "Falar com a recepção" do menu chama a recepção
+steps:
+  - patient: "oi"
+    expect:
+      contains: ["Falar com a recepção"]
+  - button: "handoff"
+    title: "Falar com a recepção"
+    expect:
+      contains: ["Vou chamar a recepção"]
+      handoff: true
+  - patient: "obrigada"
+    expect:
+      silent: true

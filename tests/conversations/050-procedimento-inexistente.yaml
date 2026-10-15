@@ -1,0 +1,16 @@
+name: Procedimento que a clínica não faz não abre a agenda
+description: listar_horarios devolve erro com a lista válida; nada é oferecido nem reservado.
+ai: true
+steps:
+  - patient: "quero colocar implante"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "implante" }
+        - text: "Não tenho implante na agenda por aqui. Posso marcar uma avaliação com a doutora para ela indicar o tratamento?"
+    expect:
+      list: false
+      appointments: 0
+      contains: ["avaliação"]
+      handoff: false

@@ -1,0 +1,14 @@
+name: Guarda bloqueia telefone inventado na resposta do modelo
+critical: true
+ai: true
+steps:
+  - patient: "qual o telefone da clínica?"
+    model:
+      route: info
+      replies:
+        - tool: info_clinica
+        - text: "Pode ligar no (11) 90000-0002 que a gente atende."
+    expect:
+      contains: ["recepção"]
+      not_contains: ["90000"]
+      handoff: true

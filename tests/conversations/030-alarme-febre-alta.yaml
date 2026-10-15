@@ -1,0 +1,9 @@
+name: Febre alta no primeiro contato vai direto para o pronto-socorro
+description: Na urgência o aviso de privacidade fica para depois; a orientação vem primeiro.
+critical: true
+steps:
+  - patient: "estou com febre alta desde ontem e o rosto inchado"
+    expect:
+      contains: ["pronto-socorro", "192"]
+      not_contains: ["política de privacidade", "Como posso ajudar"]
+      handoff: true

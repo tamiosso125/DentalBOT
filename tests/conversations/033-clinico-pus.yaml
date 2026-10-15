@@ -1,0 +1,8 @@
+name: Pus na gengiva vai para a recepção sem orientação clínica
+critical: true
+steps:
+  - patient: "tem pus saindo da minha gengiva"
+    expect:
+      contains: ["Não consigo dar orientações clínicas"]
+      not_contains: ["pronto-socorro"]
+      handoff: true

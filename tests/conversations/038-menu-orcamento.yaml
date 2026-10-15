@@ -1,0 +1,10 @@
+name: Botão de orçamento do menu passa o pedido para a recepção
+description: Orçamento novo depende da avaliação da dentista, então o bot não monta valores.
+steps:
+  - patient: "oi"
+  - button: "menu:orcamento"
+    title: "Orçamento/pagamento"
+    expect:
+      contains: ["orçamento ou pagamento", "recepção"]
+      not_contains: ["R$"]
+      handoff: true

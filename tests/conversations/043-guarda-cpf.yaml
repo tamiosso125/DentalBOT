@@ -1,0 +1,13 @@
+name: Guarda bloqueia CPF na resposta do modelo
+critical: true
+ai: true
+steps:
+  - patient: "vocês têm meu cadastro?"
+    model:
+      route: outro
+      replies:
+        - text: "Sim! Seu cadastro está com o CPF 529.982.247-25."
+    expect:
+      contains: ["recepção"]
+      not_contains: ["529.982", "52998224725"]
+      handoff: true
