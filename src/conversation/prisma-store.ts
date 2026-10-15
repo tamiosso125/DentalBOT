@@ -1,0 +1,79 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+import type { FieldCipher } from "../privacy/index.js";
+import type {
+  ClinicInfo,
+  ConversationPatch,
+  ConversationRecord,
+  ConversationStore,
+  NewMessage,
+} from "./store.js";
+
+export class PrismaConversationStore implements ConversationStore {
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly cipher: FieldCipher,
+    /** Single-clinic setup: used when the clinic has no phone_number_id configured yet. */
+    private readonly defaultClinicId?: string,
+  ) {}
+
+  async findClinicByPhoneNumberId(phoneNumberId: string): Promise<ClinicInfo | null> {
+    const clinic =
+      (await this.db.clinic.findUnique({ where: { whatsappPhoneNumberId: phoneNumberId } })) ??
+      (this.defaultClinicId
+        ? await this.db.clinic.findUnique({ where: { id: this.defaultClinicId } })
+        : null);
+    return clinic ? { id: clinic.id, name: clinic.name } : null;
+  }
+
+  async getOrCreateConversation(clinicId: string, contact: string): Promise<ConversationRecord> {
+    const contactHash = this.cipher.hash(contact);
+    const conv = await this.db.conversation.upsert({
+      where: { clinicId_contactHash: { clinicId, contactHash } },
+      create: { clinicId, contactHash, contactEncrypted: this.cipher.encrypt(contact) },
+      update: {},
+    });
+    return {
+      id: conv.id,
+      clinicId: conv.clinicId,
+      contact,
+      botPausedUntil: conv.botPausedUntil,
+      privacyNoticeAt: conv.privacyNoticeAt,
+      lastInboundAt: conv.lastInboundAt,
+      marketingOptOutAt: conv.marketingOptOutAt,
+    };
+  }
+
+  async hasMessage(waMessageId: string) {
+    return (await this.db.message.count({ where: { waMessageId } })) > 0;
+  }
+
+  async saveMessage(m: NewMessage) {
+    try {
+      await this.db.message.create({
+        data: {
+          conversationId: m.conversationId,
+          waMessageId: m.waMessageId,
+          direction: m.direction,
+          type: m.type,
+          bodyEncrypted: m.body === undefined ? null : this.cipher.encrypt(m.body),
+        },
+      });
+    } catch (err) {
+      // Meta retries webhooks; a duplicate wamid means we already stored it.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return;
+      throw err;
+    }
+  }
+
+  async updateConversation(id: string, patch: ConversationPatch) {
+    await this.db.conversation.update({ where: { id }, data: patch });
+  }
+
+  async updateMessageStatus(waMessageId: string, status: string) {
+    await this.db.message.updateMany({ where: { waMessageId }, data: { status } });
+  }
+
+  async createDataRequest(clinicId: string, conversationId: string) {
+    await this.db.dataSubjectRequest.create({ data: { clinicId, conversationId } });
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "dentalbot": {
+      "source": { "source": "directory", "path": "./" }
+    }
+  },
+  "enabledPlugins": {
+    "dentalbot-dev@dentalbot": true
+  },
+  "permissions": {
+    "deny": ["Read(./.env)", "Read(./.env.*)"]
+  }
+}

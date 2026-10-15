@@ -1,0 +1,9 @@
+name: Paciente pede para falar com a recepção
+steps:
+  - patient: "quero falar com um atendente"
+    expect:
+      contains: ["recepção"]
+      handoff: true
+  - patient: "?"
+    expect:
+      silent: true

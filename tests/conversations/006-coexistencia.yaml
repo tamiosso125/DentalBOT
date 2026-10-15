@@ -1,0 +1,12 @@
+name: Bot fica em silêncio quando a recepção responde pelo app e volta depois
+steps:
+  - patient: "oi"
+  - reception: "Olá! Sou a Ana, da recepção."
+  - patient: "queria marcar uma limpeza"
+    expect:
+      silent: true
+  - advance_minutes: 300
+  - patient: "oi, ainda estão aí?"
+    expect:
+      silent: false
+      contains: ["Como posso ajudar"]

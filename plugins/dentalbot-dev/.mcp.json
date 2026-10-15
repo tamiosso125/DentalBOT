@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "whatsapp-sandbox": {
+      "command": "pnpm",
+      "args": ["--silent", "sandbox:mcp"],
+      "env": {
+        "DENTALBOT_URL": "http://localhost:3000"
+      }
+    }
+  }
+}
