@@ -35,6 +35,10 @@ function stubPanel() {
     catalog: async (...a) => (calls.push(["catalog", ...a]), null),
     quotes: async (...a) => (calls.push(["quotes", ...a]), []),
     handoffs: async (...a) => (calls.push(["handoffs", ...a]), []),
+    attendance: async (...a) => (
+      calls.push(["attendance", ...a]),
+      { pending: [], month: { attended: 0, noShow: 0 } }
+    ),
   };
   return { panel, calls };
 }
@@ -434,6 +438,8 @@ describe("admin agenda API", () => {
       ["POST", "/admin/appointments"],
       ["POST", "/admin/appointments/a1/reschedule"],
       ["POST", "/admin/appointments/a1/cancel"],
+      ["POST", "/admin/appointments/a1/attendance"],
+      ["GET", "/admin/attendance"],
     ] as const) {
       expect((await app.inject({ method, url, payload: {} })).statusCode).toBe(401);
     }
@@ -473,9 +479,20 @@ describe("admin agenda API", () => {
     });
     expect(moved.json()).toEqual({ notified: false });
 
+    const early = await post(`/admin/appointments/${id}/attendance`, { attended: true });
+    expect(early.statusCode).toBe(409);
+    expect(early.json().error).toContain("depois do horário");
+
     expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(204);
     expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(404);
     expect(ctx.agendaRepo.appointments[0]!.status).toBe("CANCELLED");
+  });
+
+  it("reads pending attendance and the month's counts for the clinic", async () => {
+    const { app, panelCalls } = setup();
+    const res = await app.inject({ method: "GET", url: "/admin/attendance", headers: auth });
+    expect(res.json()).toEqual({ pending: [], month: { attended: 0, noShow: 0 } });
+    expect(panelCalls).toContainEqual(["attendance", CLINIC_ID, NOW]);
   });
 
   it("returns 404 for an appointment the panel query does not find", async () => {

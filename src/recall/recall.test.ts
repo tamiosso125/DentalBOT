@@ -143,6 +143,17 @@ describe("RecallService.run", () => {
 });
 
 describe("RecallService panel side", () => {
+  it("does not count a missed appointment as a visit", async () => {
+    const { ctx, maria, joao, visit } = await setup();
+    visit(maria.id, "proc_limpeza", "2026-05-12T13:00:00Z");
+    ctx.agendaRepo.appointments.at(-1)!.status = "NO_SHOW";
+    ctx.agendaRepo.appointments.find((a) => a.patientId === joao.id)!.status = "NO_SHOW";
+    const rows = (await ctx.recall.list(CLINIC_ID, TUESDAY)).rows;
+    expect(rows.map((r) => [r.patientName, r.lastVisitAt])).toEqual([
+      ["Maria Exemplo", "2026-03-10T13:00:00.000Z"],
+    ]);
+  });
+
   it("lists overdue patients with masked phones and their status", async () => {
     const { ctx, maria, consent } = await setup();
     await consent(maria.id);

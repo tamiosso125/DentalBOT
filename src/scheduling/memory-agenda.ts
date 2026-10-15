@@ -87,6 +87,11 @@ export class InMemoryAgendaRepository implements AgendaRepository {
     if (a?.status === "PENDING_CONFIRMATION") a.status = "CONFIRMED";
   }
 
+  async setAttendance(appointmentId: string, attended: boolean) {
+    const a = this.appointments.find((x) => x.id === appointmentId);
+    if (a && a.status !== "CANCELLED") a.status = attended ? "COMPLETED" : "NO_SHOW";
+  }
+
   async cancelAppointment(appointmentId: string) {
     const a = this.appointments.find((x) => x.id === appointmentId);
     if (a) a.status = "CANCELLED";

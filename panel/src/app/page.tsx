@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { noShowRate } from "@/lib/attendance";
 import {
   APPOINTMENT_STATUS,
   dateKey,
@@ -9,6 +10,7 @@ import {
   groupByDay,
 } from "@/lib/format";
 import Link from "next/link";
+import { markAttendance } from "./consultas/actions";
 import { Nav } from "./nav";
 
 export const dynamic = "force-dynamic";
@@ -18,21 +20,40 @@ const DAYS = 7;
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string; marcada?: string; remarcada?: string; cancelada?: string }>;
+  searchParams: Promise<{
+    de?: string;
+    marcada?: string;
+    remarcada?: string;
+    cancelada?: string;
+    presenca?: string;
+    aviso?: string;
+  }>;
 }) {
-  const { de, marcada, remarcada, cancelada } = await searchParams;
+  const { de, marcada, remarcada, cancelada, presenca, aviso } = await searchParams;
   const done = marcada ?? remarcada;
-  const notice = cancelada
-    ? "Consulta cancelada. O horário ficou livre."
-    : done
-      ? `Consulta ${marcada ? "marcada" : "remarcada"}.${
-          done === "avisado"
-            ? " O paciente recebeu o aviso pelo WhatsApp, com os botões Confirmar e Remarcar."
-            : ""
-        }`
-      : null;
+  const notice = aviso
+    ? aviso
+    : presenca
+      ? presenca === "faltou"
+        ? "Falta registrada."
+        : "Comparecimento registrado."
+      : cancelada
+        ? "Consulta cancelada. O horário ficou livre."
+        : done
+          ? `Consulta ${marcada ? "marcada" : "remarcada"}.${
+              done === "avisado"
+                ? " O paciente recebeu o aviso pelo WhatsApp, com os botões Confirmar e Remarcar."
+                : ""
+            }`
+          : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
-  const [rows, handoffs] = await Promise.all([api.agenda(from, DAYS), api.handoffs()]);
+  const [rows, handoffs, attendance] = await Promise.all([
+    api.agenda(from, DAYS),
+    api.handoffs(),
+    api.attendance(),
+  ]);
+  const back = de ? `/?de=${from}` : "/";
+  const rate = noShowRate(attendance.month);
   const days = groupByDay(rows);
   const shift = (n: number) => {
     const d = new Date(`${from}T12:00:00Z`);
@@ -75,6 +96,60 @@ export default async function AgendaPage({
             </div>
           </section>
         ) : null}
+
+        {attendance.pending.length > 0 ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Consultas sem marcação ({attendance.pending.length})</h2>
+            <p className="muted">
+              Já passaram do horário. Marque se o paciente veio: falta não conta como visita para o
+              retorno.
+            </p>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Quando</th>
+                    <th>Paciente</th>
+                    <th>Procedimento</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendance.pending.map((a) => (
+                    <tr key={a.id}>
+                      <td>{formatDateTime(a.startsAt)}</td>
+                      <td>
+                        {a.patientName}
+                        <div className="muted">final {a.patientPhone.slice(-4)}</div>
+                      </td>
+                      <td>{a.procedureName}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <form action={markAttendance.bind(null, a.id, true, back)}>
+                            <button type="submit">Compareceu</button>
+                          </form>
+                          <form action={markAttendance.bind(null, a.id, false, back)}>
+                            <button type="submit" className="secondary">
+                              Faltou
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Comparecimento neste mês</h2>
+          <p style={{ marginBottom: 0 }}>
+            {attendance.month.attended} atendidas · {attendance.month.noShow} faltas · taxa de falta{" "}
+            {rate === null ? "-" : `${rate}%`}
+          </p>
+        </section>
 
         <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
           <h1 style={{ margin: 0 }}>Agenda a partir de {formatDate(from)}</h1>
@@ -135,9 +210,13 @@ export default async function AgendaPage({
                           </span>
                         </td>
                         <td>
-                          {a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED" ? (
-                            <Link href={`/consultas/${encodeURIComponent(a.id)}`}>Alterar</Link>
-                          ) : null}
+                          {a.status === "CANCELLED" ? null : (
+                            <Link href={`/consultas/${encodeURIComponent(a.id)}`}>
+                              {a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED"
+                                ? "Alterar"
+                                : "Abrir"}
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}

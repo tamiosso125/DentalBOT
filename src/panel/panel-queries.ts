@@ -1,7 +1,7 @@
 import type { PrismaClient, QuoteStatus } from "@prisma/client";
 import { z } from "zod";
 import { maskPhone, normalizePhone, type FieldCipher } from "../privacy/index.js";
-import { addDays, zonedToUtc } from "../scheduling/time.js";
+import { addDays, dateInZone, zonedToUtc } from "../scheduling/time.js";
 
 /** Read side of the staff panel. Every query is scoped by clinic id. */
 
@@ -53,6 +53,12 @@ export type HandoffRow = {
   lastInboundAt: string | null;
 };
 
+/** Past appointments the front desk has not marked yet, and this month's attendance. */
+export type Attendance = {
+  pending: AgendaRow[];
+  month: { attended: number; noShow: number };
+};
+
 export const agendaQuerySchema = z.strictObject({
   from: z.iso.date(),
   days: z.coerce.number().int().min(1).max(31).default(7),
@@ -71,7 +77,17 @@ export interface PanelQueries {
   catalog(clinicId: string): Promise<Catalog | null>;
   quotes(clinicId: string, status?: QuoteStatus): Promise<QuoteRow[]>;
   handoffs(clinicId: string, now: Date): Promise<HandoffRow[]>;
+  attendance(clinicId: string, now: Date): Promise<Attendance>;
 }
+
+/** Unmarked appointments older than this stop showing up as pending. */
+const PENDING_DAYS = 30;
+
+const agendaInclude = {
+  patient: { select: { id: true, name: true, phoneEncrypted: true } },
+  procedure: { select: { name: true } },
+  dentist: { select: { name: true } },
+} as const;
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 const dateOnly = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -98,48 +114,79 @@ export class PrismaPanelQueries implements PanelQueries {
     const rows = await this.db.appointment.findMany({
       where: { clinicId, startsAt: { gte: from, lt: to } },
       orderBy: { startsAt: "asc" },
-      include: {
-        patient: { select: { id: true, name: true, phoneEncrypted: true } },
-        procedure: { select: { name: true } },
-        dentist: { select: { name: true } },
-      },
+      include: agendaInclude,
     });
-    return rows.map((a) => ({
-      id: a.id,
-      startsAt: a.startsAt.toISOString(),
-      endsAt: a.endsAt.toISOString(),
-      status: a.status,
-      procedureName: a.procedure.name,
-      dentistName: a.dentist.name,
-      patientId: a.patient.id,
-      patientName: a.patient.name,
-      patientPhone: this.phone(a.patient.phoneEncrypted),
-    }));
+    return rows.map((a) => this.agendaRow(a));
   }
 
-  async appointment(clinicId: string, id: string) {
-    const a = await this.db.appointment.findFirst({
-      where: { id, clinicId },
-      include: {
-        patient: { select: { id: true, name: true, phoneEncrypted: true } },
-        procedure: { select: { name: true } },
-        dentist: { select: { name: true } },
-      },
+  async attendance(clinicId: string, now: Date): Promise<Attendance> {
+    const clinic = await this.db.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
     });
-    if (!a) return null;
+    if (!clinic) return { pending: [], month: { attended: 0, noShow: 0 } };
+    const monthStart = zonedToUtc(
+      `${dateInZone(now, clinic.timezone).slice(0, 7)}-01`,
+      0,
+      clinic.timezone,
+    );
+    const [pending, counts] = await Promise.all([
+      this.db.appointment.findMany({
+        where: {
+          clinicId,
+          status: { in: ["PENDING_CONFIRMATION", "CONFIRMED"] },
+          startsAt: { gte: new Date(now.getTime() - PENDING_DAYS * 86_400_000), lt: now },
+        },
+        orderBy: { startsAt: "asc" },
+        take: 50,
+        include: agendaInclude,
+      }),
+      this.db.appointment.groupBy({
+        by: ["status"],
+        where: {
+          clinicId,
+          status: { in: ["COMPLETED", "NO_SHOW"] },
+          startsAt: { gte: monthStart, lt: now },
+        },
+        _count: true,
+      }),
+    ]);
+    const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
+    return {
+      pending: pending.map((a) => this.agendaRow(a)),
+      month: { attended: count("COMPLETED"), noShow: count("NO_SHOW") },
+    };
+  }
+
+  private agendaRow(a: {
+    id: string;
+    startsAt: Date;
+    endsAt: Date;
+    status: string;
+    procedure: { name: string };
+    dentist: { name: string };
+    patient: { id: string; name: string; phoneEncrypted: string };
+  }): AgendaRow {
     return {
       id: a.id,
       startsAt: a.startsAt.toISOString(),
       endsAt: a.endsAt.toISOString(),
       status: a.status,
-      procedureId: a.procedureId,
       procedureName: a.procedure.name,
-      dentistId: a.dentistId,
       dentistName: a.dentist.name,
       patientId: a.patient.id,
       patientName: a.patient.name,
       patientPhone: this.phone(a.patient.phoneEncrypted),
     };
+  }
+
+  async appointment(clinicId: string, id: string) {
+    const a = await this.db.appointment.findFirst({
+      where: { id, clinicId },
+      include: agendaInclude,
+    });
+    if (!a) return null;
+    return { ...this.agendaRow(a), procedureId: a.procedureId, dentistId: a.dentistId };
   }
 
   async patients(clinicId: string, q: string) {

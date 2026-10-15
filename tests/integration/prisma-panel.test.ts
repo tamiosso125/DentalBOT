@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPanelQueries } from "../../src/panel/panel-queries.js";
+import { PrismaAgendaRepository } from "../../src/scheduling/prisma-agenda.js";
 import { FieldCipher } from "../../src/privacy/index.js";
 
 // Runs only against a disposable database: TEST_DATABASE_URL=postgresql://... pnpm test
@@ -125,5 +126,41 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
       { contact: "***0021", patientName: "Maria Exemplo" },
     ]);
     expect(await panel.handoffs(clinicId, new Date("2026-10-19T17:00:00Z"))).toEqual([]);
+  });
+
+  it("lists unmarked past appointments and counts this month's attendance", async () => {
+    const now = new Date("2026-10-20T12:00:00Z"); // Tuesday 09:00 in São Paulo
+    const [first, second, third] = await panel.agenda(clinicId, { from: "2026-10-19", days: 2 });
+    // Unmarked for more than 30 days: no longer pending.
+    const old = await db.appointment.create({
+      data: {
+        clinicId,
+        patientId,
+        dentistId: (await db.dentist.findFirstOrThrow({ where: { clinicId, active: true } })).id,
+        procedureId: (await db.procedure.findFirstOrThrow({ where: { clinicId } })).id,
+        startsAt: new Date("2026-09-10T12:00:00Z"),
+        endsAt: new Date("2026-09-10T12:45:00Z"),
+      },
+    });
+    const before = await panel.attendance(clinicId, now);
+    expect(before.pending.map((a) => a.id)).toEqual([first!.id, second!.id, third!.id]);
+    expect(before.pending[0]!.patientPhone).toBe("***0021");
+    expect(before.month).toEqual({ attended: 0, noShow: 0 });
+
+    const repo = new PrismaAgendaRepository(db, cipher, clinicId, "America/Sao_Paulo");
+    await repo.setAttendance(first!.id, true);
+    await repo.setAttendance(second!.id, false);
+    await new PrismaAgendaRepository(db, cipher, otherClinicId, "America/Sao_Paulo").setAttendance(
+      third!.id,
+      true,
+    );
+    const after = await panel.attendance(clinicId, now);
+    expect(after.pending.map((a) => a.id)).toEqual([third!.id]);
+    expect(after.month).toEqual({ attended: 1, noShow: 1 });
+    expect(await panel.attendance(otherClinicId, now)).toEqual({
+      pending: [],
+      month: { attended: 0, noShow: 0 },
+    });
+    await db.appointment.delete({ where: { id: old.id } });
   });
 });

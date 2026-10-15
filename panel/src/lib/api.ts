@@ -1,4 +1,5 @@
 import "server-only";
+import type { Attendance } from "./attendance";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
 import type {
@@ -163,6 +164,13 @@ export const api = {
     }),
   cancelAppointment: async (id: string) => {
     await call(`/admin/appointments/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+  },
+  attendance: () => json<Attendance>("/admin/attendance"),
+  setAttendance: async (id: string, attended: boolean) => {
+    await call(`/admin/appointments/${encodeURIComponent(id)}/attendance`, {
+      method: "POST",
+      body: JSON.stringify({ attended }),
+    });
   },
   dataRequests: () => json<DataRequestRow[]>("/admin/data-requests"),
   resolveDataRequest: async (id: string) => {

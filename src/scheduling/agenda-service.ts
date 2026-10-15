@@ -41,6 +41,8 @@ export interface AgendaRepository {
   cancelAppointment(appointmentId: string): Promise<void>;
   /** PENDING_CONFIRMATION -> CONFIRMED; any other status is left as is. */
   confirmAppointment(appointmentId: string): Promise<void>;
+  /** Marks a past appointment COMPLETED or NO_SHOW (also corrects one already marked). */
+  setAttendance(appointmentId: string, attended: boolean): Promise<void>;
   patientAppointments(patientId: string, from: Date): Promise<AppointmentInfo[]>;
   findPatientByPhone(phone: string): Promise<PatientRef | null>;
   /** A patient of this clinic with the decrypted phone (wa_id), or null. */

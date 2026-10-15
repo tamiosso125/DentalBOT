@@ -102,6 +102,13 @@ export class PrismaAgendaRepository implements AgendaRepository {
     });
   }
 
+  async setAttendance(appointmentId: string, attended: boolean) {
+    await this.db.appointment.updateMany({
+      where: { id: appointmentId, clinicId: this.clinicId, status: { not: "CANCELLED" } },
+      data: { status: attended ? "COMPLETED" : "NO_SHOW" },
+    });
+  }
+
   async patientAppointments(patientId: string, from: Date): Promise<AppointmentInfo[]> {
     const rows = await this.db.appointment.findMany({
       where: { clinicId: this.clinicId, patientId, status: ACTIVE, startsAt: { gte: from } },
