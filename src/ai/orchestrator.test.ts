@@ -66,6 +66,31 @@ describe("orchestrator", () => {
     expect(JSON.stringify(toolResult.content)).toContain('"is_error":true');
   });
 
+  it("tells the attendant which plans cover each procedure", async () => {
+    const llm = new ScriptedLlm()
+      .route("info")
+      .push({ tool: "info_clinica", input: {} })
+      .push({ text: "A extração é coberta pela Odontoprev, com autorização prévia." });
+    const { deps } = makeDeps({ llm });
+    await deliver(textPayload("odontoprev cobre extração?"), deps);
+    const block = (llm.requests[2]!.messages.at(-1)!.content as Array<{ content?: unknown }>)[0]!;
+    const info = JSON.parse(String(block.content)) as {
+      procedimentos: Array<{ nome: string; coberto_pelos_convenios: unknown[] }>;
+      convenios_sem_tabela_de_cobertura: string[];
+    };
+    const byName = Object.fromEntries(
+      info.procedimentos.map((p) => [p.nome, p.coberto_pelos_convenios]),
+    );
+    expect(byName["Extração simples"]).toEqual([
+      { convenio: "Odontoprev", autorizacao_previa: true },
+    ]);
+    expect(byName["Limpeza (profilaxia)"]).toEqual([
+      { convenio: "Odontoprev", autorizacao_previa: false },
+    ]);
+    expect(byName["Tratamento de canal"]).toEqual([]);
+    expect(info.convenios_sem_tabela_de_cobertura).toEqual([]);
+  });
+
   it("links the patient record to the conversation after booking", async () => {
     const llm = new ScriptedLlm()
       .route("agenda")

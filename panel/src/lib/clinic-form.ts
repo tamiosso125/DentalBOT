@@ -34,6 +34,11 @@ export type SetupView = {
     priceCents: number | null;
     active: boolean;
   }>;
+  insurancePlans: Array<{
+    id: string;
+    name: string;
+    coverage: Array<{ procedureId: string; requiresAuthorization: boolean }>;
+  }>;
   blocks: Array<{
     id: string;
     dentistId: string;
@@ -159,6 +164,42 @@ export function priceInput(cents: number | null): string {
 
 export function describePrice(cents: number | null): string {
   return cents === null ? "Após avaliação" : formatCents(cents);
+}
+
+export function parsePlanForm(f: Form): Parsed<{ name: string }> {
+  const name = text(f, "name");
+  if (name.length < 2) return { errors: ["Informe o nome do convênio."] };
+  return { body: { name } };
+}
+
+export type CoverageBody = {
+  items: Array<{ procedureId: string; requiresAuthorization: boolean }>;
+};
+
+/** Checkbox names of the coverage table: `cover-<procedureId>` and `auth-<procedureId>`. */
+export const coverField = (procedureId: string, kind: "cover" | "auth") => `${kind}-${procedureId}`;
+
+/** Asking for prior authorization implies the plan covers the procedure. */
+export function parseCoverageForm(f: FormData): CoverageBody {
+  const ids = new Set<string>();
+  for (const key of f.keys()) {
+    const m = /^(cover|auth)-(.+)$/.exec(key);
+    if (m) ids.add(m[2]!);
+  }
+  return {
+    items: [...ids].map((id) => ({
+      procedureId: id,
+      requiresAuthorization: f.get(coverField(id, "auth")) !== null,
+    })),
+  };
+}
+
+/** "3 procedimentos cobertos, 1 com autorização prévia" for the plan list. */
+export function describeCoverage(coverage: CoverageBody["items"]): string {
+  if (!coverage.length) return "Cobertura não cadastrada: o bot diz que a recepção confirma";
+  const auth = coverage.filter((c) => c.requiresAuthorization).length;
+  const covered = `${coverage.length} procedimento${coverage.length > 1 ? "s" : ""} coberto${coverage.length > 1 ? "s" : ""}`;
+  return auth ? `${covered}, ${auth} com autorização prévia` : covered;
 }
 
 export type BlockBody = {

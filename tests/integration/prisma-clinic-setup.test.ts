@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { silentLogger } from "../../src/lib/logger.js";
+import { PrismaConversationStore } from "../../src/conversation/prisma-store.js";
 import { PrismaClinicSetup } from "../../src/panel/clinic-setup.js";
 import { FieldCipher } from "../../src/privacy/index.js";
 import { prismaAgendaFor } from "../../src/scheduling/prisma-agenda.js";
@@ -34,6 +35,8 @@ describe.skipIf(!url)("PrismaClinicSetup (Postgres)", () => {
     for (const id of [clinicId, otherClinicId]) {
       await db.appointment.deleteMany({ where: { clinicId: id } });
       await db.patient.deleteMany({ where: { clinicId: id } });
+      await db.insuranceCoverage.deleteMany({ where: { insurancePlan: { clinicId: id } } });
+      await db.insurancePlan.deleteMany({ where: { clinicId: id } });
       await db.scheduleBlock.deleteMany({ where: { dentist: { clinicId: id } } });
       await db.workingHours.deleteMany({ where: { dentist: { clinicId: id } } });
       await db.procedure.deleteMany({ where: { clinicId: id } });
@@ -48,6 +51,7 @@ describe.skipIf(!url)("PrismaClinicSetup (Postgres)", () => {
       clinic: null,
       dentists: [],
       procedures: [],
+      insurancePlans: [],
       blocks: [],
     });
     await expect(setup.createDentist(clinicId, { name: "Dra. Ana Exemplo" })).rejects.toMatchObject(
@@ -236,5 +240,47 @@ describe.skipIf(!url)("PrismaClinicSetup (Postgres)", () => {
     await expect(
       setup.updateDentist(clinicId, otherDentistId, { name: "Dr. Invasor" }),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("registers what each plan covers, which the bot reads from the clinic profile", async () => {
+    const planId = (await setup.createPlan(clinicId, { name: "Odontoprev" })).id;
+    await expect(setup.createPlan(clinicId, { name: "Odontoprev" })).rejects.toMatchObject({
+      status: 409,
+    });
+    const store = new PrismaConversationStore(db, cipher);
+    // No coverage table yet: the bot must not claim anything.
+    expect((await store.clinicProfile(clinicId))!.coverage).toEqual([]);
+
+    await setup.setCoverage(clinicId, planId, {
+      items: [{ procedureId, requiresAuthorization: true }],
+    });
+    expect((await setup.view(clinicId, NOW)).insurancePlans).toEqual([
+      { id: planId, name: "Odontoprev", coverage: [{ procedureId, requiresAuthorization: true }] },
+    ]);
+    expect(await store.clinicProfile(clinicId)).toMatchObject({
+      insurancePlans: ["Odontoprev"],
+      coverage: [{ plan: "Odontoprev", procedureId, requiresAuthorization: true }],
+    });
+
+    const otherProcedure = (
+      await db.procedure.create({
+        data: { clinicId: otherClinicId, name: "Limpeza", durationMinutes: 30 },
+      })
+    ).id;
+    await expect(
+      setup.setCoverage(clinicId, planId, { items: [{ procedureId: otherProcedure }] }),
+    ).rejects.toMatchObject({ status: 422 });
+    await expect(
+      setup.setCoverage(clinicId, planId, { items: [{ procedureId }, { procedureId }] }),
+    ).rejects.toMatchObject({ status: 422 });
+    await expect(setup.setCoverage(otherClinicId, planId, { items: [] })).rejects.toMatchObject({
+      status: 404,
+    });
+
+    await setup.updatePlan(clinicId, planId, { name: "Odontoprev Empresarial" });
+    await setup.setCoverage(clinicId, planId, { items: [] });
+    expect((await setup.view(clinicId, NOW)).insurancePlans).toEqual([
+      { id: planId, name: "Odontoprev Empresarial", coverage: [] },
+    ]);
   });
 });

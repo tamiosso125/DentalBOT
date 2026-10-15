@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  coverField,
   describeBlock,
+  describeCoverage,
   describeHours,
   formatClock,
   hourField,
@@ -8,7 +10,9 @@ import {
   parseClinicForm,
   parseClock,
   parseDentistForm,
+  parseCoverageForm,
   parseHoursForm,
+  parsePlanForm,
   parseProcedureForm,
   priceInput,
   rangesOf,
@@ -182,12 +186,15 @@ describe("setupGaps", () => {
       },
     ],
     procedures: [{ id: "p1", name: "Limpeza", durationMinutes: 45, priceCents: 0, active: true }],
+    insurancePlans: [],
     blocks: [],
   };
 
   it("lists what keeps the bot from booking", () => {
     expect(setupGaps(ready)).toEqual([]);
-    expect(setupGaps({ clinic: null, dentists: [], procedures: [], blocks: [] })).toEqual([
+    expect(
+      setupGaps({ clinic: null, dentists: [], procedures: [], insurancePlans: [], blocks: [] }),
+    ).toEqual([
       "Salve os dados da clínica.",
       "Cadastre a dentista.",
       "Cadastre pelo menos um procedimento.",
@@ -214,5 +221,48 @@ describe("describeBlock", () => {
     expect(at("2026-12-24T16:00:00Z", "2026-12-26T15:00:00Z")).toBe(
       "24/12/2026 13:00 a 26/12/2026 12:00",
     );
+  });
+});
+
+describe("insurance plan forms", () => {
+  it("requires the plan name", () => {
+    expect(parsePlanForm(form({ name: " Odontoprev " }))).toEqual({ body: { name: "Odontoprev" } });
+    expect(parsePlanForm(form({ name: "" }))).toEqual({ errors: ["Informe o nome do convênio."] });
+  });
+
+  it("reads the checked procedures, prior authorization counting as covered", () => {
+    expect(
+      parseCoverageForm(
+        form({
+          [coverField("p1", "cover")]: "on",
+          [coverField("p2", "cover")]: "on",
+          [coverField("p2", "auth")]: "on",
+          [coverField("p3", "auth")]: "on",
+          name: "ignored",
+        }),
+      ),
+    ).toEqual({
+      items: [
+        { procedureId: "p1", requiresAuthorization: false },
+        { procedureId: "p2", requiresAuthorization: true },
+        { procedureId: "p3", requiresAuthorization: true },
+      ],
+    });
+    expect(parseCoverageForm(form({}))).toEqual({ items: [] });
+  });
+
+  it("summarizes the coverage table", () => {
+    expect(describeCoverage([])).toBe(
+      "Cobertura não cadastrada: o bot diz que a recepção confirma",
+    );
+    expect(describeCoverage([{ procedureId: "p1", requiresAuthorization: false }])).toBe(
+      "1 procedimento coberto",
+    );
+    expect(
+      describeCoverage([
+        { procedureId: "p1", requiresAuthorization: false },
+        { procedureId: "p2", requiresAuthorization: true },
+      ]),
+    ).toBe("2 procedimentos cobertos, 1 com autorização prévia");
   });
 });

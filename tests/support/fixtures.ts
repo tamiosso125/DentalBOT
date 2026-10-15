@@ -47,6 +47,11 @@ export function makeDeps(
     phoneNumberId: PHONE_NUMBER_ID,
     address: "Rua Exemplo, 123 - São Paulo",
     insurancePlans: ["Odontoprev"],
+    coverage: [
+      { plan: "Odontoprev", procedureId: "proc_avaliacao", requiresAuthorization: false },
+      { plan: "Odontoprev", procedureId: "proc_limpeza", requiresAuthorization: false },
+      { plan: "Odontoprev", procedureId: "proc_extracao", requiresAuthorization: true },
+    ],
   });
   const channel = new SandboxChannel();
   const clock = { now: opts.now ?? new Date("2026-10-19T12:00:00Z") };

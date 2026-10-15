@@ -113,13 +113,27 @@ export class PrismaConversationStore implements ConversationStore {
   async clinicProfile(clinicId: string) {
     const clinic = await this.db.clinic.findUnique({
       where: { id: clinicId },
-      include: { insurancePlans: { select: { name: true }, orderBy: { name: "asc" } } },
+      include: {
+        insurancePlans: {
+          orderBy: { name: "asc" },
+          select: {
+            name: true,
+            coverages: {
+              where: { covered: true },
+              select: { procedureId: true, requiresAuthorization: true },
+            },
+          },
+        },
+      },
     });
     if (!clinic) return null;
     return {
       name: clinic.name,
       address: clinic.address,
       insurancePlans: clinic.insurancePlans.map((p) => p.name),
+      coverage: clinic.insurancePlans.flatMap((p) =>
+        p.coverages.map((c) => ({ plan: p.name, ...c })),
+      ),
     };
   }
 }
