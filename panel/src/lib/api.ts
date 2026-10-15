@@ -1,4 +1,5 @@
 import "server-only";
+import type { BlockBody, ProcedureBody, SetupView, WorkingWindow } from "./clinic-form";
 import { panelConfig } from "./config";
 
 /** Typed client for the DentalBOT staff API (/admin/*), called from the panel server. */
@@ -79,6 +80,8 @@ export type AnonymizeResult = {
   conversations: number;
   messages: number;
 };
+export type { SetupView } from "./clinic-form";
+
 /** Whose data: a registered patient, or a "MEUS DADOS" request from a conversation. */
 export type DataSubject = { kind: "patients" | "data-requests"; id: string };
 
@@ -163,4 +166,44 @@ export const api = {
     json<AnonymizeResult>(`/admin/${s.kind}/${encodeURIComponent(s.id)}/anonymize`, {
       method: "POST",
     }),
+  setup: () => json<SetupView>("/admin/setup"),
+  saveClinic: async (body: { name: string; address: string | null }) => {
+    await call("/admin/setup/clinic", { method: "PUT", body: JSON.stringify(body) });
+  },
+  createDentist: (body: { name: string; cro: string | null; active: boolean }) =>
+    json<{ id: string }>("/admin/setup/dentists", { method: "POST", body: JSON.stringify(body) }),
+  updateDentist: async (
+    id: string,
+    body: { name: string; cro: string | null; active: boolean },
+  ) => {
+    await call(`/admin/setup/dentists/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  saveHours: async (dentistId: string, body: { hours: WorkingWindow[] }) => {
+    await call(`/admin/setup/dentists/${encodeURIComponent(dentistId)}/hours`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  createProcedure: (body: ProcedureBody) =>
+    json<{ id: string }>("/admin/setup/procedures", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateProcedure: async (id: string, body: ProcedureBody) => {
+    await call(`/admin/setup/procedures/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  createBlock: (body: BlockBody) =>
+    json<{ id: string; appointments: number }>("/admin/setup/blocks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteBlock: async (id: string) => {
+    await call(`/admin/setup/blocks/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
 };

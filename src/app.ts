@@ -19,6 +19,7 @@ import {
 } from "./payments/installment-reminders.js";
 import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
 import { PrismaPanelQueries } from "./panel/panel-queries.js";
+import { PrismaClinicSetup } from "./panel/clinic-setup.js";
 import { PrismaPatientData } from "./panel/patient-data.js";
 import { FieldCipher } from "./privacy/index.js";
 import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
@@ -172,6 +173,7 @@ export function createApp(env: Env, logger: Logger) {
               logger,
             }),
             patientData: new PrismaPatientData(db, cipher),
+            setup: new PrismaClinicSetup(db, logger),
           }
         : undefined,
   });
