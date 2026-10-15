@@ -32,6 +32,13 @@ O roteador (Claude Haiku 5.5) classifica cada mensagem e o atendente (Claude Son
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.
 
+As parcelas seguintes recebem um lembrete com o link de pagamento pelo template `cobranca_parcela`, a partir de 3 dias antes do vencimento, uma vez só e entre 9h e 19h no fuso da clínica. Parcela já paga no Asaas não recebe lembrete. Ajustes opcionais no `.env`:
+
+```bash
+INSTALLMENT_REMINDER_DAYS=3                # dias antes do vencimento
+INSTALLMENT_REMINDER_INTERVAL_MINUTES=60   # de quanto em quanto tempo verifica; 0 desliga
+```
+
 Ligue a API da equipe acrescentando ao `.env` um token (`openssl rand -hex 32`) e o id da clínica:
 
 ```bash

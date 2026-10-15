@@ -13,6 +13,10 @@ import {
   type AsaasWebhookEvent,
   type PaymentsGateway,
 } from "./payments/asaas.js";
+import {
+  InstallmentReminders,
+  PrismaReminderRepository,
+} from "./payments/installment-reminders.js";
 import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
 import { PrismaPanelQueries } from "./panel/panel-queries.js";
 import { FieldCipher } from "./privacy/index.js";
@@ -58,6 +62,30 @@ export function createApp(env: Env, logger: Logger) {
     logger,
     billing: new QuoteBillingService({ repo: quoteRepo, gateway: payments, logger }),
   });
+
+  const reminders = new InstallmentReminders({
+    repo: new PrismaReminderRepository(db, cipher),
+    gateway: payments,
+    channel,
+    store: conversationStore,
+    logger,
+    config: { daysBefore: env.INSTALLMENT_REMINDER_DAYS },
+  });
+  const runReminders = () =>
+    reminders
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "reminders run failed",
+        ),
+      );
+  // In-process timer: every run is idempotent, so several instances are safe.
+  const reminderTimer =
+    env.INSTALLMENT_REMINDER_INTERVAL_MINUTES > 0
+      ? setInterval(runReminders, env.INSTALLMENT_REMINDER_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  reminderTimer?.unref();
 
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
@@ -114,11 +142,12 @@ export function createApp(env: Env, logger: Logger) {
   });
 
   async function close() {
+    if (reminderTimer) clearInterval(reminderTimer);
     await server.close();
     await whatsappQueue.close();
     await asaasQueue.close();
     await db.$disconnect();
   }
 
-  return { server, db, channel, payments, close };
+  return { server, db, channel, payments, reminders, close };
 }

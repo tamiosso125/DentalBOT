@@ -33,6 +33,8 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     WHATSAPP_MODE: "sandbox",
     ASAAS_ENV: "mock",
     AI_MODE: "off",
+    // The test runs the reminder job itself, with a fixed clock.
+    INSTALLMENT_REMINDER_INTERVAL_MINUTES: "0",
     PII_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
     PII_HASH_SECRET: randomBytes(32).toString("hex"),
     WHATSAPP_VERIFY_TOKEN: "e2e-verify-token-0000",
@@ -270,5 +272,22 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
       const i = await app.db.installment.findUnique({ where: { id: first.id } });
       return i?.status === "PAID";
     });
+
+    // Two days before installment 2 is due, the reminder job sends its link by template once.
+    const second = quote.installments.find((i) => i.number === 2)!;
+    const noonSaoPaulo = new Date(second.dueDate.getTime() - 2 * 86_400_000 + 15 * 3_600_000);
+    await clearOutbox();
+    expect((await app.reminders.run(noonSaoPaulo)).sent).toBe(1);
+    expect(await app.reminders.run(noonSaoPaulo)).toEqual({ sent: 0, skipped: 0 });
+    const reminders = await outbox();
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({
+      kind: "template",
+      template: "cobranca_parcela",
+      to: PATIENT,
+    });
+    expect(
+      (await app.db.installment.findUniqueOrThrow({ where: { id: second.id } })).reminderSentAt,
+    ).not.toBeNull();
   });
 });

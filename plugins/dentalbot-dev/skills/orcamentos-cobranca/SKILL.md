@@ -19,7 +19,8 @@ description: Use ao mexer em orçamentos, PDF do orçamento, itens, parcelas, Pi
 - `respond` só muda orçamento `SENT` (update condicional): toque duplo ou concorrente não grava duas vezes. Aceite cria as parcelas (`installmentPlan`: 1ª em hoje + 3 dias, depois mensais; resto dos centavos na 1ª) ; vencido vira `EXPIRED` e vai para a recepção.
 - Depois do aceite, `QuoteBillingService` (`quote-billing.ts`) cria o cliente Asaas (CPF do paciente, `externalReference = Patient.id`) e uma cobrança por parcela (`billingType: UNDEFINED`, o paciente escolhe Pix, boleto ou cartão na fatura), marca a parcela `BILLED` e o bot manda o link da 1ª parcela. Antes de criar, procura por `externalReference` (retomada após falha não cobra duas vezes). A descrição é só `Parcela N/M - <clínica>`: nome de procedimento é dado de saúde e não vai para o Asaas.
 - Sem CPF no cadastro, com Asaas fora do ar ou orçamento só de convênio: a aprovação fica registrada, o paciente recebe aviso sem link e a recepção é chamada (handoff `quote:accepted:*`).
-- Ainda não automatizado: lembrete das próximas parcelas (template `cobranca_parcela`) e de orçamentos sem resposta.
+- Lembrete das parcelas 2 em diante: `InstallmentReminders` (`src/payments/installment-reminders.ts`) roda de hora em hora no processo da API (`INSTALLMENT_REMINDER_INTERVAL_MINUTES`, 0 desliga), pega parcelas `BILLED` que vencem nos próximos `INSTALLMENT_REMINDER_DAYS` dias no fuso da clínica, só entre 9h e 19h, reserva com `Installment.reminderSentAt` (update condicional, um lembrete por parcela) e manda o template `cobranca_parcela` com o link atual do Asaas. Já paga no Asaas: não manda. Falha no envio: libera para a próxima rodada.
+- Ainda não automatizado: lembrete de orçamentos sem resposta e de parcela vencida.
 
 ## Asaas
 
