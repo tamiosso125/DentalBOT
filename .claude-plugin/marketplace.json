@@ -1,0 +1,11 @@
+{
+  "name": "dentalbot",
+  "owner": { "name": "Kaleryon" },
+  "plugins": [
+    {
+      "name": "dentalbot-dev",
+      "source": "./plugins/dentalbot-dev",
+      "description": "Ferramentas do Claude Code para desenvolver o DentalBOT."
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+import { PrismaClient } from "@prisma/client";
+import type { Env } from "./config/env.js";
+import { handleWhatsAppEvent } from "./conversation/handler.js";
+import { PrismaConversationStore } from "./conversation/prisma-store.js";
+import { buildServer } from "./http/server.js";
+import type { Logger } from "./lib/logger.js";
+import {
+  ASAAS_BASE_URL,
+  AsaasHttpGateway,
+  MockPaymentsGateway,
+  type AsaasWebhookEvent,
+  type PaymentsGateway,
+} from "./payments/asaas.js";
+import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
+import { FieldCipher } from "./privacy/index.js";
+import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
+import {
+  CloudApiChannel,
+  SandboxChannel,
+  type WhatsAppChannel,
+  type WhatsAppEvent,
+} from "./whatsapp/index.js";
+
+/** Wires real dependencies from the environment. Tests build their own graph instead. */
+export function createApp(env: Env, logger: Logger) {
+  const db = new PrismaClient();
+  const cipher = new FieldCipher(env.PII_ENCRYPTION_KEY, env.PII_HASH_SECRET);
+
+  const sandbox = env.WHATSAPP_MODE === "sandbox" ? new SandboxChannel() : undefined;
+  const channel: WhatsAppChannel =
+    sandbox ??
+    new CloudApiChannel({
+      accessToken: env.WHATSAPP_ACCESS_TOKEN!,
+      phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID!,
+      graphApiVersion: env.WHATSAPP_GRAPH_API_VERSION,
+    });
+
+  const payments: PaymentsGateway =
+    env.ASAAS_ENV === "mock"
+      ? new MockPaymentsGateway()
+      : new AsaasHttpGateway(env.ASAAS_API_KEY!, ASAAS_BASE_URL[env.ASAAS_ENV]);
+
+  const conversationStore = new PrismaConversationStore(db, cipher, env.DEFAULT_CLINIC_ID);
+  const paymentStore = new PrismaPaymentEventStore(db);
+
+  const makeQueue = <T>(name: string, handler: JobHandler<T>): JobQueue<T> =>
+    env.QUEUE_MODE === "redis"
+      ? new BullQueue<T>(name, env.REDIS_URL, handler, logger)
+      : new InMemoryQueue<T>(handler, logger);
+
+  const whatsappQueue = makeQueue<WhatsAppEvent>("whatsapp-events", (event) =>
+    handleWhatsAppEvent(event, {
+      store: conversationStore,
+      channel,
+      logger,
+      config: {
+        handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
+        privacyPolicyUrl: env.PRIVACY_POLICY_URL,
+      },
+    }),
+  );
+  const asaasQueue = makeQueue<AsaasWebhookEvent>("asaas-events", (event) =>
+    handleAsaasEvent(event, { store: paymentStore, logger }),
+  );
+
+  const server = buildServer({
+    logger,
+    whatsappQueue,
+    asaasQueue,
+    config: {
+      whatsappVerifyToken: env.WHATSAPP_VERIFY_TOKEN,
+      whatsappAppSecret: env.WHATSAPP_APP_SECRET,
+      asaasWebhookToken: env.ASAAS_WEBHOOK_TOKEN,
+    },
+    sandbox: env.NODE_ENV !== "production" ? sandbox : undefined,
+  });
+
+  async function close() {
+    await server.close();
+    await whatsappQueue.close();
+    await asaasQueue.close();
+    await db.$disconnect();
+  }
+
+  return { server, db, channel, payments, close };
+}

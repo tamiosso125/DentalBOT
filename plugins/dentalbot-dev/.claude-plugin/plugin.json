@@ -1,0 +1,7 @@
+{
+  "name": "dentalbot-dev",
+  "version": "0.1.0",
+  "description": "Skills, subagents, comandos, hooks e MCP servers para construir o DentalBOT (chatbot de WhatsApp para clínica odontológica).",
+  "author": { "name": "Kaleryon" },
+  "keywords": ["whatsapp", "odontologia", "lgpd", "asaas"]
+}

@@ -1,0 +1,350 @@
+// DentalBOT data model.
+// Sensitive fields (phone, CPF, insurance card, message bodies) are stored encrypted
+// (AES-256-GCM, see src/privacy/crypto.ts) with an HMAC hash column for lookups.
+// Never read or write them without going through src/privacy.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Clinic setup ----------
+
+model Clinic {
+  id                    String   @id @default(cuid())
+  name                  String
+  timezone              String   @default("America/Sao_Paulo")
+  whatsappPhoneNumberId String?  @unique
+  address               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  dentists       Dentist[]
+  procedures     Procedure[]
+  insurancePlans InsurancePlan[]
+  patients       Patient[]
+  appointments   Appointment[]
+  quotes         Quote[]
+  conversations  Conversation[]
+  dataRequests   DataSubjectRequest[]
+}
+
+model Dentist {
+  id        String   @id @default(cuid())
+  clinicId  String
+  name      String
+  cro       String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  clinic         Clinic          @relation(fields: [clinicId], references: [id])
+  workingHours   WorkingHours[]
+  scheduleBlocks ScheduleBlock[]
+  appointments   Appointment[]
+  quotes         Quote[]
+
+  @@index([clinicId])
+}
+
+model Procedure {
+  id              String  @id @default(cuid())
+  clinicId        String
+  name            String
+  durationMinutes Int
+  /// Private (particular) price, in cents. Null = price only after evaluation.
+  priceCents      Int?
+  active          Boolean @default(true)
+
+  clinic       Clinic              @relation(fields: [clinicId], references: [id])
+  coverages    InsuranceCoverage[]
+  appointments Appointment[]
+  quoteItems   QuoteItem[]
+
+  @@unique([clinicId, name])
+}
+
+model InsurancePlan {
+  id       String @id @default(cuid())
+  clinicId String
+  /// e.g. "Odontoprev"
+  name     String
+
+  clinic    Clinic              @relation(fields: [clinicId], references: [id])
+  coverages InsuranceCoverage[]
+  patients  Patient[]
+
+  @@unique([clinicId, name])
+}
+
+model InsuranceCoverage {
+  insurancePlanId       String
+  procedureId           String
+  covered               Boolean @default(true)
+  /// Prior authorization is done manually by the front desk on the insurer portal.
+  requiresAuthorization Boolean @default(false)
+
+  insurancePlan InsurancePlan @relation(fields: [insurancePlanId], references: [id])
+  procedure     Procedure     @relation(fields: [procedureId], references: [id])
+
+  @@id([insurancePlanId, procedureId])
+}
+
+model WorkingHours {
+  id          String @id @default(cuid())
+  dentistId   String
+  /// 0 = Sunday ... 6 = Saturday
+  weekday     Int
+  /// Minutes since midnight, clinic timezone.
+  startMinute Int
+  endMinute   Int
+
+  dentist Dentist @relation(fields: [dentistId], references: [id])
+
+  @@index([dentistId, weekday])
+}
+
+model ScheduleBlock {
+  id        String   @id @default(cuid())
+  dentistId String
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+
+  dentist Dentist @relation(fields: [dentistId], references: [id])
+
+  @@index([dentistId, startsAt])
+}
+
+// ---------- Patients and consent ----------
+
+model Patient {
+  id                     String    @id @default(cuid())
+  clinicId               String
+  name                   String
+  phoneHash              String
+  phoneEncrypted         String
+  cpfHash                String?
+  cpfEncrypted           String?
+  birthDate              DateTime? @db.Date
+  insurancePlanId        String?
+  insuranceCardEncrypted String?
+  asaasCustomerId        String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  clinic        Clinic         @relation(fields: [clinicId], references: [id])
+  insurancePlan InsurancePlan? @relation(fields: [insurancePlanId], references: [id])
+  consents      Consent[]
+  appointments  Appointment[]
+  quotes        Quote[]
+  conversations Conversation[]
+
+  @@unique([clinicId, phoneHash])
+  @@index([clinicId, cpfHash])
+}
+
+enum ConsentPurpose {
+  PRIVACY_NOTICE
+  MARKETING
+}
+
+model Consent {
+  id          String         @id @default(cuid())
+  patientId   String
+  purpose     ConsentPurpose
+  granted     Boolean
+  /// Version of the text the patient saw when granting/revoking.
+  textVersion String
+  createdAt   DateTime       @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, purpose, createdAt])
+}
+
+// ---------- Scheduling ----------
+
+enum AppointmentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  COMPLETED
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  clinicId    String
+  patientId   String
+  dentistId   String
+  procedureId String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      AppointmentStatus @default(PENDING_CONFIRMATION)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  clinic    Clinic    @relation(fields: [clinicId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [id])
+  dentist   Dentist   @relation(fields: [dentistId], references: [id])
+  procedure Procedure @relation(fields: [procedureId], references: [id])
+
+  @@index([dentistId, startsAt])
+  @@index([patientId])
+}
+
+// ---------- Quotes and billing ----------
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum CoverageType {
+  PRIVATE
+  INSURANCE
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  clinicId    String
+  patientId   String
+  dentistId   String
+  status      QuoteStatus @default(DRAFT)
+  totalCents  Int
+  validUntil  DateTime?   @db.Date
+  sentAt      DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  clinic       Clinic        @relation(fields: [clinicId], references: [id])
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  dentist      Dentist       @relation(fields: [dentistId], references: [id])
+  items        QuoteItem[]
+  installments Installment[]
+
+  @@index([clinicId, status])
+}
+
+model QuoteItem {
+  id             String       @id @default(cuid())
+  quoteId        String
+  procedureId    String?
+  description    String
+  quantity       Int          @default(1)
+  unitPriceCents Int
+  coverage       CoverageType @default(PRIVATE)
+
+  quote     Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  procedure Procedure? @relation(fields: [procedureId], references: [id])
+}
+
+enum InstallmentStatus {
+  PENDING
+  BILLED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PIX
+  BOLETO
+  CREDIT_CARD
+}
+
+model Installment {
+  id             String            @id @default(cuid())
+  quoteId        String
+  number         Int
+  amountCents    Int
+  dueDate        DateTime          @db.Date
+  status         InstallmentStatus @default(PENDING)
+  paymentMethod  PaymentMethod?
+  /// Asaas payment id (pay_...).
+  asaasPaymentId String?           @unique
+  paidAt         DateTime?
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, number])
+}
+
+/// Asaas webhook events already processed (Asaas may deliver the same event twice).
+model PaymentEvent {
+  id         String   @id
+  event      String
+  receivedAt DateTime @default(now())
+}
+
+// ---------- WhatsApp conversations ----------
+
+model Conversation {
+  id                String    @id @default(cuid())
+  clinicId          String
+  patientId         String?
+  contactHash       String
+  contactEncrypted  String
+  /// Bot stays silent until this moment (human handoff or front desk replying via the app).
+  botPausedUntil    DateTime?
+  /// Last patient message; free-form replies are only allowed within 24h of it.
+  lastInboundAt     DateTime?
+  privacyNoticeAt   DateTime?
+  /// Patient replied "PARAR": no marketing/recall messages until they opt in again.
+  marketingOptOutAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  clinic   Clinic    @relation(fields: [clinicId], references: [id])
+  patient  Patient?  @relation(fields: [patientId], references: [id])
+  messages Message[]
+
+  @@unique([clinicId, contactHash])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+  /// Sent by the front desk through the WhatsApp Business app (coexistence echo).
+  ECHO
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  waMessageId    String?          @unique
+  direction      MessageDirection
+  type           String
+  bodyEncrypted  String?
+  status         String?
+  createdAt      DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+enum DataRequestStatus {
+  OPEN
+  DONE
+}
+
+/// LGPD data subject requests ("MEUS DADOS").
+model DataSubjectRequest {
+  id             String            @id @default(cuid())
+  clinicId       String
+  conversationId String
+  status         DataRequestStatus @default(OPEN)
+  createdAt      DateTime          @default(now())
+  resolvedAt     DateTime?
+
+  clinic Clinic @relation(fields: [clinicId], references: [id])
+}

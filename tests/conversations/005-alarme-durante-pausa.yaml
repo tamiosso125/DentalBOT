@@ -1,0 +1,11 @@
+name: Alarme é respondido mesmo com a recepção atendendo
+critical: true
+steps:
+  - patient: "oi"
+  - reception: "Oi! Aqui é a recepção, já te ajudo."
+  - patient: "ok"
+    expect:
+      silent: true
+  - patient: "caí e quebrei o dente, está sangrando muito e não para"
+    expect:
+      contains: ["pronto-socorro"]

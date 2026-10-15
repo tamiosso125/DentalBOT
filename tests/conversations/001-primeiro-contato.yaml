@@ -1,0 +1,11 @@
+name: Primeiro contato recebe aviso de privacidade e menu
+critical: true
+steps:
+  - patient: "Boa tarde"
+    expect:
+      contains: ["assistente virtual", "política de privacidade", "PARAR", "Agendar consulta"]
+      handoff: false
+  - patient: "oi"
+    expect:
+      not_contains: ["política de privacidade"]
+      contains: ["Como posso ajudar"]

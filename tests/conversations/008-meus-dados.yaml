@@ -1,0 +1,6 @@
+name: MEUS DADOS abre pedido do titular (LGPD)
+critical: true
+steps:
+  - patient: "meus dados"
+    expect:
+      contains: ["acesso, correção ou exclusão"]

@@ -1,0 +1,7 @@
+name: PARAR registra descadastro de marketing
+critical: true
+steps:
+  - patient: "PARAR"
+    expect:
+      contains: ["não vai mais receber"]
+      handoff: false

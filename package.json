@@ -1,0 +1,58 @@
+{
+  "name": "dentalbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chatbot de WhatsApp para clínica odontológica: agendamento, orçamentos e cobrança.",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval": "tsx scripts/run-eval.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "sandbox:mcp": "tsx tools/mcp/whatsapp-sandbox.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "bullmq": "5.63.0",
+    "fastify": "5.6.2",
+    "ioredis": "5.8.2",
+    "pino": "10.1.0",
+    "yaml": "2.8.1",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@types/node": "22.19.1",
+    "eslint": "9.39.1",
+    "prettier": "3.6.2",
+    "prisma": "6.19.3",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.4",
+    "vitest": "3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "msgpackr-extract"
+    ]
+  }
+}

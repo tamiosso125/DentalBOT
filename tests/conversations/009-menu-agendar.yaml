@@ -1,0 +1,8 @@
+name: Botão de agendar encaminha para a recepção (até o fluxo de agenda ficar pronto)
+steps:
+  - patient: "oi"
+  - button: "menu:agendar"
+    title: "Agendar consulta"
+    expect:
+      contains: ["agendamento"]
+      handoff: true
