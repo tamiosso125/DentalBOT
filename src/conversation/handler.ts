@@ -81,11 +81,12 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const paused = conv.botPausedUntil !== null && conv.botPausedUntil > now();
 
   // Emergencies always get the safety message, even while a human is handling the chat.
-  // Quote buttons and "Confirmar" on a reminder are deterministic answers to something the
-  // clinic sent, so they are recorded even then. "Remarcar" needs a conversation, which is
-  // the front desk's while it is in the chat.
+  // Quote buttons, "Confirmar" on a reminder and opting out are deterministic answers to
+  // something the clinic sent, so they are recorded even then. "Remarcar" and "Quero agendar"
+  // need a conversation, which is the front desk's while it is in the chat.
   const answersClinic =
     intent.kind === "quote_action" ||
+    intent.kind === "opt_out" ||
     (intent.kind === "appointment_action" && intent.action === "confirm");
   if (paused && intent.kind !== "emergency" && !answersClinic) {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
@@ -133,6 +134,18 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
     }
     case "appointment_action":
       return appointmentAction(conv, clinic, intent.appointmentId, intent.action, deps, now());
+    case "recall_schedule":
+      if (deps.ai)
+        return aiTurn(
+          conv,
+          clinic,
+          "Quero agendar uma consulta de retorno",
+          undefined,
+          deps,
+          now(),
+        );
+      await send({ kind: "text", to: conv.contact, body: MESSAGES.schedulingSoon });
+      return handoff(conv, "recall:schedule", deps, now());
     case "menu_choice":
       if (deps.ai && intent.choice === "agendar")
         return aiTurn(conv, clinic, "Quero agendar uma consulta", undefined, deps, now());

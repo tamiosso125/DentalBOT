@@ -12,6 +12,8 @@ export type Intent =
   | { kind: "menu_choice"; choice: MenuChoice }
   | { kind: "quote_action"; quoteId: string; action: QuoteAction }
   | { kind: "appointment_action"; appointmentId: string; action: AppointmentAction }
+  /** Buttons of the recall invitation (convite_retorno). */
+  | { kind: "recall_schedule" }
   | { kind: "other" };
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
@@ -52,6 +54,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
   if (replyId === "menu:orcamento") return { kind: "menu_choice", choice: "orcamento" };
   if (replyId === "menu:info") return { kind: "menu_choice", choice: "info" };
   if (replyId === "handoff") return { kind: "human" };
+  if (replyId === "recall:schedule") return { kind: "recall_schedule" };
+  if (replyId === "recall:stop") return { kind: "opt_out" };
   const quote = replyId?.match(QUOTE_REPLY);
   if (quote) return { kind: "quote_action", quoteId: quote[1]!, action: quote[2] as QuoteAction };
   const appt = replyId?.match(APPOINTMENT_REPLY);

@@ -1,0 +1,28 @@
+name: PARAR ou "Não quero receber" bloqueiam o convite de retorno
+critical: true
+description: >
+  Marketing só com consentimento e respeitando o PARAR. Um PARAR depois do consentimento
+  bloqueia o convite até a recepção registrar um consentimento novo; o botão de saída do
+  convite tem o mesmo efeito.
+steps:
+  - past_visit: { procedureId: proc_avaliacao, at: "2026-02-03T10:00" }
+  - clinic_records_consent: true
+  - advance_minutes: 60
+  - patient: "PARAR"
+    expect:
+      contains: ["não vai mais receber lembretes de retorno"]
+  - advance_minutes: 1380
+  - run_recall: true
+    expect:
+      silent: true
+  # The patient asked again at the front desk.
+  - clinic_records_consent: true
+  - advance_minutes: 5
+  - run_recall: true
+    expect:
+      contains: ["Olá, Maria"]
+  - button: "recall:stop"
+    title: "Não quero receber"
+    expect:
+      contains: ["não vai mais receber lembretes de retorno"]
+      handoff: false

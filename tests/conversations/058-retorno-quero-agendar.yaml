@@ -1,0 +1,23 @@
+name: Convite de retorno chega na terça e "Quero agendar" passa para a recepção
+description: >
+  Maria fez limpeza em março e aceitou na recepção receber convites de retorno. O job roda toda
+  hora, mas só manda na terça de manhã, uma vez por última visita. Sem IA, o pedido vai para a recepção.
+steps:
+  - past_visit: { procedureId: proc_limpeza, at: "2026-03-10T10:00" }
+  - clinic_records_consent: true
+  # Monday: outside the weekly window.
+  - run_recall: true
+    expect:
+      silent: true
+  - advance_minutes: 1440
+  - run_recall: true
+    expect:
+      contains: ["Olá, Maria", "última consulta na Clínica Sorriso", "retorno"]
+  - run_recall: true
+    expect:
+      silent: true
+  - button: "recall:schedule"
+    title: "Quero agendar"
+    expect:
+      contains: ["agendamento", "recepção"]
+      handoff: true

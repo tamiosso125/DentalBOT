@@ -49,6 +49,15 @@ export const TEMPLATES = {
     body: "Olá, {{1}}. A parcela {{2}} do seu tratamento, no valor de {{3}}, vence em {{4}}. Para pagar, acesse: {{5}}",
     params: ["primeiro_nome", "parcela", "valor", "vencimento", "link_pagamento"],
   },
+  /** Marketing: only to patients with a recorded consent who did not reply "PARAR" since. */
+  convite_retorno: {
+    name: "convite_retorno",
+    category: "MARKETING",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Já faz um tempo desde a sua última consulta na {{2}}. Que tal marcar o seu retorno para manter o sorriso em dia?",
+    params: ["primeiro_nome", "clinica"],
+    buttons: ["Quero agendar", "Não quero receber"],
+  },
 } as const satisfies Record<string, TemplateDefinition>;
 
 export type TemplateName = keyof typeof TEMPLATES;

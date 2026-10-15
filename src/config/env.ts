@@ -40,6 +40,10 @@ export const envSchema = z
     INSTALLMENT_REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
     /// How often the day-before appointment reminder job runs, in minutes. 0 turns it off.
     APPOINTMENT_REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+    /// Months since the last visit before the recall invitation (patients with consent only).
+    RECALL_AFTER_MONTHS: z.coerce.number().int().min(1).max(24).default(6),
+    /// How often the recall job checks, in minutes (it only sends on Tuesdays 9h–12h). 0 turns it off.
+    RECALL_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
 
     /// "off" = deterministic menu only; "anthropic" = router + attendant via the Claude API.
     AI_MODE: z.enum(["off", "anthropic"]).default("off"),

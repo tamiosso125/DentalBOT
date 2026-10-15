@@ -1,0 +1,13 @@
+name: Sem consentimento registrado, o convite de retorno não sai
+critical: true
+steps:
+  - past_visit: { procedureId: proc_limpeza, at: "2026-03-10T10:00" }
+  - advance_minutes: 1440
+  - run_recall: true
+    expect:
+      silent: true
+  - clinic_records_consent: true
+  - clinic_records_consent: false
+  - run_recall: true
+    expect:
+      silent: true

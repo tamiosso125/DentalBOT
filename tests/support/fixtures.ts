@@ -12,6 +12,8 @@ import {
   AppointmentReminders,
   InMemoryAppointmentReminderRepository,
 } from "../../src/scheduling/appointment-reminders.js";
+import { InMemoryRecallRepository } from "../../src/recall/memory-recall.js";
+import { RecallService } from "../../src/recall/recall.js";
 import { demoAgendaSeed, InMemoryAgendaRepository } from "../../src/scheduling/memory-agenda.js";
 import {
   fakeAppEcho,
@@ -94,6 +96,8 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
+  const recallRepo = new InMemoryRecallRepository(agendaRepo, store, "Clínica Sorriso");
+  const recall = new RecallService({ repo: recallRepo, channel, store, logger: silentLogger });
   const staffAgenda = new StaffAgenda({
     open: async (clinicId) =>
       clinicId === CLINIC_ID
@@ -135,6 +139,8 @@ export function makeDeps(
     agenda,
     agendaRepo,
     appointmentReminders,
+    recall,
+    recallRepo,
     staffAgenda,
     quotes,
     quoteRepo,

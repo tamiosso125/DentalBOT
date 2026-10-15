@@ -1,0 +1,20 @@
+name: Com a IA ligada, "Quero agendar" no convite de retorno oferece horários
+ai: true
+steps:
+  - past_visit: { procedureId: proc_limpeza, at: "2026-03-10T10:00" }
+  - clinic_records_consent: true
+  - advance_minutes: 1440
+  - run_recall: true
+    expect:
+      contains: ["Olá, Maria"]
+  - button: "recall:schedule"
+    title: "Quero agendar"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "limpeza", a_partir_de: "2026-10-22" }
+        - text: "Que bom! Escolha um horário para a sua limpeza na lista abaixo."
+    expect:
+      list: true
+      handoff: false
