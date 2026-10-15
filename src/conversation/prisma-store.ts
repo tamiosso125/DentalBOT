@@ -40,6 +40,8 @@ export class PrismaConversationStore implements ConversationStore {
       privacyNoticeAt: conv.privacyNoticeAt,
       lastInboundAt: conv.lastInboundAt,
       marketingOptOutAt: conv.marketingOptOutAt,
+      patientId: conv.patientId,
+      agentState: conv.agentState,
     };
   }
 
@@ -56,6 +58,7 @@ export class PrismaConversationStore implements ConversationStore {
           direction: m.direction,
           type: m.type,
           bodyEncrypted: m.body === undefined ? null : this.cipher.encrypt(m.body),
+          ...(m.at ? { createdAt: m.at } : {}),
         },
       });
     } catch (err) {
@@ -66,7 +69,19 @@ export class PrismaConversationStore implements ConversationStore {
   }
 
   async updateConversation(id: string, patch: ConversationPatch) {
-    await this.db.conversation.update({ where: { id }, data: patch });
+    const { agentState, ...rest } = patch;
+    await this.db.conversation.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(agentState === undefined
+          ? {}
+          : {
+              agentState:
+                agentState === null ? Prisma.DbNull : (agentState as Prisma.InputJsonValue),
+            }),
+      },
+    });
   }
 
   async updateMessageStatus(waMessageId: string, status: string) {
@@ -75,5 +90,32 @@ export class PrismaConversationStore implements ConversationStore {
 
   async createDataRequest(clinicId: string, conversationId: string) {
     await this.db.dataSubjectRequest.create({ data: { clinicId, conversationId } });
+  }
+
+  async recentMessages(conversationId: string, since: Date, limit: number) {
+    const rows = await this.db.message.findMany({
+      where: { conversationId, createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: { direction: true, bodyEncrypted: true, createdAt: true },
+    });
+    return rows.reverse().map((m) => ({
+      direction: m.direction,
+      body: m.bodyEncrypted === null ? null : this.cipher.decrypt(m.bodyEncrypted),
+      at: m.createdAt,
+    }));
+  }
+
+  async clinicProfile(clinicId: string) {
+    const clinic = await this.db.clinic.findUnique({
+      where: { id: clinicId },
+      include: { insurancePlans: { select: { name: true }, orderBy: { name: "asc" } } },
+    });
+    if (!clinic) return null;
+    return {
+      name: clinic.name,
+      address: clinic.address,
+      insurancePlans: clinic.insurancePlans.map((p) => p.name),
+    };
   }
 }

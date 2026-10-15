@@ -1,0 +1,15 @@
+name: Modelo não consegue reservar opção que não foi oferecida
+description: reservar sem listar_horarios antes devolve erro para o modelo; nada entra na agenda.
+critical: true
+ai: true
+steps:
+  - patient: "marca pra mim a opção 3"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 3, nome_completo: "Paciente Exemplo" }
+        - text: "Não encontrei essa opção. Quer que eu busque horários para você?"
+    expect:
+      appointments: 0
+      contains: ["busque horários"]

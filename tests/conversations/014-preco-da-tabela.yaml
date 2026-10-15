@@ -1,0 +1,12 @@
+name: Preço da tabela passa pela guarda
+ai: true
+steps:
+  - patient: "quanto custa o clareamento?"
+    model:
+      route: info
+      replies:
+        - tool: info_clinica
+        - text: "O clareamento sai por R$ 900,00 no particular. Quer que eu veja um horário?"
+    expect:
+      contains: ["R$ 900,00"]
+      handoff: false

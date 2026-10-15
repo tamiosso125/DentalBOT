@@ -1,0 +1,12 @@
+name: Roteador manda pergunta clínica sem palavra-chave para a recepção
+description: '"Sensível" não está na lista determinística; o roteador (Haiku) pega o tema clínico.'
+critical: true
+ai: true
+steps:
+  - patient: "meu dente ficou sensível depois da restauração, isso é normal?"
+    model:
+      route: clinico
+    expect:
+      contains: ["Não consigo dar orientações clínicas"]
+      not_contains: ["normal"]
+      handoff: true

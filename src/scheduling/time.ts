@@ -49,3 +49,63 @@ export function formatDateTimePtBr(instant: Date, timeZone: string): string {
     minute: "2-digit",
   }).format(instant);
 }
+
+/** Calendar date ("YYYY-MM-DD") of an instant in `timeZone`. */
+export function dateInZone(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+}
+
+/** Minutes since midnight of an instant in `timeZone`. */
+export function minuteOfDayInZone(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(instant);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return get("hour") * 60 + get("minute");
+}
+
+export function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** "09:00" style clock time in `timeZone`. */
+export function formatTimePtBr(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(instant);
+}
+
+/** "seg 19/10 09:00": fits a WhatsApp list row title (24 chars). */
+export function formatShortPtBr(instant: Date, timeZone: string): string {
+  const weekday = new Intl.DateTimeFormat("pt-BR", { timeZone, weekday: "short" })
+    .format(instant)
+    .replace(".", "");
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    day: "2-digit",
+    month: "2-digit",
+  }).format(instant);
+  return `${weekday} ${day} ${formatTimePtBr(instant, timeZone)}`;
+}
+
+/** "segunda-feira, 19/10 às 09:00". */
+export function formatWhenPtBr(instant: Date, timeZone: string): string {
+  const day = new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(instant);
+  return `${day} às ${formatTimePtBr(instant, timeZone)}`;
+}

@@ -6,11 +6,11 @@ MVP: agendamento, orçamentos e cobrança. Código e comentários em inglês; te
 ## Stack
 
 Node 22 + TypeScript strict, Fastify, Prisma + Postgres, BullMQ + Redis, Vitest, Zod.
-Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Haiku 5.5 como roteador (orquestrador ainda não criado).
+Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Haiku 5.5 como roteador (`src/ai/`, SDK `@anthropic-ai/sdk`), ligado com `AI_MODE=anthropic`.
 
 ## Comandos
 
-- `pnpm dev` | `pnpm test` | `pnpm lint` | `pnpm typecheck` | `pnpm eval`
+- `pnpm dev` | `pnpm test` | `pnpm lint` | `pnpm typecheck` | `pnpm eval` (`pnpm eval --live` usa o Claude real)
 - `pnpm db:migrate` (cria migration) | `pnpm db:seed` (clínica fictícia)
 - `docker compose up -d` sobe Postgres e Redis locais
 
@@ -20,7 +20,8 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 - `src/whatsapp/`: assinatura, schema do webhook, canal (Cloud API ou sandbox), templates.
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
-- `src/scheduling/`: contrato `AgendaProvider` e cálculo de horários livres.
+- `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
+- `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras) e repositórios Prisma/memória.
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.
 - `tests/conversations/*.yaml`: casos de eval. `tools/mcp/`: MCP servers de desenvolvimento.
 
@@ -32,13 +33,13 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 - Marketing exige consentimento registrado e respeita `marketingOptOutAt`.
 - O bot nunca diagnostica nem prescreve; intenção clínica vai para handoff humano. Sinal de alarme orienta pronto-socorro e chama a equipe, mesmo com o bot pausado.
 - Webhooks (Meta e Asaas): validar assinatura/token, responder 200 em menos de 5 s e processar na fila. Tudo idempotente.
-- Toda ferramenta do LLM valida entrada com Zod e checa permissão do tenant. O modelo nunca escreve direto no banco nem inventa preço ou horário.
+- Toda ferramenta do LLM valida entrada com Zod e checa permissão do tenant. O modelo nunca escreve direto no banco nem inventa preço ou horário: horários vêm de `listar_horarios` e são escolhidos por número, e a guarda de saída (`src/ai/guard.ts`) bloqueia hora ou preço que nenhuma ferramenta devolveu.
 - Valores em centavos inteiros; conversão para reais só na borda (Asaas).
 - Só dados fictícios em código e testes: CPF 529.982.247-25, celular 55 11 90000-XXXX.
 
 ## Contas externas ainda não abertas
 
-Meta Business, Asaas e VPS ainda não existem. Tudo roda com `WHATSAPP_MODE=sandbox`, `ASAAS_ENV=mock` e `QUEUE_MODE=memory`. Ver `docs/contas-pendentes.md`.
+Meta Business, Asaas, VPS e chave da Anthropic ainda não existem. Tudo roda com `WHATSAPP_MODE=sandbox`, `ASAAS_ENV=mock`, `QUEUE_MODE=memory` e `AI_MODE=off`. Ver `docs/contas-pendentes.md`.
 
 ## Testes
 

@@ -26,6 +26,7 @@
     "sandbox:mcp": "tsx tools/mcp/whatsapp-sandbox.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.134.0",
     "@prisma/client": "6.19.3",
     "bullmq": "5.63.0",
     "fastify": "5.6.2",

@@ -1,0 +1,40 @@
+name: Paciente cancela a consulta depois de confirmar
+ai: true
+steps:
+  - patient: "quero marcar uma avaliação à tarde"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "avaliação", periodo: "tarde" }
+        - text: "Claro! Escolha um horário da tarde na lista abaixo."
+  - list: "slot:1"
+    title: "seg 19/10 13:00"
+    model:
+      replies:
+        - text: "Avaliação na segunda-feira, 19/10 às 13:00. Qual é o seu nome completo?"
+  - patient: "Ana Exemplo"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 1, nome_completo: "Ana Exemplo" }
+        - text: "Pronto, Ana! Avaliação marcada para segunda-feira, 19/10 às 13:00."
+    expect:
+      appointments: 1
+  - patient: "não vou conseguir ir, quero cancelar"
+    model:
+      route: agenda
+      replies:
+        - tool: minhas_consultas
+        - text: "Você tem uma avaliação na segunda-feira, 19/10 às 13:00. Confirma o cancelamento?"
+  - patient: "confirmo"
+    model:
+      route: agenda
+      replies:
+        - tool: cancelar
+          input: { consulta: 1 }
+        - text: "Consulta cancelada. Quando quiser remarcar, é só chamar por aqui."
+    expect:
+      contains: ["cancelada"]
+      appointments: 0

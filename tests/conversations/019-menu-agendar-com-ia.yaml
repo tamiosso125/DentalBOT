@@ -1,0 +1,17 @@
+name: Com a IA ligada, o botão de agendar começa o agendamento pela conversa
+ai: true
+steps:
+  - patient: "oi"
+    model:
+      route: saudacao
+    expect:
+      contains: ["Agendar consulta"]
+  - button: "menu:agendar"
+    title: "Agendar consulta"
+    model:
+      route: agenda
+      replies:
+        - text: "Claro! Qual procedimento você quer agendar? Se não souber, marco uma avaliação."
+    expect:
+      contains: ["procedimento"]
+      handoff: false

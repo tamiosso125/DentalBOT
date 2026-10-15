@@ -26,6 +26,28 @@ steps:
   - advance_minutes: 300 # o relógio avança
 ```
 
+### Casos com o Claude (`ai: true`)
+
+```yaml
+name: Paciente agenda limpeza
+ai: true # liga roteador + atendente
+steps:
+  - patient: "queria marcar uma limpeza"
+    model: # o que o Claude responde no modo offline (ignorado com --live)
+      route: agenda # resposta do roteador (Haiku)
+      replies: # chamadas do atendente (Sonnet), em ordem
+        - tool: listar_horarios
+          input: { procedimento: "limpeza" }
+        - text: "Escolha um horário na lista abaixo."
+    expect:
+      list: true # bot mandou lista de horários
+      appointments: 0 # consultas ativas na agenda depois do passo
+  - list: "slot:2" # paciente toca na opção 2 da lista
+    title: "seg 19/10 14:00"
+```
+
+O relógio dos casos começa na segunda 19/10/2026 às 09:00 (São Paulo), com a clínica fictícia de `demoAgendaSeed()`. No modo offline o texto do modelo é roteirizado, então o caso testa ferramentas, guarda e efeitos na agenda; a qualidade da conversa se mede com `--live`. Um roteiro que sobra (resposta não usada) é falha: o fluxo seguiu outro caminho.
+
 ## Regras
 
 - Use só dados fictícios (celular 55 11 90000-XXXX).
@@ -37,4 +59,4 @@ steps:
 ## Rodar
 
 - `pnpm eval` (todos) ou `pnpm eval alarme` (filtra pelo nome do arquivo).
-- Quando o orquestrador com LLM entrar, os casos com modelo real rodam com `ANTHROPIC_API_KEY`; os determinísticos continuam no CI.
+- `pnpm eval --live` roda os casos `ai: true` com o Claude real (precisa de `ANTHROPIC_API_KEY`, custa centavos). O CI roda só o modo offline.
