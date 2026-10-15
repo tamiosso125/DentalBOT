@@ -1,12 +1,15 @@
 import type { PrismaClient } from "@prisma/client";
 import type { FieldCipher } from "../privacy/index.js";
 import type { QuoteBillingRepository } from "./quote-billing.js";
+import type { QuoteFollowUpRepository } from "./quote-follow-up.js";
 import type { NewInstallment, NewQuote, QuoteRepository, QuoteView } from "./quote-repository.js";
 
 const dateOnly = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
-export class PrismaQuoteRepository implements QuoteRepository, QuoteBillingRepository {
+export class PrismaQuoteRepository
+  implements QuoteRepository, QuoteBillingRepository, QuoteFollowUpRepository
+{
   constructor(
     private readonly db: PrismaClient,
     private readonly cipher: FieldCipher,
@@ -169,5 +172,73 @@ export class PrismaQuoteRepository implements QuoteRepository, QuoteBillingRepos
       where: { id: installmentId, status: "PENDING" },
       data: { status: "BILLED", asaasPaymentId },
     });
+  }
+
+  async unanswered(sentBefore: Date, clinicId?: string) {
+    const rows = await this.db.quote.findMany({
+      where: {
+        ...(clinicId ? { clinicId } : {}),
+        status: "SENT",
+        reminderSentAt: null,
+        sentAt: { lte: sentBefore },
+        validUntil: { not: null },
+        patient: { anonymizedAt: null },
+      },
+      orderBy: { sentAt: "asc" },
+      take: 200,
+      select: {
+        id: true,
+        clinicId: true,
+        totalCents: true,
+        sentAt: true,
+        validUntil: true,
+        clinic: { select: { name: true, timezone: true } },
+        patient: { select: { name: true, phoneEncrypted: true } },
+      },
+    });
+    return rows.map((q) => ({
+      quoteId: q.id,
+      clinicId: q.clinicId,
+      clinicName: q.clinic.name,
+      clinicTimeZone: q.clinic.timezone,
+      patientName: q.patient.name,
+      phone: this.cipher.decrypt(q.patient.phoneEncrypted),
+      totalCents: q.totalCents,
+      sentAt: q.sentAt!,
+      validUntil: dateOnly(q.validUntil)!,
+    }));
+  }
+
+  async claimReminder(quoteId: string, at: Date) {
+    const { count } = await this.db.quote.updateMany({
+      where: { id: quoteId, status: "SENT", reminderSentAt: null },
+      data: { reminderSentAt: at },
+    });
+    return count === 1;
+  }
+
+  async releaseReminder(quoteId: string) {
+    await this.db.quote.updateMany({ where: { id: quoteId }, data: { reminderSentAt: null } });
+  }
+
+  async expiring(onOrBefore: string) {
+    const rows = await this.db.quote.findMany({
+      where: { status: "SENT", validUntil: { lte: toDate(onOrBefore) } },
+      take: 500,
+      select: { id: true, validUntil: true, clinic: { select: { timezone: true } } },
+    });
+    return rows.map((q) => ({
+      quoteId: q.id,
+      clinicTimeZone: q.clinic.timezone,
+      validUntil: dateOnly(q.validUntil)!,
+    }));
+  }
+
+  async expire(quoteId: string, at: Date) {
+    const { count } = await this.db.quote.updateMany({
+      where: { id: quoteId, status: "SENT" },
+      data: { status: "EXPIRED", respondedAt: at },
+    });
+    return count === 1;
   }
 }

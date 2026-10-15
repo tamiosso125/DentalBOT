@@ -1,0 +1,37 @@
+name: Orçamento sem resposta recebe um lembrete e o paciente aprova pelo botão
+description: >
+  A clínica manda o orçamento e o paciente não responde. Três dias depois o bot manda uma
+  vez o template lembrete_orcamento, com a validade. O botão "Ver orçamento" traz o PDF e
+  o paciente aprova. Rodar o job de novo não manda outro lembrete.
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_limpeza }
+    expect:
+      sent_via: template
+      quote_status: SENT
+  - advance_minutes: 2880
+  - run_quote_follow_up: true
+    expect:
+      silent: true
+      quote_status: SENT
+  - advance_minutes: 1440
+  - run_quote_follow_up: true
+    expect:
+      contains: ["Passando para lembrar", "vale até 03/11/2026"]
+      document: false
+      quote_status: SENT
+  - advance_minutes: 1440
+  - run_quote_follow_up: true
+    expect:
+      silent: true
+  - button: "quote:{quote}:view"
+    title: "Ver orçamento"
+    expect:
+      document: true
+      contains: ["Aprovar", "Não aprovar"]
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      contains: ["Registramos a aprovação"]

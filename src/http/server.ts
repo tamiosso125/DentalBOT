@@ -215,6 +215,9 @@ export function buildServer(deps: ServerDeps) {
       scope.post("/admin/quotes", async (req, reply) =>
         reply.code(201).send(await admin.quotes.create(admin.clinicId, req.body)),
       );
+      scope.get("/admin/quotes/follow-up", async () =>
+        admin.panel.quoteFollowUp(admin.clinicId, admin.now?.() ?? new Date()),
+      );
       scope.get<{ Params: { id: string } }>("/admin/quotes/:id", async (req, reply) => {
         const q = await admin.quotes.get(admin.clinicId, req.params.id);
         return q ? q : reply.code(404).send();

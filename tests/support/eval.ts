@@ -154,6 +154,8 @@ const step = z.union([
     .strict(),
   /** The job that offers freed slots to the waiting list (vaga_disponivel) runs now. */
   z.object({ run_waitlist: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The job that reminds about unanswered quotes (lembrete_orcamento) and expires them runs now. */
+  z.object({ run_quote_follow_up: z.literal(true), expect: expectation.optional() }).strict(),
 ]);
 
 export const caseSchema = z
@@ -211,6 +213,7 @@ export async function runCase(
     waitlistRepo,
     quotes,
     quoteRepo,
+    quoteFollowUps,
     payments,
   } = makeDeps({
     llm,
@@ -284,6 +287,8 @@ export async function runCase(
       continue;
     } else if ("run_waitlist" in s) {
       await waitlist.run(clock.now);
+    } else if ("run_quote_follow_up" in s) {
+      await quoteFollowUps.run(clock.now);
     } else {
       await deliver(s, where);
     }

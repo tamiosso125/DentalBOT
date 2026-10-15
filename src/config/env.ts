@@ -46,6 +46,10 @@ export const envSchema = z
     RECALL_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
     /// How often the waiting list looks for freed slots to offer, in minutes. 0 turns it off.
     WAITLIST_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(5),
+    /// Days after sending a quote with no answer before the one reminder (lembrete_orcamento).
+    QUOTE_REMINDER_DAYS: z.coerce.number().int().min(1).max(30).default(3),
+    /// How often the quote follow-up job (reminder and expiry) runs, in minutes. 0 turns it off.
+    QUOTE_FOLLOW_UP_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
 
     /// "off" = deterministic menu only; "anthropic" = router + attendant via the Claude API.
     AI_MODE: z.enum(["off", "anthropic"]).default("off"),

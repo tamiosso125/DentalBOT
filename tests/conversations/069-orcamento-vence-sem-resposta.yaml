@@ -1,0 +1,20 @@
+name: Orçamento sem resposta vence sozinho e o toque atrasado avisa que venceu
+description: >
+  O orçamento vale 2 dias e o paciente não responde. Quando a validade acaba, o job marca o
+  orçamento como vencido sem mandar lembrete. Se o paciente toca em "Ver orçamento" depois,
+  o bot avisa que ele já venceu.
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_canal }
+      validDays: 2
+  - advance_minutes: 4320
+  - run_quote_follow_up: true
+    expect:
+      silent: true
+      quote_status: EXPIRED
+  - button: "quote:{quote}:view"
+    title: "Ver orçamento"
+    expect:
+      document: false
+      contains: ["vencido"]

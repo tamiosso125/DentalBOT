@@ -305,6 +305,8 @@ model Quote {
   validUntil       DateTime?   @db.Date
   sentAt           DateTime?
   respondedAt      DateTime?
+  /// When the one "still waiting for your answer" reminder went out.
+  reminderSentAt   DateTime?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 

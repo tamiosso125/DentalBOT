@@ -45,6 +45,21 @@ export type QuoteRow = {
   respondedAt: string | null;
 };
 
+/** Quotes still waiting for the patient, and how this month's answered ones went. */
+export type QuoteFollowUp = {
+  waiting: Array<{
+    id: string;
+    patientName: string;
+    totalCents: number;
+    sentAt: string;
+    /** When the one follow-up reminder went out (null = not yet). */
+    reminderSentAt: string | null;
+    validUntil: string | null;
+  }>;
+  /** By answer date, in the clinic's month. */
+  month: { accepted: number; rejected: number; expired: number };
+};
+
 export type HandoffRow = {
   conversationId: string;
   contact: string;
@@ -78,6 +93,7 @@ export interface PanelQueries {
   quotes(clinicId: string, status?: QuoteStatus): Promise<QuoteRow[]>;
   handoffs(clinicId: string, now: Date): Promise<HandoffRow[]>;
   attendance(clinicId: string, now: Date): Promise<Attendance>;
+  quoteFollowUp(clinicId: string, now: Date): Promise<QuoteFollowUp>;
 }
 
 /** Unmarked appointments older than this stop showing up as pending. */
@@ -155,6 +171,52 @@ export class PrismaPanelQueries implements PanelQueries {
     return {
       pending: pending.map((a) => this.agendaRow(a)),
       month: { attended: count("COMPLETED"), noShow: count("NO_SHOW") },
+    };
+  }
+
+  async quoteFollowUp(clinicId: string, now: Date): Promise<QuoteFollowUp> {
+    const clinic = await this.db.clinic.findUnique({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    if (!clinic) return { waiting: [], month: { accepted: 0, rejected: 0, expired: 0 } };
+    const monthStart = zonedToUtc(
+      `${dateInZone(now, clinic.timezone).slice(0, 7)}-01`,
+      0,
+      clinic.timezone,
+    );
+    const [waiting, counts] = await Promise.all([
+      this.db.quote.findMany({
+        where: { clinicId, status: "SENT" },
+        orderBy: { sentAt: "asc" },
+        take: 100,
+        include: { patient: { select: { name: true } } },
+      }),
+      this.db.quote.groupBy({
+        by: ["status"],
+        where: {
+          clinicId,
+          status: { in: ["ACCEPTED", "REJECTED", "EXPIRED"] },
+          respondedAt: { gte: monthStart, lte: now },
+        },
+        _count: true,
+      }),
+    ]);
+    const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
+    return {
+      waiting: waiting.map((q) => ({
+        id: q.id,
+        patientName: q.patient.name,
+        totalCents: q.totalCents,
+        sentAt: (q.sentAt ?? q.createdAt).toISOString(),
+        reminderSentAt: iso(q.reminderSentAt),
+        validUntil: dateOnly(q.validUntil),
+      })),
+      month: {
+        accepted: count("ACCEPTED"),
+        rejected: count("REJECTED"),
+        expired: count("EXPIRED"),
+      },
     };
   }
 

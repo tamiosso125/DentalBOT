@@ -42,6 +42,15 @@ export const TEMPLATES = {
     params: ["primeiro_nome", "clinica", "valor_total"],
     buttons: ["Ver orçamento", "Falar com a recepção"],
   },
+  /** One reminder per quote, a few days after it went out without an answer. */
+  lembrete_orcamento: {
+    name: "lembrete_orcamento",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Passando para lembrar do orçamento do seu tratamento na {{2}}, no valor de {{3}}. Ele vale até {{4}}. Quer ver os detalhes ou tirar alguma dúvida com a recepção?",
+    params: ["primeiro_nome", "clinica", "valor_total", "validade"],
+    buttons: ["Ver orçamento", "Falar com a recepção"],
+  },
   cobranca_parcela: {
     name: "cobranca_parcela",
     category: "UTILITY",

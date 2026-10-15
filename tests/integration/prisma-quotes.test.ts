@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaPaymentEventStore } from "../../src/payments/payment-events.js";
+import { PrismaPanelQueries } from "../../src/panel/panel-queries.js";
 import { FieldCipher } from "../../src/privacy/index.js";
 import { PrismaQuoteRepository } from "../../src/quotes/prisma-quotes.js";
 
@@ -162,5 +163,72 @@ describe.skipIf(!url)("PrismaQuoteRepository (Postgres)", () => {
     expect((await db.patient.findUniqueOrThrow({ where: { id: patientId } })).asaasCustomerId).toBe(
       "cus_test_1",
     );
+  });
+
+  it("follows up unanswered quotes once and expires them, for the panel to count", async () => {
+    const id = await newQuote();
+    const sentAt = new Date("2026-10-19T12:00:00Z");
+    await repo.markSent(clinicId, id, sentAt);
+    const mine = async (before: Date) =>
+      (await repo.unanswered(before, clinicId)).filter((q) => q.quoteId === id);
+
+    expect(await mine(new Date("2026-10-19T11:00:00Z"))).toEqual([]);
+    expect(await mine(new Date("2026-10-22T12:00:00Z"))).toEqual([
+      expect.objectContaining({
+        clinicId,
+        clinicName: "Clínica Orçamento Teste",
+        clinicTimeZone: "America/Sao_Paulo",
+        patientName: "Paciente Exemplo",
+        phone: PHONE,
+        totalCents: 700_00,
+        sentAt,
+        validUntil: "2026-11-03",
+      }),
+    ]);
+    const at = new Date("2026-10-22T12:00:00Z");
+    expect(await repo.claimReminder(id, at)).toBe(true);
+    expect(await repo.claimReminder(id, at)).toBe(false);
+    expect(await mine(at)).toEqual([]);
+    await repo.releaseReminder(id);
+    expect(await repo.claimReminder(id, at)).toBe(true);
+
+    const panel = new PrismaPanelQueries(db, cipher);
+    const now = new Date("2026-11-04T12:00:00Z");
+    expect((await panel.quoteFollowUp(clinicId, now)).waiting).toContainEqual({
+      id,
+      patientName: "Paciente Exemplo",
+      totalCents: 700_00,
+      sentAt: sentAt.toISOString(),
+      reminderSentAt: at.toISOString(),
+      validUntil: "2026-11-03",
+    });
+    expect((await repo.expiring("2026-11-02")).map((q) => q.quoteId)).not.toContain(id);
+    expect(await repo.expiring("2026-11-03")).toContainEqual({
+      quoteId: id,
+      clinicTimeZone: "America/Sao_Paulo",
+      validUntil: "2026-11-03",
+    });
+    expect(await repo.expire(id, now)).toBe(true);
+    expect(await repo.expire(id, now)).toBe(false);
+    const after = await panel.quoteFollowUp(clinicId, now);
+    expect(after.waiting.map((q) => q.id)).not.toContain(id);
+    expect(after.month.expired).toBeGreaterThanOrEqual(1);
+    expect((await panel.quoteFollowUp(otherClinicId, now)).month).toEqual({
+      accepted: 0,
+      rejected: 0,
+      expired: 0,
+    });
+  });
+
+  it("never follows up with an anonymized patient", async () => {
+    const id = await newQuote();
+    await repo.markSent(clinicId, id, new Date("2026-10-19T12:00:00Z"));
+    await db.patient.update({ where: { id: patientId }, data: { anonymizedAt: new Date() } });
+    try {
+      const rows = await repo.unanswered(new Date("2026-10-23T12:00:00Z"), clinicId);
+      expect(rows.map((q) => q.quoteId)).not.toContain(id);
+    } finally {
+      await db.patient.update({ where: { id: patientId }, data: { anonymizedAt: null } });
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { QuoteBillingInfo, QuoteBillingRepository } from "./quote-billing.js";
+import type { QuoteFollowUpRepository, UnansweredQuote } from "./quote-follow-up.js";
 
 export type Coverage = "PRIVATE" | "INSURANCE";
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
@@ -99,8 +100,12 @@ type MemoryPatient = {
 };
 
 /** In-memory quotes (and their billing) for tests and the conversation eval. */
-export class InMemoryQuoteRepository implements QuoteRepository, QuoteBillingRepository {
+export class InMemoryQuoteRepository
+  implements QuoteRepository, QuoteBillingRepository, QuoteFollowUpRepository
+{
   readonly quotes: Stored[] = [];
+  /** quote id -> when its follow-up reminder went out. */
+  readonly reminders = new Map<string, Date>();
 
   constructor(
     private readonly data: {
@@ -216,5 +221,61 @@ export class InMemoryQuoteRepository implements QuoteRepository, QuoteBillingRep
     for (const q of this.quotes)
       for (const i of q.installments)
         if (i.id === installmentId) Object.assign(i, { status: "BILLED", asaasPaymentId });
+  }
+
+  async unanswered(sentBefore: Date, clinicId?: string): Promise<UnansweredQuote[]> {
+    const { clinic } = this.data;
+    return this.quotes
+      .filter(
+        (q) =>
+          (!clinicId || q.clinicId === clinicId) &&
+          q.status === "SENT" &&
+          q.sentAt !== null &&
+          q.sentAt <= sentBefore &&
+          q.validUntil !== null &&
+          !this.reminders.has(q.id),
+      )
+      .map((q) => {
+        const patient = this.data.patients.find((p) => p.id === q.patientId)!;
+        return {
+          quoteId: q.id,
+          clinicId: q.clinicId,
+          clinicName: clinic.name,
+          clinicTimeZone: clinic.timeZone,
+          patientName: patient.name,
+          phone: patient.phone,
+          totalCents: q.totalCents,
+          sentAt: q.sentAt!,
+          validUntil: q.validUntil!,
+        };
+      });
+  }
+
+  async claimReminder(quoteId: string, at: Date) {
+    const q = this.quotes.find((x) => x.id === quoteId);
+    if (!q || q.status !== "SENT" || this.reminders.has(quoteId)) return false;
+    this.reminders.set(quoteId, at);
+    return true;
+  }
+
+  async releaseReminder(quoteId: string) {
+    this.reminders.delete(quoteId);
+  }
+
+  async expiring(onOrBefore: string) {
+    return this.quotes
+      .filter((q) => q.status === "SENT" && q.validUntil !== null && q.validUntil <= onOrBefore)
+      .map((q) => ({
+        quoteId: q.id,
+        clinicTimeZone: this.data.clinic.timeZone,
+        validUntil: q.validUntil!,
+      }));
+  }
+
+  async expire(quoteId: string, at: Date) {
+    const q = this.quotes.find((x) => x.id === quoteId);
+    if (!q || q.status !== "SENT") return false;
+    Object.assign(q, { status: "EXPIRED", respondedAt: at });
+    return true;
   }
 }
