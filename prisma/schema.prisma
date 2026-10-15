@@ -277,10 +277,13 @@ model Installment {
   /// Asaas payment id (pay_...).
   asaasPaymentId String?           @unique
   paidAt         DateTime?
+  /// When the WhatsApp reminder with the payment link went out (one per installment).
+  reminderSentAt DateTime?
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@unique([quoteId, number])
+  @@index([status, dueDate])
 }
 
 /// Asaas webhook events already processed (Asaas may deliver the same event twice).
