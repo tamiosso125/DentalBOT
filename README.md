@@ -102,6 +102,10 @@ O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por ou
 
 A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.
 
+## Produção (VPS)
+
+`deploy/compose.yml` sobe a pilha inteira com HTTPS automático (Caddy), API, painel, Postgres, Redis e backup diário criptografado. Só as portas 80 e 443 ficam abertas, e a API da equipe (`/admin/*`) não é exposta. Passo a passo em [`docs/deploy-vps.md`](docs/deploy-vps.md).
+
 ## Verificações
 
 ```bash
@@ -123,7 +127,8 @@ Com um Postgres descartável, `TEST_DATABASE_URL=postgresql://... pnpm test` tam
 | `tests/`                 | Casos de conversa (YAML), fixtures e testes de integração                  |
 | `tools/mcp/`             | MCP servers `whatsapp-sandbox` e `dentalbot-agenda`                        |
 | `plugins/dentalbot-dev/` | Plugin do Claude Code: skills, subagents, comandos, hooks                  |
-| `docs/`                  | Contas pendentes e decisões                                                |
+| `deploy/`                | Produção na VPS: compose, Caddy (HTTPS) e backup                           |
+| `docs/`                  | Contas pendentes, instalação na VPS e decisões                             |
 
 ## O que depende de contas externas
 

@@ -1,0 +1,24 @@
+# HTTPS with an automatic Let's Encrypt certificate for $DOMAIN.
+# Meta and Asaas reach the webhooks; everything else is the staff panel, which talks to the
+# API on the internal network. The staff API (/admin/*) is never exposed.
+# No access log: panel URLs can carry a patient's name in the search.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	@api path /webhooks/* /health
+	handle @api {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		reverse_proxy panel:3001
+	}
+}
