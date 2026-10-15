@@ -23,6 +23,8 @@ export type ConversationRecord = {
   privacyNoticeAt: Date | null;
   lastInboundAt: Date | null;
   marketingOptOutAt: Date | null;
+  /** The bot asked once whether the patient wants recall invitations. */
+  recallConsentAskedAt: Date | null;
   patientId: string | null;
   /** Orchestrator working memory (offered slots, numbered appointments). Never health data. */
   agentState: unknown;
@@ -35,6 +37,7 @@ export type ConversationPatch = Partial<
     | "privacyNoticeAt"
     | "lastInboundAt"
     | "marketingOptOutAt"
+    | "recallConsentAskedAt"
     | "patientId"
     | "agentState"
   >
@@ -98,6 +101,7 @@ export class InMemoryConversationStore implements ConversationStore {
         privacyNoticeAt: null,
         lastInboundAt: null,
         marketingOptOutAt: null,
+        recallConsentAskedAt: null,
         patientId: null,
         agentState: null,
       };

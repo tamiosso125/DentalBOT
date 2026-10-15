@@ -36,7 +36,7 @@ APPOINTMENT_REMINDER_INTERVAL_MINUTES=60   # 0 desliga
 
 ### Retorno de pacientes
 
-Quem teve a última consulta há mais de 6 meses e não tem nada marcado recebe, nas terças entre 9h e 12h (fuso da clínica), o template de marketing `convite_retorno` com os botões "Quero agendar" e "Não quero receber". Vai um convite por última consulta, no máximo 50 por rodada, e só para quem tem consentimento de marketing registrado pela recepção (página "Retorno" do painel, texto versão `retorno-v1`). PARAR ou "Não quero receber" depois do consentimento bloqueiam o convite até a recepção registrar um consentimento novo. "Quero agendar" abre o agendamento pela conversa com a IA ligada, ou passa para a recepção. Ajustes opcionais no `.env`:
+Quem teve a última consulta há mais de 6 meses e não tem nada marcado recebe, nas terças entre 9h e 12h (fuso da clínica), o template de marketing `convite_retorno` com os botões "Quero agendar" e "Não quero receber". Vai um convite por última consulta, no máximo 50 por rodada, e só para quem tem consentimento de marketing registrado pela recepção (página "Retorno" do painel, texto versão `retorno-v1`). PARAR ou "Não quero receber" depois do consentimento bloqueiam o convite até a recepção registrar um consentimento novo. Além da recepção, o próprio bot pergunta uma vez, quando o paciente confirma uma consulta pelo botão (e não pediu PARAR nem respondeu antes), se ele quer o convite; a resposta fica registrada como consentimento vindo do WhatsApp (texto `retorno-whatsapp-v1`). "Quero agendar" abre o agendamento pela conversa com a IA ligada, ou passa para a recepção. Ajustes opcionais no `.env`:
 
 ```bash
 RECALL_AFTER_MONTHS=6        # meses desde a última consulta

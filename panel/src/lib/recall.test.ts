@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consentAction, recallCounts, recallStatus, type RecallRow } from "./recall";
+import { consentAction, consentOrigin, recallCounts, recallStatus, type RecallRow } from "./recall";
 
 const row = (r: Partial<RecallRow>): RecallRow => ({
   patientId: "p1",
@@ -10,6 +10,8 @@ const row = (r: Partial<RecallRow>): RecallRow => ({
   status: "due",
   invitedAt: null,
   optedOutAt: null,
+  consentSource: "STAFF",
+  consentAt: "2026-10-01T12:00:00.000Z",
   ...r,
 });
 
@@ -26,6 +28,14 @@ describe("recall helpers", () => {
       granted: false,
       label: "Retirar consentimento",
     });
+  });
+
+  it("says who recorded the latest answer", () => {
+    expect(consentOrigin(row({}))).toBe("Aceitou pela recepção");
+    expect(consentOrigin(row({ status: "no_consent", consentSource: "WHATSAPP" }))).toBe(
+      "Recusou pelo WhatsApp",
+    );
+    expect(consentOrigin(row({ status: "no_consent", consentSource: null }))).toBeNull();
   });
 
   it("counts rows per status", () => {

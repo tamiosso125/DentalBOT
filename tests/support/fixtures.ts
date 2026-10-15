@@ -119,6 +119,7 @@ export function makeDeps(
     now: () => clock.now,
     quotes,
     agendaFor,
+    recall: recallRepo,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
       ? {

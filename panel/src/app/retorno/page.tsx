@@ -1,6 +1,6 @@
 import { api } from "@/lib/api";
 import { dateKey, formatDate } from "@/lib/format";
-import { consentAction, recallCounts, recallStatus } from "@/lib/recall";
+import { consentAction, consentOrigin, recallCounts, recallStatus } from "@/lib/recall";
 import { Nav } from "../nav";
 import { setConsent } from "./actions";
 
@@ -28,7 +28,7 @@ export default async function RecallPage({
           Pacientes com a última consulta há mais de {list.afterMonths} meses e nada marcado. O bot
           manda um convite para agendar ({list.schedule}), uma vez por última consulta, só a quem
           aceitou receber. Quem responde PARAR ou toca &quot;Não quero receber&quot; sai da lista de
-          convites.
+          convites. O bot também pergunta ao paciente, uma vez, quando ele confirma uma consulta.
         </p>
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Texto do consentimento</h2>
@@ -80,6 +80,14 @@ export default async function RecallPage({
                           ) : null}
                           {r.status === "opted_out" && r.optedOutAt ? (
                             <span className="muted"> em {day(r.optedOutAt)}</span>
+                          ) : null}
+                          {consentOrigin(r) && r.consentAt ? (
+                            <>
+                              <br />
+                              <span className="muted">
+                                {consentOrigin(r)} em {day(r.consentAt)}
+                              </span>
+                            </>
                           ) : null}
                         </td>
                         <td>

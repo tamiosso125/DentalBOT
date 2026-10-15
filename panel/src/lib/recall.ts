@@ -11,6 +11,8 @@ export type RecallRow = {
   status: RecallStatus;
   invitedAt: string | null;
   optedOutAt: string | null;
+  consentSource: "STAFF" | "WHATSAPP" | null;
+  consentAt: string | null;
 };
 
 export type RecallList = {
@@ -34,6 +36,13 @@ export function consentAction(r: RecallRow): { granted: boolean; label: string }
   return r.status === "no_consent" || r.status === "opted_out"
     ? { granted: true, label: "Registrar consentimento" }
     : { granted: false, label: "Retirar consentimento" };
+}
+
+/** Who gave the latest consent answer: "pelo WhatsApp" or "pela recepção". */
+export function consentOrigin(r: RecallRow): string | null {
+  if (!r.consentSource) return null;
+  const verb = r.status === "no_consent" ? "Recusou" : "Aceitou";
+  return `${verb} ${r.consentSource === "WHATSAPP" ? "pelo WhatsApp" : "pela recepção"}`;
 }
 
 /** Counts per status, for the summary line. */

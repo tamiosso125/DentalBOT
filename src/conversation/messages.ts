@@ -10,6 +10,18 @@ export const MESSAGES = {
     { id: "menu:orcamento", title: "Orçamento/pagamento" },
     { id: "handoff", title: "Falar com a recepção" },
   ],
+  recallConsentAsk:
+    "Quer que a gente te avise por aqui quando for hora de marcar seu retorno? " +
+    "Dá para parar quando quiser respondendo PARAR.",
+  recallConsentButtons: [
+    { id: "recall:consent:yes", title: "Sim, quero" },
+    { id: "recall:consent:no", title: "Não, obrigado" },
+  ],
+  recallConsentYes:
+    "Combinado! Vamos te avisar quando for hora do retorno. Se mudar de ideia, é só responder PARAR.",
+  recallConsentNo: "Tudo bem, não vamos mandar convites de retorno.",
+  recallConsentNotFound:
+    "Não encontrei seu cadastro por aqui. Vou passar sua resposta para a recepção anotar.",
   handoff: "Certo! Vou chamar a recepção, que te responde por aqui em breve.",
   clinical:
     "Não consigo dar orientações clínicas por aqui, mas a nossa equipe vai te ajudar. " +

@@ -156,6 +156,13 @@ enum ConsentPurpose {
   MARKETING
 }
 
+enum ConsentSource {
+  /// Recorded by the front desk in the panel.
+  STAFF
+  /// The patient answered the bot's buttons.
+  WHATSAPP
+}
+
 model Consent {
   id          String         @id @default(cuid())
   patientId   String
@@ -163,6 +170,7 @@ model Consent {
   granted     Boolean
   /// Version of the text the patient saw when granting/revoking.
   textVersion String
+  source      ConsentSource  @default(STAFF)
   createdAt   DateTime       @default(now())
 
   patient Patient @relation(fields: [patientId], references: [id])
@@ -303,23 +311,25 @@ model PaymentEvent {
 // ---------- WhatsApp conversations ----------
 
 model Conversation {
-  id                String    @id @default(cuid())
-  clinicId          String
-  patientId         String?
-  contactHash       String
-  contactEncrypted  String
+  id                   String    @id @default(cuid())
+  clinicId             String
+  patientId            String?
+  contactHash          String
+  contactEncrypted     String
   /// Bot stays silent until this moment (human handoff or front desk replying via the app).
-  botPausedUntil    DateTime?
+  botPausedUntil       DateTime?
   /// Last patient message; free-form replies are only allowed within 24h of it.
-  lastInboundAt     DateTime?
-  privacyNoticeAt   DateTime?
+  lastInboundAt        DateTime?
+  privacyNoticeAt      DateTime?
   /// Patient replied "PARAR": no marketing/recall messages until they opt in again.
-  marketingOptOutAt DateTime?
+  marketingOptOutAt    DateTime?
+  /// The bot asked once whether the patient wants recall invitations (after a confirmation).
+  recallConsentAskedAt DateTime?
   /// Orchestrator working memory: offered slot options and numbered appointments (ids and
   /// times only, never message text or health data).
-  agentState        Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  agentState           Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   clinic   Clinic    @relation(fields: [clinicId], references: [id])
   patient  Patient?  @relation(fields: [patientId], references: [id])

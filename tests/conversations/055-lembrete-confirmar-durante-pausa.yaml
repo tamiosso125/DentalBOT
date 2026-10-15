@@ -8,4 +8,6 @@ steps:
     title: "Confirmar"
     expect:
       contains: ["está confirmada"]
+      # The front desk has the chat: the bot asks nothing new.
+      not_contains: ["retorno"]
       appointment_status: CONFIRMED

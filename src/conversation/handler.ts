@@ -1,6 +1,7 @@
 import { respond, type OrchestratorDeps } from "../ai/orchestrator.js";
 import type { Logger } from "../lib/logger.js";
 import type { QuoteService } from "../quotes/quote-service.js";
+import type { RecallRepository } from "../recall/recall.js";
 import { AppointmentNotFoundError, type AgendaProvider } from "../scheduling/agenda-provider.js";
 import { formatWhenPtBr } from "../scheduling/time.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
@@ -21,6 +22,8 @@ export type HandlerDeps = {
   quotes?: QuoteService;
   /** Agenda of a clinic, for the appointment reminder buttons. Absent = the front desk handles them. */
   agendaFor?: (clinicId: string) => Promise<AgendaProvider | null>;
+  /** Recall consent asked after a confirmation. Absent = only the front desk records it. */
+  recall?: Pick<RecallRepository, "recordConsent" | "consentOf">;
 };
 
 /**
@@ -87,6 +90,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const answersClinic =
     intent.kind === "quote_action" ||
     intent.kind === "opt_out" ||
+    intent.kind === "recall_consent" ||
     (intent.kind === "appointment_action" && intent.action === "confirm");
   if (paused && intent.kind !== "emergency" && !answersClinic) {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
@@ -133,7 +137,16 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       return;
     }
     case "appointment_action":
-      return appointmentAction(conv, clinic, intent.appointmentId, intent.action, deps, now());
+      return appointmentAction(
+        conv,
+        clinic,
+        intent.appointmentId,
+        intent.action,
+        { ...deps, paused },
+        now(),
+      );
+    case "recall_consent":
+      return recallConsent(conv, clinic, intent.granted, deps, now());
     case "recall_schedule":
       if (deps.ai)
         return aiTurn(
@@ -203,7 +216,7 @@ async function appointmentAction(
   clinic: ClinicInfo,
   appointmentId: string,
   action: AppointmentAction,
-  deps: HandlerDeps,
+  deps: HandlerDeps & { paused: boolean },
   at: Date,
 ) {
   const send = (msg: OutboundMessage) => sendAndStore(conv, msg, deps);
@@ -221,6 +234,8 @@ async function appointmentAction(
       const when = formatWhenPtBr(startsAt, agenda.timeZone);
       await send({ kind: "text", to: conv.contact, body: MESSAGES.appointmentConfirmed(when) });
       deps.logger.info({ conversationId: conv.id, appointmentId }, "appointment confirmed");
+      // The front desk owns the chat while paused: no new questions from the bot.
+      if (!deps.paused) await askRecallConsent(conv, clinic, patient.id, deps, at);
       return;
     } catch (err) {
       if (!(err instanceof AppointmentNotFoundError)) throw err;
@@ -228,6 +243,55 @@ async function appointmentAction(
   }
   await send({ kind: "text", to: conv.contact, body: MESSAGES.appointmentNotFound });
   return handoff(conv, "appointment:not_found", deps, at);
+}
+
+/**
+ * Asks once per conversation, after a confirmed appointment, whether the patient wants
+ * recall invitations. Skipped if they already answered (here or at the front desk) or
+ * replied PARAR.
+ */
+async function askRecallConsent(
+  conv: ConversationRecord,
+  clinic: ClinicInfo,
+  patientId: string,
+  deps: HandlerDeps,
+  at: Date,
+) {
+  if (!deps.recall || conv.recallConsentAskedAt || conv.marketingOptOutAt) return;
+  if (await deps.recall.consentOf(clinic.id, patientId)) return;
+  await deps.store.updateConversation(conv.id, { recallConsentAskedAt: at });
+  await sendAndStore(
+    conv,
+    {
+      kind: "buttons",
+      to: conv.contact,
+      body: MESSAGES.recallConsentAsk,
+      buttons: [...MESSAGES.recallConsentButtons],
+    },
+    deps,
+  );
+}
+
+async function recallConsent(
+  conv: ConversationRecord,
+  clinic: ClinicInfo,
+  granted: boolean,
+  deps: HandlerDeps,
+  at: Date,
+) {
+  const send = (body: string) => sendAndStore(conv, { kind: "text", to: conv.contact, body }, deps);
+  const agenda = await deps.agendaFor?.(clinic.id);
+  const patient = agenda ? await agenda.buscarPaciente({ phone: conv.contact }) : null;
+  if (
+    !patient ||
+    !deps.recall ||
+    !(await deps.recall.recordConsent(clinic.id, patient.id, granted, at, "WHATSAPP"))
+  ) {
+    await send(MESSAGES.recallConsentNotFound);
+    return handoff(conv, "recall:consent_unrecorded", deps, at);
+  }
+  deps.logger.info({ conversationId: conv.id, granted }, "recall consent from patient");
+  await send(granted ? MESSAGES.recallConsentYes : MESSAGES.recallConsentNo);
 }
 
 function sendMenu(conv: ConversationRecord, deps: HandlerDeps) {
