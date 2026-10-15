@@ -1,0 +1,13 @@
+name: Reclamação é transferida para a recepção
+ai: true
+steps:
+  - patient: "fiquei esperando uma hora ontem, quero reclamar"
+    model:
+      route: outro
+      replies:
+        - tool: transferir_humano
+          input: { motivo: "reclamacao" }
+        - text: "Sinto muito pela espera. Vou chamar a recepção para conversar com você por aqui."
+    expect:
+      contains: ["recepção"]
+      handoff: true

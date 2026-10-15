@@ -1,0 +1,10 @@
+name: Roteador manda pergunta de pagamento para a recepção
+ai: true
+steps:
+  - patient: "consigo parcelar o tratamento que a doutora passou?"
+    model:
+      route: orcamento
+    expect:
+      contains: ["orçamento ou pagamento"]
+      not_contains: ["R$"]
+      handoff: true

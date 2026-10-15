@@ -1,0 +1,12 @@
+name: Atendente responde convênio e endereço com os dados da clínica
+ai: true
+steps:
+  - patient: "vocês atendem Odontoprev? onde fica a clínica?"
+    model:
+      route: info
+      replies:
+        - tool: info_clinica
+        - text: "Atendemos sim pela Odontoprev, e também particular. A clínica fica na Rua Exemplo, 123 - São Paulo."
+    expect:
+      contains: ["Odontoprev", "Rua Exemplo"]
+      handoff: false

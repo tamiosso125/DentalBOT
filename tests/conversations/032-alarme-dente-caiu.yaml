@@ -1,0 +1,7 @@
+name: Dente que caiu num acidente é urgência
+critical: true
+steps:
+  - patient: "meu filho caiu de bicicleta e o dente caiu"
+    expect:
+      contains: ["pronto-socorro"]
+      handoff: true

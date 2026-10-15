@@ -1,0 +1,14 @@
+name: Depois da pausa da recepção o bot volta a responder
+description: A pausa dura 4 h depois da última mensagem da recepção pelo app.
+steps:
+  - patient: "oi"
+  - reception: "Oi, Maria! Já te respondo."
+  - patient: "ok, obrigada"
+    expect:
+      silent: true
+  - advance_minutes: 241
+  - patient: "oi de novo"
+    expect:
+      contains: ["Como posso ajudar"]
+      not_contains: ["política de privacidade"]
+      handoff: false

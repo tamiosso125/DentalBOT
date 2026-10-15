@@ -1,0 +1,11 @@
+name: Roteador reconhece urgência sem palavra-chave
+description: '"Deformado" não está na lista determinística; o roteador manda para o pronto-socorro.'
+critical: true
+ai: true
+steps:
+  - patient: "acordei com o rosto todo deformado de um lado"
+    model:
+      route: urgencia
+    expect:
+      contains: ["pronto-socorro"]
+      handoff: true

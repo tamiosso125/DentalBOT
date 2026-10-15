@@ -1,0 +1,7 @@
+name: PARE também registra o descadastro de marketing
+critical: true
+steps:
+  - patient: "Pare"
+    expect:
+      contains: ["não vai mais receber", "Avisos das suas consultas"]
+      handoff: false

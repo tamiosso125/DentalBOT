@@ -1,0 +1,7 @@
+name: Pedir a recepcionista chama a recepção
+steps:
+  - patient: "oi"
+  - patient: "quero falar com a recepcionista por favor"
+    expect:
+      contains: ["Vou chamar a recepção"]
+      handoff: true

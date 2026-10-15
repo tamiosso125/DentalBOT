@@ -1,0 +1,13 @@
+name: Depois do SAIR o paciente continua sendo atendido
+description: Descadastro de marketing não pausa o bot nem bloqueia o atendimento.
+critical: true
+steps:
+  - patient: "oi"
+  - patient: "sair"
+    expect:
+      contains: ["não vai mais receber"]
+      handoff: false
+  - patient: "bom dia, quero marcar"
+    expect:
+      contains: ["Como posso ajudar"]
+      handoff: false

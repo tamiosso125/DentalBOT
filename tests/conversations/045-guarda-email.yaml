@@ -1,0 +1,13 @@
+name: Guarda bloqueia e-mail na resposta do modelo
+critical: true
+ai: true
+steps:
+  - patient: "como mando meus exames antigos?"
+    model:
+      route: outro
+      replies:
+        - text: "Manda para maria.exemplo@exemplo.com.br que eu repasso."
+    expect:
+      contains: ["recepção"]
+      not_contains: ["@"]
+      handoff: true

@@ -1,0 +1,19 @@
+name: Orçamento só com convênio não gera cobrança
+description: Itens cobertos pela Odontoprev não têm valor particular; a recepção combina o resto.
+steps:
+  - patient: "oi"
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_avaliacao, coverage: INSURANCE }
+        - { procedureId: proc_limpeza, coverage: INSURANCE }
+      notes: "Cobertura confirmada no portal da Odontoprev."
+    expect:
+      document: true
+      contains: ["Total particular: R$ 0,00"]
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      charges: 0
+      contains: ["Não há valor particular a pagar"]
+      handoff: true
