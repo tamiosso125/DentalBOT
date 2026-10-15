@@ -1,0 +1,51 @@
+name: Paciente remarca a consulta para outro dia
+ai: true
+steps:
+  - patient: "quero marcar uma limpeza"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "limpeza" }
+        - text: "Claro! Escolha um horário na lista abaixo."
+  - list: "slot:1"
+    title: "seg 19/10 11:00"
+    model:
+      replies:
+        - text: "Limpeza na segunda-feira, 19/10 às 11:00. Qual é o seu nome completo?"
+  - patient: "João Exemplo"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 1, nome_completo: "João Exemplo" }
+        - text: "Pronto, João! Limpeza marcada para segunda-feira, 19/10 às 11:00."
+    expect:
+      appointments: 1
+  - patient: "surgiu um imprevisto, preciso remarcar para quarta"
+    model:
+      route: agenda
+      replies:
+        - tool: minhas_consultas
+        - tool: listar_horarios
+          input: { procedimento: "limpeza", a_partir_de: "2026-10-21" }
+        - text: "Sem problema! Achei sua limpeza de segunda. Escolha o novo horário na lista abaixo."
+    expect:
+      list: true
+      contains: ["qua 21/10 08:00"]
+  - list: "slot:1"
+    title: "qua 21/10 08:00"
+    model:
+      replies:
+        - text: "Confirma mudar a limpeza para quarta-feira, 21/10 às 08:00?"
+  - patient: "sim"
+    model:
+      route: agenda
+      replies:
+        - tool: remarcar
+          input: { consulta: 1, opcao: 1 }
+        - text: "Feito! Sua limpeza agora é quarta-feira, 21/10 às 08:00."
+    expect:
+      contains: ["quarta-feira, 21/10 às 08:00"]
+      appointments: 1
+      handoff: false

@@ -300,6 +300,9 @@ model Conversation {
   privacyNoticeAt   DateTime?
   /// Patient replied "PARAR": no marketing/recall messages until they opt in again.
   marketingOptOutAt DateTime?
+  /// Orchestrator working memory: offered slot options and numbered appointments (ids and
+  /// times only, never message text or health data).
+  agentState        Json?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

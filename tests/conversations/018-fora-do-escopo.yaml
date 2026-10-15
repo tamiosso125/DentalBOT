@@ -1,0 +1,16 @@
+name: Atendente transfere pedido fora do escopo
+ai: true
+steps:
+  - patient: "vocês fazem harmonização facial?"
+    model:
+      route: outro
+      replies:
+        - tool: transferir_humano
+          input: { motivo: "fora_do_escopo" }
+        - text: "Vou chamar a recepção, que te responde sobre isso por aqui."
+    expect:
+      contains: ["recepção"]
+      handoff: true
+  - patient: "alô?"
+    expect:
+      silent: true

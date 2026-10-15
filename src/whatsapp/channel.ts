@@ -2,10 +2,13 @@ import { randomUUID } from "node:crypto";
 import { renderTemplate, TEMPLATES, type TemplateName } from "./templates.js";
 
 export type ReplyButton = { id: string; title: string };
+/** Row of an interactive list: title up to 24 chars, description up to 72 (Meta limits). */
+export type ListRow = { id: string; title: string; description?: string };
 
 export type OutboundMessage =
   | { kind: "text"; to: string; body: string }
   | { kind: "buttons"; to: string; body: string; buttons: ReplyButton[] }
+  | { kind: "list"; to: string; body: string; button: string; rows: ListRow[] }
   | { kind: "template"; to: string; template: TemplateName; params: string[] };
 
 /**
@@ -23,6 +26,8 @@ export function previewText(message: OutboundMessage): string {
       return message.body;
     case "buttons":
       return `${message.body}\n${message.buttons.map((b) => `[${b.title}]`).join(" ")}`;
+    case "list":
+      return `${message.body}\n${message.rows.map((r) => `- ${r.title}`).join("\n")}`;
     case "template":
       return renderTemplate(message.template, message.params);
   }
@@ -98,6 +103,28 @@ export function toCloudApiBody(message: OutboundMessage): Record<string, unknown
               type: "reply",
               reply: { id: b.id, title: b.title },
             })),
+          },
+        },
+      };
+    case "list":
+      return {
+        ...base,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: message.body },
+          action: {
+            button: message.button,
+            sections: [
+              {
+                title: "Opções",
+                rows: message.rows.map((r) => ({
+                  id: r.id,
+                  title: r.title.slice(0, 24),
+                  ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+                })),
+              },
+            ],
           },
         },
       };

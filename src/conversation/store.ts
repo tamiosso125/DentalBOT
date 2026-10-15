@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 
 export type ClinicInfo = { id: string; name: string };
 
+/** Public clinic data the attendant may tell patients. */
+export type ClinicProfile = { name: string; address: string | null; insurancePlans: string[] };
+
 export type ConversationRecord = {
   id: string;
   clinicId: string;
@@ -11,12 +14,20 @@ export type ConversationRecord = {
   privacyNoticeAt: Date | null;
   lastInboundAt: Date | null;
   marketingOptOutAt: Date | null;
+  patientId: string | null;
+  /** Orchestrator working memory (offered slots, numbered appointments). Never health data. */
+  agentState: unknown;
 };
 
 export type ConversationPatch = Partial<
   Pick<
     ConversationRecord,
-    "botPausedUntil" | "privacyNoticeAt" | "lastInboundAt" | "marketingOptOutAt"
+    | "botPausedUntil"
+    | "privacyNoticeAt"
+    | "lastInboundAt"
+    | "marketingOptOutAt"
+    | "patientId"
+    | "agentState"
   >
 >;
 
@@ -28,7 +39,10 @@ export type NewMessage = {
   direction: MessageDirection;
   type: string;
   body?: string;
+  at?: Date;
 };
+
+export type StoredMessage = { direction: MessageDirection; body: string | null; at: Date };
 
 /** Persistence port for conversations. Prisma in production, in-memory in tests/evals. */
 export interface ConversationStore {
@@ -39,14 +53,23 @@ export interface ConversationStore {
   updateConversation(id: string, patch: ConversationPatch): Promise<void>;
   updateMessageStatus(waMessageId: string, status: string): Promise<void>;
   createDataRequest(clinicId: string, conversationId: string): Promise<void>;
+  /** Decrypted messages since `since`, oldest first, at most `limit` (the most recent ones). */
+  recentMessages(conversationId: string, since: Date, limit: number): Promise<StoredMessage[]>;
+  clinicProfile(clinicId: string): Promise<ClinicProfile | null>;
 }
 
 export class InMemoryConversationStore implements ConversationStore {
   readonly conversations = new Map<string, ConversationRecord>();
-  readonly messages: Array<NewMessage & { status?: string }> = [];
+  readonly messages: Array<NewMessage & { status?: string; at: Date }> = [];
   readonly dataRequests: Array<{ clinicId: string; conversationId: string }> = [];
 
-  constructor(private readonly clinic: ClinicInfo & { phoneNumberId?: string }) {}
+  constructor(
+    private readonly clinic: ClinicInfo & {
+      phoneNumberId?: string;
+      address?: string;
+      insurancePlans?: string[];
+    },
+  ) {}
 
   async findClinicByPhoneNumberId(phoneNumberId: string) {
     if (this.clinic.phoneNumberId && this.clinic.phoneNumberId !== phoneNumberId) return null;
@@ -65,6 +88,8 @@ export class InMemoryConversationStore implements ConversationStore {
         privacyNoticeAt: null,
         lastInboundAt: null,
         marketingOptOutAt: null,
+        patientId: null,
+        agentState: null,
       };
       this.conversations.set(key, conv);
     }
@@ -76,7 +101,7 @@ export class InMemoryConversationStore implements ConversationStore {
   }
 
   async saveMessage(message: NewMessage) {
-    this.messages.push({ ...message });
+    this.messages.push({ ...message, at: message.at ?? new Date() });
   }
 
   async updateConversation(id: string, patch: ConversationPatch) {
@@ -91,5 +116,21 @@ export class InMemoryConversationStore implements ConversationStore {
 
   async createDataRequest(clinicId: string, conversationId: string) {
     this.dataRequests.push({ clinicId, conversationId });
+  }
+
+  async recentMessages(conversationId: string, since: Date, limit: number) {
+    return this.messages
+      .filter((m) => m.conversationId === conversationId && m.at >= since)
+      .slice(-limit)
+      .map((m) => ({ direction: m.direction, body: m.body ?? null, at: m.at }));
+  }
+
+  async clinicProfile(clinicId: string) {
+    if (clinicId !== this.clinic.id) return null;
+    return {
+      name: this.clinic.name,
+      address: this.clinic.address ?? null,
+      insurancePlans: this.clinic.insurancePlans ?? [],
+    };
   }
 }

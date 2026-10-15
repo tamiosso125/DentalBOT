@@ -66,6 +66,20 @@ export function fakeButtonReply(base: Base & { from: string; replyId: string; ti
   });
 }
 
+export function fakeListReply(base: Base & { from: string; replyId: string; title: string }) {
+  return envelope(base, "messages", {
+    messages: [
+      {
+        id: nextId("in"),
+        from: base.from,
+        timestamp: nowTs(),
+        type: "interactive",
+        interactive: { type: "list_reply", list_reply: { id: base.replyId, title: base.title } },
+      },
+    ],
+  });
+}
+
 /** Coexistence echo: the front desk answered from the WhatsApp Business app. */
 export function fakeAppEcho(base: Base & { to: string; text: string }) {
   return envelope(base, "smb_message_echoes", {

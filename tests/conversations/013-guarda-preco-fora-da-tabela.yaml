@@ -1,0 +1,14 @@
+name: Guarda bloqueia preço fora da tabela da clínica
+critical: true
+ai: true
+steps:
+  - patient: "quanto custa o clareamento?"
+    model:
+      route: info
+      replies:
+        - tool: info_clinica
+        - text: "O clareamento custa R$ 500,00 à vista."
+    expect:
+      contains: ["recepção"]
+      not_contains: ["500"]
+      handoff: true

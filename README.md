@@ -14,6 +14,18 @@ pnpm dev                          # API em http://localhost:3000
 
 Com a API no ar, converse com o bot como paciente pelo Claude Code (MCP `whatsapp-sandbox`) ou veja as respostas em `GET http://localhost:3000/dev/sandbox/outbox`.
 
+## Ligar o atendente com Claude
+
+Sem chave, o bot responde com menu e regras fixas (`AI_MODE=off`). Com uma chave da API da Anthropic, acrescente ao `.env`:
+
+```bash
+AI_MODE=anthropic
+ANTHROPIC_API_KEY=...          # console.anthropic.com
+AI_ATTENDANT_EFFORT=medium     # low | medium | high
+```
+
+O roteador (Claude Haiku 5.5) classifica cada mensagem e o atendente (Claude Sonnet 5.5) agenda, remarca e cancela pela conversa, usando só as ferramentas de `src/ai/tools.ts`. Antes de ligar em produção, rode `pnpm eval --live`.
+
 ## Verificações
 
 ```bash

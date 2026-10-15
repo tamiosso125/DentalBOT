@@ -1,4 +1,5 @@
-name: Botão de agendar encaminha para a recepção (até o fluxo de agenda ficar pronto)
+name: Sem IA, o botão de agendar encaminha para a recepção
+description: Comportamento com AI_MODE=off (sem chave da Anthropic). Com a IA ligada, veja 019.
 steps:
   - patient: "oi"
   - button: "menu:agendar"

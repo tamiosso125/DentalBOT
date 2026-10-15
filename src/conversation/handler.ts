@@ -1,9 +1,10 @@
+import { respond, type OrchestratorDeps } from "../ai/orchestrator.js";
 import type { Logger } from "../lib/logger.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
 import { previewText } from "../whatsapp/index.js";
 import { detectIntent } from "./intents.js";
 import { MESSAGES } from "./messages.js";
-import type { ConversationRecord, ConversationStore } from "./store.js";
+import type { ClinicInfo, ConversationRecord, ConversationStore } from "./store.js";
 
 export type HandlerDeps = {
   store: ConversationStore;
@@ -11,14 +12,16 @@ export type HandlerDeps = {
   logger: Logger;
   now?: () => Date;
   config: { handoffPauseMinutes: number; privacyPolicyUrl: string };
+  /** LLM orchestrator (router + attendant). Absent = deterministic menu only (AI_MODE=off). */
+  ai?: OrchestratorDeps;
 };
 
 /**
  * Processes one normalized WhatsApp event. Runs inside the queue worker, never in the
  * webhook request. Idempotent per waMessageId (Meta redelivers webhooks).
  *
- * Phase 1 foundation: deterministic commands, safety handoffs, coexistence pause and a
- * menu. The LLM orchestrator (router + attendant + tools) plugs in at `answer()`.
+ * Deterministic commands, safety handoffs and the coexistence pause always run first and
+ * never depend on model output. Only what is left goes to the LLM orchestrator.
  */
 export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDeps): Promise<void> {
   const { store, logger } = deps;
@@ -49,6 +52,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       direction: "ECHO",
       type: event.type,
       body: event.text,
+      at: now(),
     });
     await store.updateConversation(conv.id, { botPausedUntil: pauseUntil(now(), deps) });
     logger.info({ conversationId: conv.id }, "bot paused: front desk replied via app");
@@ -62,6 +66,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
     direction: "INBOUND",
     type: event.type,
     body: event.text,
+    at: now(),
   });
   await store.updateConversation(conv.id, { lastInboundAt: now() });
 
@@ -104,7 +109,9 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       await send({ kind: "text", to: conv.contact, body: MESSAGES.dataRequest });
       return;
     case "menu_choice":
-      // TODO(fase-1): replace with the scheduling and quote flows once the orchestrator lands.
+      if (deps.ai && intent.choice === "agendar")
+        return aiTurn(conv, clinic, "Quero agendar uma consulta", undefined, deps, now());
+      // TODO(fase-1): quote flow (PDF + Asaas) replaces this handoff in the next step.
       await send({
         kind: "text",
         to: conv.contact,
@@ -112,14 +119,53 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       });
       return handoff(conv, `menu:${intent.choice}`, deps, now());
     case "other":
-      await send({
-        kind: "buttons",
-        to: conv.contact,
-        body: MESSAGES.menu,
-        buttons: [...MESSAGES.menuButtons],
-      });
-      return;
+      if (deps.ai && (event.text || event.replyId))
+        return aiTurn(conv, clinic, event.text ?? "", event.replyId, deps, now());
+      return sendMenu(conv, deps);
   }
+}
+
+async function aiTurn(
+  conv: ConversationRecord,
+  clinic: ClinicInfo,
+  text: string,
+  replyId: string | undefined,
+  deps: HandlerDeps,
+  at: Date,
+) {
+  const send = (msg: OutboundMessage) => sendAndStore(conv, msg, deps);
+  const out = await respond({ conv, clinic, text, replyId, now: at }, deps.ai!);
+
+  if (out.kind === "route") {
+    switch (out.route) {
+      case "urgencia":
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.emergency });
+        return handoff(conv, "emergency", deps, at);
+      case "clinico":
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.clinical });
+        return handoff(conv, "clinical", deps, at);
+      case "humano":
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.handoff });
+        return handoff(conv, "requested", deps, at);
+      case "orcamento":
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.quoteSoon });
+        return handoff(conv, "ai:orcamento", deps, at);
+      case "saudacao":
+        return sendMenu(conv, deps);
+    }
+  }
+
+  await send({ kind: "text", to: conv.contact, body: out.text });
+  if (out.list) await send({ kind: "list", to: conv.contact, ...out.list });
+  if (out.handoff) await handoff(conv, `ai:${out.handoff}`, deps, at);
+}
+
+function sendMenu(conv: ConversationRecord, deps: HandlerDeps) {
+  return sendAndStore(
+    conv,
+    { kind: "buttons", to: conv.contact, body: MESSAGES.menu, buttons: [...MESSAGES.menuButtons] },
+    deps,
+  );
 }
 
 function pauseUntil(from: Date, deps: HandlerDeps): Date {
@@ -139,5 +185,6 @@ async function sendAndStore(conv: ConversationRecord, msg: OutboundMessage, deps
     direction: "OUTBOUND",
     type: msg.kind,
     body: previewText(msg),
+    at: deps.now?.() ?? new Date(),
   });
 }

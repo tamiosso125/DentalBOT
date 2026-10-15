@@ -1,0 +1,14 @@
+name: Guarda bloqueia horário que nenhuma ferramenta ofereceu
+description: Se o modelo inventar um horário, o paciente não recebe o texto e a recepção assume.
+critical: true
+ai: true
+steps:
+  - patient: "tem horário amanhã às 7h?"
+    model:
+      route: agenda
+      replies:
+        - text: "Tenho sim! Amanhã às 07:00 está livre, posso marcar?"
+    expect:
+      contains: ["recepção"]
+      not_contains: ["07:00", "está livre"]
+      handoff: true

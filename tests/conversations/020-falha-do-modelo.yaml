@@ -1,0 +1,12 @@
+name: Recusa ou falha do modelo vira transferência para a recepção
+critical: true
+ai: true
+steps:
+  - patient: "quero marcar um horário"
+    model:
+      route: agenda
+      replies:
+        - refusal: true
+    expect:
+      contains: ["recepção"]
+      handoff: true

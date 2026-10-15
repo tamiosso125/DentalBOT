@@ -1,0 +1,33 @@
+name: Paciente novo agenda uma limpeza escolhendo na lista
+ai: true
+steps:
+  - patient: "oi, queria marcar uma limpeza"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "limpeza" }
+        - text: "Claro! Separei alguns horários para a limpeza. É só escolher um na lista abaixo."
+    expect:
+      contains: ["limpeza", "seg 19/10 14:00"]
+      list: true
+      appointments: 0
+  - list: "slot:2"
+    title: "seg 19/10 14:00"
+    model:
+      replies:
+        - text: "Ótimo: limpeza na segunda-feira, 19/10 às 14:00. Para confirmar, me diga seu nome completo, por favor."
+    expect:
+      contains: ["14:00", "nome completo"]
+      appointments: 0
+  - patient: "Maria Exemplo da Silva, pode confirmar"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 2, nome_completo: "Maria Exemplo da Silva" }
+        - text: "Pronto, Maria! Sua limpeza está marcada para segunda-feira, 19/10 às 14:00. A clínica manda um lembrete antes para você confirmar."
+    expect:
+      contains: ["marcada", "14:00"]
+      appointments: 1
+      handoff: false
