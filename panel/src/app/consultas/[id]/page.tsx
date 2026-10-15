@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { canMarkAttendance } from "@/lib/attendance";
 import {
   APPOINTMENT_STATUS,
   dateKey,
@@ -9,7 +10,7 @@ import {
   formatTime,
 } from "@/lib/format";
 import { Nav } from "../../nav";
-import { cancelAppointment, rescheduleAppointment } from "../actions";
+import { cancelAppointment, markAttendance, rescheduleAppointment } from "../actions";
 import { CancelForm } from "../cancel-form";
 import { SlotPicker } from "../slot-picker";
 
@@ -21,10 +22,10 @@ export default async function AppointmentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ data?: string }>;
+  searchParams: Promise<{ data?: string; presenca?: string; aviso?: string }>;
 }) {
   const { id } = await params;
-  const { data } = await searchParams;
+  const { data, presenca, aviso } = await searchParams;
   const a = await api.appointment(id).catch((err: unknown) => {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
@@ -36,6 +37,14 @@ export default async function AppointmentPage({
     editable && date ? api.slots(a.procedureId, date) : Promise.resolve(null),
   ]);
   const dentists = Object.fromEntries(catalog.dentists.map((d) => [d.id, d.name]));
+  const back = `/consultas/${encodeURIComponent(a.id)}`;
+  const notice =
+    aviso ??
+    (presenca
+      ? presenca === "faltou"
+        ? "Falta registrada."
+        : "Comparecimento registrado."
+      : null);
 
   return (
     <>
@@ -44,6 +53,7 @@ export default async function AppointmentPage({
         <p>
           <Link href={`/?de=${dateKey(a.startsAt)}`}>← Agenda</Link>
         </p>
+        {notice ? <p className="notice">{notice}</p> : null}
         <h1>Consulta de {a.patientName}</h1>
         <section className="card">
           <p style={{ marginTop: 0 }}>
@@ -55,6 +65,29 @@ export default async function AppointmentPage({
             {a.patientPhone.slice(-4)}
           </p>
         </section>
+
+        {canMarkAttendance(a) ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Comparecimento</h2>
+            <p className="muted">
+              {a.status === "COMPLETED" || a.status === "NO_SHOW"
+                ? "Já marcada. Se a marcação estiver errada, corrija aqui."
+                : "A consulta já começou. O paciente veio?"}
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <form action={markAttendance.bind(null, a.id, true, back)}>
+                <button type="submit" disabled={a.status === "COMPLETED"}>
+                  Compareceu
+                </button>
+              </form>
+              <form action={markAttendance.bind(null, a.id, false, back)}>
+                <button type="submit" className="secondary" disabled={a.status === "NO_SHOW"}>
+                  Faltou
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : null}
 
         {editable ? (
           <>
@@ -90,7 +123,7 @@ export default async function AppointmentPage({
             <CancelForm action={cancelAppointment.bind(null, a.id)} />
           </>
         ) : (
-          <p className="muted">Esta consulta não pode mais ser alterada.</p>
+          <p className="muted">Esta consulta não pode mais ser remarcada nem cancelada.</p>
         )}
       </main>
     </>

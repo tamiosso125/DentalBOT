@@ -201,6 +201,9 @@ export function buildServer(deps: ServerDeps) {
       scope.get("/admin/quotes", async (req) =>
         admin.panel.quotes(admin.clinicId, parse(quoteQuerySchema, req.query).status),
       );
+      scope.get("/admin/attendance", async () =>
+        admin.panel.attendance(admin.clinicId, admin.now?.() ?? new Date()),
+      );
       scope.get("/admin/handoffs", async () =>
         admin.panel.handoffs(admin.clinicId, admin.now?.() ?? new Date()),
       );
@@ -236,6 +239,13 @@ export function buildServer(deps: ServerDeps) {
         );
         scope.post<{ Params: { id: string } }>("/admin/appointments/:id/reschedule", async (req) =>
           staff.reschedule(admin.clinicId, req.params.id, req.body),
+        );
+        scope.post<{ Params: { id: string } }>(
+          "/admin/appointments/:id/attendance",
+          async (req, reply) => {
+            await staff.attendance(admin.clinicId, req.params.id, req.body);
+            return reply.code(204).send();
+          },
         );
         scope.post<{ Params: { id: string } }>(
           "/admin/appointments/:id/cancel",

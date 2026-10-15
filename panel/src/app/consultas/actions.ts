@@ -55,3 +55,17 @@ export async function cancelAppointment(
   }
   redirect("/?cancelada=1");
 }
+
+/** "Compareceu" / "Faltou": back to where the button was, with a notice or the API's reason. */
+export async function markAttendance(id: string, attended: boolean, back: string) {
+  const to = back.startsWith("/") && !back.startsWith("//") ? back : "/";
+  const sep = to.includes("?") ? "&" : "?";
+  try {
+    await api.setAttendance(id, attended);
+  } catch (err) {
+    if (err instanceof ApiError && [404, 409, 422].includes(err.status))
+      redirect(`${to}${sep}aviso=${encodeURIComponent(err.detail)}`);
+    throw err;
+  }
+  redirect(`${to}${sep}presenca=${attended ? "compareceu" : "faltou"}`);
+}

@@ -36,6 +36,8 @@ export const bookSchema = z.strictObject({
 
 export const rescheduleSchema = z.strictObject(when);
 
+export const attendanceSchema = z.strictObject({ attended: z.boolean() });
+
 /** A request the front desk can fix (shown in the panel). `status` is the HTTP code. */
 export class StaffAgendaError extends Error {
   constructor(
@@ -126,6 +128,19 @@ export class StaffAgenda {
     if (!owner) throw new StaffAgendaError(404, "Consulta não encontrada.");
     await mapErrors(() => ctx.agenda.cancelar({ appointmentId, patientId: owner.patientId }));
     this.deps.logger.info({ appointmentId }, "appointment cancelled by staff");
+  }
+
+  /** "Compareceu" or "Faltou", only once the appointment has started. */
+  async attendance(clinicId: string, appointmentId: string, input: unknown): Promise<void> {
+    const { attended } = parse(attendanceSchema, input);
+    const ctx = await this.ctx(clinicId);
+    const owner = await ctx.repo.appointmentOwner(appointmentId);
+    if (!owner || owner.status === "CANCELLED")
+      throw new StaffAgendaError(404, "Consulta não encontrada.");
+    if (owner.startsAt > (this.deps.now?.() ?? new Date()))
+      throw new StaffAgendaError(409, "Só dá para marcar o comparecimento depois do horário.");
+    await ctx.repo.setAttendance(appointmentId, attended);
+    this.deps.logger.info({ appointmentId, attended }, "attendance recorded by staff");
   }
 
   private async ctx(clinicId: string) {

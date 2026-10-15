@@ -196,4 +196,29 @@ describe("StaffAgenda", () => {
     for (const e of normalizeWebhook(payload)) await handleWhatsAppEvent(e, deps);
     expect(agendaRepo.appointments[0]!.status).toBe("CONFIRMED");
   });
+
+  it("records attendance only after the start, and lets the front desk correct it", async () => {
+    const { staffAgenda, agendaRepo, clock, maria } = await setup();
+    const { id } = await staffAgenda.book(CLINIC_ID, bookBody({ id: maria.id }, TUESDAY_14H));
+    const early = await rejection(staffAgenda.attendance(CLINIC_ID, id, { attended: true }));
+    expect(early).toMatchObject({ status: 409 });
+
+    clock.now = new Date("2026-10-20T17:10:00Z"); // ten minutes in
+    await staffAgenda.attendance(CLINIC_ID, id, { attended: false });
+    expect(agendaRepo.appointments[0]!.status).toBe("NO_SHOW");
+    await staffAgenda.attendance(CLINIC_ID, id, { attended: true });
+    expect(agendaRepo.appointments[0]!.status).toBe("COMPLETED");
+
+    expect(
+      await rejection(staffAgenda.attendance(CLINIC_ID, id, { attended: "sim" })),
+    ).toMatchObject({ status: 422 });
+    expect(
+      await rejection(staffAgenda.attendance(CLINIC_ID, "appt_x", { attended: true })),
+    ).toMatchObject({ status: 404 });
+    agendaRepo.appointments[0]!.status = "CANCELLED";
+    expect(
+      await rejection(staffAgenda.attendance(CLINIC_ID, id, { attended: true })),
+    ).toMatchObject({ status: 404 });
+    expect(agendaRepo.appointments[0]!.status).toBe("CANCELLED");
+  });
 });
