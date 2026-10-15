@@ -1,0 +1,20 @@
+name: Paciente pede para entrar na lista de espera pelo bot
+description: >
+  Segunda a quarta estão cheias. A paciente quer algo antes de quinta e pede a lista de espera;
+  a IA chama entrar_lista_espera, que guarda o pedido até quarta-feira, 21/10.
+ai: true
+steps:
+  - clinic_blocks:
+      - { from: "2026-10-19T00:00", to: "2026-10-22T00:00" }
+  - patient: "tem avaliação antes de quinta? se não tiver, me coloca na lista de espera. Sou Maria Exemplo"
+    model:
+      route: agenda
+      replies:
+        - tool: entrar_lista_espera
+          input: { procedimento: "avaliação", nome_completo: "Maria Exemplo" }
+        - text: "Pronto, Maria! Você está na lista de espera. Se abrir uma vaga de avaliação até quarta-feira, 21/10, a clínica te avisa por aqui."
+    expect:
+      contains: ["lista de espera", "quarta-feira, 21/10"]
+      waitlist_status: WAITING
+      appointments: 0
+      handoff: false

@@ -16,6 +16,8 @@ export type Intent =
   | { kind: "recall_schedule" }
   /** Answer to the bot's question about recall invitations (asked after a confirmation). */
   | { kind: "recall_consent"; granted: boolean }
+  /** Buttons of a waiting-list offer (vaga_disponivel). */
+  | { kind: "waitlist_answer"; offerId: string; accept: boolean }
   | { kind: "other" };
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
@@ -24,6 +26,7 @@ export type AppointmentAction = "confirm" | "reschedule";
 
 const QUOTE_REPLY = /^quote:([\w-]{1,64}):(view|accept|reject)$/;
 const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule)$/;
+const WAITLIST_REPLY = /^wait:([\w-]{1,64}):(yes|no)$/;
 
 export function normalize(text: string): string {
   return text
@@ -69,6 +72,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
       appointmentId: appt[1]!,
       action: appt[2] as AppointmentAction,
     };
+  const wait = replyId?.match(WAITLIST_REPLY);
+  if (wait) return { kind: "waitlist_answer", offerId: wait[1]!, accept: wait[2] === "yes" };
 
   const t = normalize(text ?? "");
   if (t === "parar" || t === "pare" || t === "sair") return { kind: "opt_out" };

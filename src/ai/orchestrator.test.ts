@@ -26,6 +26,7 @@ describe("orchestrator", () => {
       "minhas_consultas",
       "remarcar",
       "cancelar",
+      "entrar_lista_espera",
       "transferir_humano",
     ]);
     // Static system prompt is cached; volatile facts go in a trailing system message.
@@ -103,5 +104,64 @@ describe("orchestrator", () => {
     expect(agendaRepo.appointments).toHaveLength(1);
     expect(conv.patientId).toBe(agendaRepo.appointments[0]!.patientId);
     expect(conv.agentState).toMatchObject({ offers: [] });
+  });
+
+  it("puts the patient on the waiting list until the day before the first free slot", async () => {
+    const llm = new ScriptedLlm()
+      .route("agenda")
+      .push({
+        tool: "entrar_lista_espera",
+        input: { procedimento: "avaliação", nome_completo: "Paciente Exemplo" },
+      })
+      .push({ text: "Pronto! Se abrir uma vaga até quarta-feira, 21/10, te aviso por aqui." })
+      .route("agenda")
+      .push({ tool: "entrar_lista_espera", input: { procedimento: "avaliação" } })
+      .push({ text: "Você já está na lista." });
+    const { deps, agendaRepo, waitlistRepo } = makeDeps({ llm });
+    // Monday to Wednesday are full: the first free evaluation is on Thursday 22/10.
+    agendaRepo.addBlock({
+      dentistId: "dentist_dev",
+      startsAt: new Date("2026-10-19T03:00:00Z"),
+      endsAt: new Date("2026-10-22T03:00:00Z"),
+    });
+    await deliver(textPayload("não tem nada mais cedo? me coloca na lista de espera"), deps);
+    const result = (r: number) =>
+      JSON.parse(
+        String(
+          (llm.requests[r]!.messages.at(-1)!.content as Array<{ content?: unknown }>)[0]!.content,
+        ),
+      ) as Record<string, unknown>;
+    expect(result(2)).toMatchObject({
+      ok: true,
+      procedimento: "Avaliação",
+      ja_estava_na_lista: false,
+      avisamos_vagas_ate: "quarta-feira, 21/10",
+    });
+    expect(waitlistRepo.entries).toEqual([
+      expect.objectContaining({
+        procedureId: "proc_avaliacao",
+        until: new Date("2026-10-22T03:00:00Z"),
+        status: "WAITING",
+      }),
+    ]);
+    await deliver(textPayload("me coloca na lista de espera de novo"), deps);
+    expect(result(5)).toMatchObject({ ja_estava_na_lista: true });
+    expect(waitlistRepo.entries).toHaveLength(1);
+  });
+
+  it("does not use the waiting list when there is a slot tomorrow", async () => {
+    const llm = new ScriptedLlm()
+      .route("agenda")
+      .push({
+        tool: "entrar_lista_espera",
+        input: { procedimento: "avaliação", nome_completo: "Paciente Exemplo" },
+      })
+      .push({ text: "Tem horário já amanhã, quer ver?" });
+    const { deps, waitlistRepo } = makeDeps({ llm });
+    await deliver(textPayload("quero entrar na lista de espera para avaliação"), deps);
+    expect(JSON.stringify(llm.requests[2]!.messages.at(-1)!.content)).toContain(
+      "listar_horarios em vez da lista de espera",
+    );
+    expect(waitlistRepo.entries).toEqual([]);
   });
 });

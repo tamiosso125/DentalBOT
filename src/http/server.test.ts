@@ -3,6 +3,7 @@ import {
   CLINIC_ID,
   echoPayload,
   makeDeps,
+  PATIENT,
   signed,
   textPayload,
 } from "../../tests/support/fixtures.js";
@@ -174,6 +175,7 @@ function setup() {
       setup: clinicSetup.setup,
       billing: billing.billing,
       recall: recall.recall,
+      waitlist: ctx.waitlist,
       now: () => NOW,
     },
   });
@@ -717,5 +719,43 @@ describe("admin recall API", () => {
       ["setConsent", CLINIC_ID, "p1", { granted: true }, NOW],
       ["setConsent", CLINIC_ID, "p9", { granted: true }, NOW],
     ]);
+  });
+});
+
+describe("admin waitlist API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token", async () => {
+    const { app } = setup();
+    for (const [method, url] of [
+      ["GET", "/admin/waitlist"],
+      ["POST", "/admin/waitlist"],
+      ["POST", "/admin/waitlist/w1/remove"],
+    ] as const)
+      expect((await app.inject({ method, url, payload: {} })).statusCode, url).toBe(401);
+  });
+
+  it("adds, lists and removes a patient for the clinic", async () => {
+    const { app, ctx } = setup();
+    const maria = await ctx.agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: PATIENT });
+    const add = (payload: Record<string, string>) =>
+      app.inject({ method: "POST", url: "/admin/waitlist", headers: auth, payload });
+    const body = { patientId: maria.id, procedureId: "proc_avaliacao", until: "2026-10-30" };
+    const created = await add(body);
+    expect(created.statusCode).toBe(201);
+    expect((await add(body)).statusCode).toBe(409);
+    expect((await add({ ...body, until: "ontem" })).statusCode).toBe(422);
+    expect((await add({ ...body, patientId: "p9" })).json()).toEqual({
+      error: "Paciente ou procedimento não encontrado.",
+    });
+
+    const list = await app.inject({ method: "GET", url: "/admin/waitlist", headers: auth });
+    expect(list.json().rows).toEqual([
+      expect.objectContaining({ patientName: "Maria Exemplo", status: "WAITING" }),
+    ]);
+    const remove = (id: string) =>
+      app.inject({ method: "POST", url: `/admin/waitlist/${id}/remove`, headers: auth });
+    expect((await remove(created.json().id)).statusCode).toBe(204);
+    expect((await remove(created.json().id)).statusCode).toBe(404);
   });
 });

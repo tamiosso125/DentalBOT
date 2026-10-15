@@ -2,6 +2,7 @@ import "server-only";
 import type { Attendance } from "./attendance";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
+import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
   CoverageBody,
@@ -238,6 +239,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ granted }),
     });
+  },
+  waitlist: () => json<WaitlistList>("/admin/waitlist"),
+  addToWaitlist: (body: { patientId: string; procedureId: string; until: string }) =>
+    json<{ id: string }>("/admin/waitlist", { method: "POST", body: JSON.stringify(body) }),
+  removeFromWaitlist: async (id: string) => {
+    await call(`/admin/waitlist/${encodeURIComponent(id)}/remove`, { method: "POST" });
   },
   billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
   paymentLink: (id: string) =>

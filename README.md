@@ -43,6 +43,14 @@ RECALL_AFTER_MONTHS=6        # meses desde a última consulta
 RECALL_INTERVAL_MINUTES=60   # de quanto em quanto tempo verifica; 0 desliga
 ```
 
+### Lista de espera
+
+Quem quer um horário mais cedo do que os livres entra na lista de espera de um procedimento, até um dia escolhido: pela conversa com o bot (com a IA ligada, a ferramenta `entrar_lista_espera` guarda o pedido até a véspera do primeiro horário livre) ou pela recepção, na página "Lista de espera" do painel. A cada poucos minutos, entre 8h e 20h no fuso da clínica, o bot procura horários livres antes da data de cada paciente e oferece cada um aos três primeiros da fila pelo template `vaga_disponivel`, com os botões "Quero esse horário" e "Não, obrigado". Quem aceitar primeiro fica com a vaga (se já tinha uma consulta mais tarde do mesmo procedimento, ela é antecipada); quem aceitar depois recebe o aviso de que a vaga foi preenchida e continua na fila. Uma vaga sem resposta passa aos próximos depois de 1 h, e o mesmo horário nunca é oferecido duas vezes à mesma pessoa. As respostas valem mesmo com a recepção na conversa. Passada a data, o pedido expira. Para mudar a frequência:
+
+```bash
+WAITLIST_INTERVAL_MINUTES=5   # 0 desliga
+```
+
 ## Orçamentos
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.
@@ -89,7 +97,7 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 
 ## Painel da equipe
 
-O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês; falta não conta como visita para o retorno. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês; falta não conta como visita para o retorno. Em "Lista de espera" ela põe ou tira pacientes da fila e vê a última vaga oferecida a cada um. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
 
 Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
 
@@ -118,8 +126,8 @@ O topo da página lista o que ainda falta para o bot conseguir marcar consultas.
 
 O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:
 
-- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
-- anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
+- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
+- anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras e a lista de espera. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
 
 A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.
 

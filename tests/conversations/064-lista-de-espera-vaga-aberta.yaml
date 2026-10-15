@@ -1,0 +1,29 @@
+name: Vaga aberta por cancelamento vai para quem está na lista de espera
+description: >
+  A semana está cheia e a única avaliação livre, terça às 10:00, é do João. A recepção põe a
+  Maria na lista de espera até quinta. Quando o João cancela, a vaga é oferecida à Maria pelo
+  template vaga_disponivel, e o "Quero esse horário" marca a consulta.
+steps:
+  - clinic_blocks:
+      - { from: "2026-10-19T00:00", to: "2026-10-20T10:00" }
+      - { from: "2026-10-20T10:30", to: "2026-10-23T00:00" }
+  - other_patient_books: { procedureId: proc_avaliacao, at: "2026-10-20T10:00" }
+  - clinic_waitlists: { procedureId: proc_avaliacao, until: "2026-10-22" }
+  - run_waitlist: true
+    expect:
+      silent: true
+      waitlist_status: WAITING
+  - other_patient_cancels: true
+  - run_waitlist: true
+    expect:
+      contains: ["Olá, Maria", "Abriu uma vaga para Avaliação", "terça-feira, 20/10 às 10:00"]
+  - button: "wait:{offer}:yes"
+    title: "Quero esse horário"
+    expect:
+      contains: ["Pronto", "terça-feira, 20/10 às 10:00", "saiu da lista de espera"]
+      appointments: 1
+      appointment_status: PENDING_CONFIRMATION
+      waitlist_status: BOOKED
+  - run_waitlist: true
+    expect:
+      silent: true

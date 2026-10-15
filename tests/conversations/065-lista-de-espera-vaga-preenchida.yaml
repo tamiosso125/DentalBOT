@@ -1,0 +1,21 @@
+name: Quem aceita depois que a vaga foi preenchida continua na lista
+description: >
+  A vaga é oferecida à Maria, mas o João marca de novo o mesmo horário antes de ela responder.
+  O "Quero esse horário" não marca nada em cima dele, e ela continua na lista de espera.
+steps:
+  - clinic_blocks:
+      - { from: "2026-10-19T00:00", to: "2026-10-20T10:00" }
+      - { from: "2026-10-20T10:30", to: "2026-10-23T00:00" }
+  - other_patient_books: { procedureId: proc_avaliacao, at: "2026-10-20T10:00" }
+  - clinic_waitlists: { procedureId: proc_avaliacao, until: "2026-10-22" }
+  - other_patient_cancels: true
+  - run_waitlist: true
+    expect:
+      contains: ["Abriu uma vaga"]
+  - other_patient_books: { procedureId: proc_avaliacao, at: "2026-10-20T10:00" }
+  - button: "wait:{offer}:yes"
+    title: "Quero esse horário"
+    expect:
+      contains: ["acabou de ser preenchida", "continua na lista de espera"]
+      appointments: 1
+      waitlist_status: WAITING

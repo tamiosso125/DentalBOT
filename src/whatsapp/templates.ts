@@ -49,6 +49,15 @@ export const TEMPLATES = {
     body: "Olá, {{1}}. A parcela {{2}} do seu tratamento, no valor de {{3}}, vence em {{4}}. Para pagar, acesse: {{5}}",
     params: ["primeiro_nome", "parcela", "valor", "vencimento", "link_pagamento"],
   },
+  /** Asked for by the patient (waiting list), so utility. One slot, first to accept takes it. */
+  vaga_disponivel: {
+    name: "vaga_disponivel",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Abriu uma vaga para {{2}} na {{3}}: {{4}}. Você está na lista de espera; quer ficar com esse horário?",
+    params: ["primeiro_nome", "procedimento", "clinica", "data_hora"],
+    buttons: ["Quero esse horário", "Não, obrigado"],
+  },
   /** Marketing: only to patients with a recorded consent who did not reply "PARAR" since. */
   convite_retorno: {
     name: "convite_retorno",

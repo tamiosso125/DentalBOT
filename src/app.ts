@@ -28,6 +28,8 @@ import { QuoteBillingService } from "./quotes/quote-billing.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { PrismaRecallRepository } from "./recall/prisma-recall.js";
 import { RecallService } from "./recall/recall.js";
+import { PrismaWaitlistRepository } from "./waitlist/prisma-waitlist.js";
+import { WaitlistService } from "./waitlist/waitlist.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
 import {
   AppointmentReminders,
@@ -138,6 +140,28 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   recallTimer?.unref();
 
+  const waitlist = new WaitlistService({
+    repo: new PrismaWaitlistRepository(db, cipher),
+    agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+  const runWaitlist = () =>
+    waitlist
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "waitlist run failed",
+        ),
+      );
+  const waitlistTimer =
+    env.WAITLIST_INTERVAL_MINUTES > 0
+      ? setInterval(runWaitlist, env.WAITLIST_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  waitlistTimer?.unref();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -146,6 +170,7 @@ export function createApp(env: Env, logger: Logger) {
           agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
           logger,
           effort: env.AI_ATTENDANT_EFFORT,
+          waitlist,
         }
       : undefined;
 
@@ -163,6 +188,7 @@ export function createApp(env: Env, logger: Logger) {
       quotes,
       agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
       recall: recallRepo,
+      waitlist,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,
@@ -200,6 +226,7 @@ export function createApp(env: Env, logger: Logger) {
             setup: new PrismaClinicSetup(db, logger),
             billing: new PrismaBilling(db, cipher, payments),
             recall,
+            waitlist,
           }
         : undefined,
   });
@@ -208,11 +235,22 @@ export function createApp(env: Env, logger: Logger) {
     if (reminderTimer) clearInterval(reminderTimer);
     if (appointmentReminderTimer) clearInterval(appointmentReminderTimer);
     if (recallTimer) clearInterval(recallTimer);
+    if (waitlistTimer) clearInterval(waitlistTimer);
     await server.close();
     await whatsappQueue.close();
     await asaasQueue.close();
     await db.$disconnect();
   }
 
-  return { server, db, channel, payments, reminders, appointmentReminders, recall, close };
+  return {
+    server,
+    db,
+    channel,
+    payments,
+    reminders,
+    appointmentReminders,
+    recall,
+    waitlist,
+    close,
+  };
 }

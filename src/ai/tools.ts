@@ -16,7 +16,9 @@ import {
   formatTimePtBr,
   formatWhenPtBr,
   minuteOfDayInZone,
+  zonedToUtc,
 } from "../scheduling/time.js";
+import { describeUntil } from "../waitlist/waitlist.js";
 import type { AgentState, Offer } from "./state.js";
 
 export const HANDOFF_REASONS = [
@@ -41,6 +43,14 @@ export type ToolContext = {
   state: AgentState;
   now: Date;
   effects: ToolEffects;
+  /** Waiting list of this clinic. Absent = the front desk manages it. */
+  waitlist?: {
+    join(
+      patientId: string,
+      procedureId: string,
+      until: Date,
+    ): Promise<{ id: string; created: boolean } | null>;
+  };
 };
 
 export type ToolEffects = {
@@ -319,6 +329,74 @@ export const TOOLS = {
         ok: true,
         procedimento: appt.procedureName,
         quando: formatWhenPtBr(new Date(appt.startsAt), ctx.agenda.timeZone),
+      };
+    },
+  }),
+
+  entrar_lista_espera: tool({
+    description:
+      "Coloca o paciente na lista de espera de um procedimento, quando ele quer um horário mais " +
+      "cedo do que os livres. Se abrir uma vaga antes, a clínica avisa por aqui e o primeiro que " +
+      "aceitar fica com ela. Só chame depois que o paciente disser que quer entrar na lista.",
+    input: z.strictObject({
+      procedimento: z.string().min(2).max(80),
+      nome_completo: z
+        .string()
+        .min(3)
+        .max(120)
+        .optional()
+        .describe("Nome completo do paciente, obrigatório se ele ainda não tem cadastro"),
+    }),
+    async run(input, ctx) {
+      if (!ctx.waitlist) return { erro: "lista de espera indisponível: transfira para a recepção" };
+      const procedures = await ctx.agenda.listarProcedimentos();
+      const procedure = matchProcedure(procedures, input.procedimento);
+      if (!procedure)
+        return {
+          erro: "procedimento não encontrado",
+          procedimentos_validos: procedures.map((p) => p.name),
+        };
+      const patient = await resolvePatient(ctx, input.nome_completo);
+      if (!patient)
+        return { erro: "paciente sem cadastro: pergunte o nome completo e tente de novo" };
+
+      // Waits for a slot on a day before both the first free one and the patient's own booking.
+      const tz = ctx.agenda.timeZone;
+      const today = dateInZone(ctx.now, tz);
+      let firstFree: Date | undefined;
+      for (let d = 0; d < SEARCH_MAX_DAYS && !firstFree; d += SEARCH_WINDOW_DAYS) {
+        const slots = await ctx.agenda.listarHorarios({
+          procedureId: procedure.id,
+          from: addDays(today, d),
+          days: SEARCH_WINDOW_DAYS,
+        });
+        firstFree = slots[0]?.startsAt;
+      }
+      const booked = (
+        await ctx.agenda.consultasDoPaciente({ patientId: patient.id, from: ctx.now })
+      )
+        .filter((a) => a.procedureId === procedure.id && a.status !== "CANCELLED")
+        .at(0)?.startsAt;
+      const days = [firstFree, booked]
+        .filter((x): x is Date => !!x)
+        .map((x) => dateInZone(x, tz))
+        .sort();
+      const untilDay = days[0] ?? addDays(today, SEARCH_MAX_DAYS);
+      if (untilDay <= addDays(today, 1))
+        return {
+          erro: "já há horário livre hoje ou amanhã: ofereça listar_horarios em vez da lista de espera",
+        };
+      const until = zonedToUtc(untilDay, 0, tz);
+      const out = await ctx.waitlist.join(patient.id, procedure.id, until);
+      if (!out) return { erro: "não consegui colocar na lista: transfira para a recepção" };
+      return {
+        ok: true,
+        procedimento: procedure.name,
+        ja_estava_na_lista: !out.created,
+        avisamos_vagas_ate: describeUntil(until, tz),
+        observacao:
+          "Diga que, se abrir uma vaga até essa data, a clínica manda uma mensagem por aqui e o " +
+          "primeiro que aceitar fica com o horário.",
       };
     },
   }),
