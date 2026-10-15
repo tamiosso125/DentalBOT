@@ -28,7 +28,7 @@ import {
 
 /** Wires real dependencies from the environment. Tests build their own graph instead. */
 export function createApp(env: Env, logger: Logger) {
-  const db = new PrismaClient();
+  const db = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
   const cipher = new FieldCipher(env.PII_ENCRYPTION_KEY, env.PII_HASH_SECRET);
 
   const sandbox = env.WHATSAPP_MODE === "sandbox" ? new SandboxChannel() : undefined;

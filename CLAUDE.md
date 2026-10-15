@@ -44,7 +44,7 @@ Meta Business, Asaas, VPS e chave da Anthropic ainda não existem. Tudo roda com
 
 ## Testes
 
-Novos fluxos de conversa entram em `tests/conversations/*.yaml` e rodam no eval (skill `conversa-eval`). Antes de abrir PR: `pnpm lint && pnpm typecheck && pnpm test && pnpm eval`.
+Novos fluxos de conversa entram em `tests/conversations/*.yaml` e rodam no eval (skill `conversa-eval`). Fluxos que cruzam HTTP, fila e banco ganham um teste em `tests/e2e/` (roda com `TEST_DATABASE_URL`, como no CI). Todo PR traz os testes do que muda. Antes de abrir PR: `pnpm lint && pnpm typecheck && pnpm test && pnpm eval`.
 
 ## Ferramentas do Claude Code
 

@@ -58,6 +58,8 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 pnpm lint && pnpm typecheck && pnpm test && pnpm eval
 ```
 
+Com um Postgres descartável, `TEST_DATABASE_URL=postgresql://... pnpm test` também roda os testes de integração e os de ponta a ponta (`tests/e2e/`): servidor HTTP de verdade, webhook assinado, fila, banco e saída do sandbox, montados pelo mesmo `createApp()` da produção. O CI roda tudo isso em cada PR. `pnpm test:e2e` roda só esses.
+
 `pnpm eval` roda os casos de conversa de `tests/conversations/` e falha se algum caso crítico (sinal de alarme, pergunta clínica, privacidade) quebrar.
 
 ## Estrutura

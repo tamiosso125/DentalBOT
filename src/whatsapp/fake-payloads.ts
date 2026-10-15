@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { WebhookPayload } from "./webhook-schema.js";
 
 /**
@@ -8,7 +9,9 @@ import type { WebhookPayload } from "./webhook-schema.js";
 type Base = { phoneNumberId: string; displayPhone?: string };
 
 let seq = 0;
-const nextId = (prefix: string) => `wamid.${prefix}.${Date.now()}.${++seq}`;
+// Random part: test files run in parallel processes against one database.
+const nextId = (prefix: string) =>
+  `wamid.${prefix}.${Date.now()}.${++seq}.${randomUUID().slice(0, 8)}`;
 const nowTs = () => String(Math.floor(Date.now() / 1000));
 
 function envelope(base: Base, field: string, value: Record<string, unknown>): WebhookPayload {
