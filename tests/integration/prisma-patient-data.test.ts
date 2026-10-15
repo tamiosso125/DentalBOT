@@ -157,7 +157,9 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       cpf: CPF,
       birthDate: "1990-05-01",
     });
-    expect(out.consents).toMatchObject([{ purpose: "PRIVACY_NOTICE", granted: true }]);
+    expect(out.consents).toMatchObject([
+      { purpose: "PRIVACY_NOTICE", granted: true, source: "STAFF" },
+    ]);
     expect(out.appointments).toHaveLength(2);
     expect(out.quotes).toMatchObject([
       { notes: "Tratamento em duas sessões", installments: [{ number: 1, status: "PENDING" }] },

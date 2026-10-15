@@ -1,0 +1,22 @@
+name: Depois de confirmar a consulta, o paciente aceita o convite de retorno pelo bot
+description: >
+  Ao confirmar pelo lembrete, o bot pergunta uma vez se o paciente quer ser avisado do retorno.
+  O "Sim, quero" vira consentimento, e seis meses depois da consulta o convite sai na terça.
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-20T14:00" }
+  - run_reminders: true
+  - button: "appt:{appointment}:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["está confirmada", "hora de marcar seu retorno", "PARAR"]
+      appointment_status: CONFIRMED
+  - button: "recall:consent:yes"
+    title: "Sim, quero"
+    expect:
+      contains: ["Combinado", "hora do retorno"]
+      handoff: false
+  # Tuesday 27/04/2027, 10:00: more than six months after the cleaning.
+  - advance_minutes: 273660
+  - run_recall: true
+    expect:
+      contains: ["Olá, Maria", "retorno"]

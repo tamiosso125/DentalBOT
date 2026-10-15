@@ -13,6 +13,12 @@ import { previewText, type OutboundMessage, type WhatsAppChannel } from "../what
 
 /** Version of the consent text below; stored with every consent the front desk records. */
 export const RECALL_CONSENT_VERSION = "retorno-v1";
+/** Version of the bot's question (MESSAGES.recallConsentAsk) answered by button. */
+export const RECALL_CONSENT_VERSION_WHATSAPP = "retorno-whatsapp-v1";
+
+/** Who recorded a consent: the front desk in the panel or the patient on WhatsApp. */
+export type ConsentSource = "STAFF" | "WHATSAPP";
+export type RecallConsent = { granted: boolean; at: Date; source: ConsentSource };
 export const RECALL_CONSENT_TEXT =
   "Aceito receber pelo WhatsApp convites da clínica para marcar meu retorno. " +
   "Posso parar quando quiser respondendo PARAR.";
@@ -29,7 +35,7 @@ export type RecallRow = {
   lastVisitAt: Date;
   lastProcedure: string;
   /** Latest marketing consent the patient gave or withdrew. */
-  consent: { granted: boolean; at: Date } | null;
+  consent: RecallConsent | null;
   /** "PARAR" on the patient's conversation. */
   optedOutAt: Date | null;
   invitedAt: Date | null;
@@ -58,7 +64,15 @@ export interface RecallRepository {
   /** Gives the invitation back after a failed send. */
   release(patientId: string, previous: Date | null): Promise<void>;
   /** False if the patient is not the clinic's (or was anonymized). */
-  recordConsent(clinicId: string, patientId: string, granted: boolean, at: Date): Promise<boolean>;
+  recordConsent(
+    clinicId: string,
+    patientId: string,
+    granted: boolean,
+    at: Date,
+    source?: ConsentSource,
+  ): Promise<boolean>;
+  /** Latest recall consent of the clinic's patient, if any. */
+  consentOf(clinicId: string, patientId: string): Promise<RecallConsent | null>;
 }
 
 export type RecallConfig = {
@@ -105,6 +119,9 @@ export type RecallListRow = {
   status: RecallStatus;
   invitedAt: string | null;
   optedOutAt: string | null;
+  /** Where the latest consent answer came from, and when. */
+  consentSource: ConsentSource | null;
+  consentAt: string | null;
 };
 
 export type RecallList = {
@@ -168,6 +185,8 @@ export class RecallService {
           status: recallStatus(r),
           invitedAt: r.invitedAt?.toISOString() ?? null,
           optedOutAt: r.optedOutAt?.toISOString() ?? null,
+          consentSource: r.consent?.source ?? null,
+          consentAt: r.consent?.at.toISOString() ?? null,
         }))
         .sort((a, b) => a.lastVisitAt.localeCompare(b.lastVisitAt)),
     };
@@ -177,7 +196,7 @@ export class RecallService {
     const parsed = consentBodySchema.safeParse(body);
     if (!parsed.success) throw new RecallError(422, "Pedido inválido.");
     const { granted } = parsed.data;
-    if (!(await this.deps.repo.recordConsent(clinicId, patientId, granted, now)))
+    if (!(await this.deps.repo.recordConsent(clinicId, patientId, granted, now, "STAFF")))
       throw new RecallError(404, "Paciente não encontrado.");
     this.deps.logger.info({ patientId, granted }, "recall consent recorded");
   }

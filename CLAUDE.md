@@ -26,7 +26,7 @@ Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
 - `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras), repositórios Prisma/memória, lembrete de consulta da véspera com Confirmar/Remarcar (`appointment-reminders.ts`), agenda da recepção pelo painel (`staff-agenda.ts`) e o MCP da agenda (`agenda-mcp.ts`).
-- `src/recall/`: retorno de pacientes (`recall.ts`: quem está há meses sem consulta, consentimento de marketing e o convite semanal `convite_retorno`), repositórios Prisma/memória.
+- `src/recall/`: retorno de pacientes (`recall.ts`: quem está há meses sem consulta, consentimento de marketing pelo painel ou pelo bot após a confirmação, e o convite semanal `convite_retorno`), repositórios Prisma/memória.
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.
 - `tests/conversations/*.yaml`: casos de eval. `tools/mcp/`: MCP servers de desenvolvimento.
 - `deploy/`: produção na VPS (`compose.yml` com Caddy/HTTPS, API, painel, Postgres, Redis e backup criptografado com age). Guia em `docs/deploy-vps.md`. Imagens: `Dockerfile` (API) e `panel/Dockerfile`.

@@ -44,7 +44,13 @@ export type PatientExport = {
     insuranceCard: string | null;
     createdAt: string;
   } | null;
-  consents: Array<{ purpose: string; granted: boolean; textVersion: string; at: string }>;
+  consents: Array<{
+    purpose: string;
+    granted: boolean;
+    textVersion: string;
+    source: string;
+    at: string;
+  }>;
   appointments: Array<{
     startsAt: string;
     endsAt: string;
@@ -259,6 +265,7 @@ export class PrismaPatientData implements PatientData {
         purpose: c.purpose,
         granted: c.granted,
         textVersion: c.textVersion,
+        source: c.source,
         at: c.createdAt.toISOString(),
       })),
       appointments: (patient?.appointments ?? []).map((a) => ({

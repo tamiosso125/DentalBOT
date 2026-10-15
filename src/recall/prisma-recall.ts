@@ -1,6 +1,12 @@
 import type { AppointmentStatus, PrismaClient } from "@prisma/client";
 import type { FieldCipher } from "../privacy/index.js";
-import { RECALL_CONSENT_VERSION, type RecallRepository, type RecallRow } from "./recall.js";
+import {
+  RECALL_CONSENT_VERSION,
+  RECALL_CONSENT_VERSION_WHATSAPP,
+  type ConsentSource,
+  type RecallRepository,
+  type RecallRow,
+} from "./recall.js";
 
 /** The patient came (or the appointment was never marked otherwise). */
 const VISITED: AppointmentStatus[] = ["PENDING_CONFIRMATION", "CONFIRMED", "COMPLETED"];
@@ -55,7 +61,7 @@ export class PrismaRecallRepository implements RecallRepository {
           where: { purpose: "MARKETING" },
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { granted: true, createdAt: true },
+          select: { granted: true, createdAt: true, source: true },
         },
       },
     });
@@ -75,7 +81,9 @@ export class PrismaRecallRepository implements RecallRepository {
         phone: this.cipher.decrypt(p.phoneEncrypted),
         lastVisitAt: visit.startsAt,
         lastProcedure: visit.procedure.name,
-        consent: consent ? { granted: consent.granted, at: consent.createdAt } : null,
+        consent: consent
+          ? { granted: consent.granted, at: consent.createdAt, source: consent.source }
+          : null,
         optedOutAt: optOut.get(p.phoneHash) ?? null,
         invitedAt: p.recallInvitedAt,
       };
@@ -101,7 +109,22 @@ export class PrismaRecallRepository implements RecallRepository {
     });
   }
 
-  async recordConsent(clinicId: string, patientId: string, granted: boolean, at: Date) {
+  async consentOf(clinicId: string, patientId: string) {
+    const c = await this.db.consent.findFirst({
+      where: { patientId, purpose: "MARKETING", patient: { clinicId } },
+      orderBy: { createdAt: "desc" },
+      select: { granted: true, createdAt: true, source: true },
+    });
+    return c ? { granted: c.granted, at: c.createdAt, source: c.source } : null;
+  }
+
+  async recordConsent(
+    clinicId: string,
+    patientId: string,
+    granted: boolean,
+    at: Date,
+    source: ConsentSource = "STAFF",
+  ) {
     const patient = await this.db.patient.findFirst({
       where: { id: patientId, clinicId, anonymizedAt: null },
       select: { id: true },
@@ -112,7 +135,9 @@ export class PrismaRecallRepository implements RecallRepository {
         patientId,
         purpose: "MARKETING",
         granted,
-        textVersion: RECALL_CONSENT_VERSION,
+        textVersion:
+          source === "WHATSAPP" ? RECALL_CONSENT_VERSION_WHATSAPP : RECALL_CONSENT_VERSION,
+        source,
         createdAt: at,
       },
     });

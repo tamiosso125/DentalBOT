@@ -118,8 +118,9 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   appointmentReminderTimer?.unref();
 
+  const recallRepo = new PrismaRecallRepository(db, cipher);
   const recall = new RecallService({
-    repo: new PrismaRecallRepository(db, cipher),
+    repo: recallRepo,
     channel,
     store: conversationStore,
     logger,
@@ -161,6 +162,7 @@ export function createApp(env: Env, logger: Logger) {
       ai,
       quotes,
       agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
+      recall: recallRepo,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,

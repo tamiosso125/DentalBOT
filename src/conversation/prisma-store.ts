@@ -44,6 +44,7 @@ export class PrismaConversationStore implements ConversationStore {
       privacyNoticeAt: conv.privacyNoticeAt,
       lastInboundAt: conv.lastInboundAt,
       marketingOptOutAt: conv.marketingOptOutAt,
+      recallConsentAskedAt: conv.recallConsentAskedAt,
       patientId: conv.patientId,
       agentState: conv.agentState,
     };

@@ -1,0 +1,24 @@
+name: Quem recusa o convite de retorno não é perguntado de novo nem convidado
+critical: true
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-20T14:00" }
+  - run_reminders: true
+  - button: "appt:{appointment}:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["hora de marcar seu retorno"]
+  - button: "recall:consent:no"
+    title: "Não, obrigado"
+    expect:
+      contains: ["não vamos mandar convites de retorno"]
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-22T10:00" }
+  - advance_minutes: 1440
+  - button: "appt:{appointment}:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["está confirmada"]
+      not_contains: ["hora de marcar seu retorno"]
+  - advance_minutes: 272220
+  - run_recall: true
+    expect:
+      silent: true

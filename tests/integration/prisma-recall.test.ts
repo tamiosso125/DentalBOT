@@ -157,9 +157,24 @@ describe.skipIf(!url)("PrismaRecallRepository (Postgres)", () => {
       where: { patientId: ids.ana!, purpose: "MARKETING" },
       orderBy: { createdAt: "asc" },
     });
-    expect(consents.map((c) => [c.granted, c.textVersion])).toEqual([
-      [true, "retorno-v1"],
-      [false, "retorno-v1"],
+    expect(consents.map((c) => [c.granted, c.textVersion, c.source])).toEqual([
+      [true, "retorno-v1", "STAFF"],
+      [false, "retorno-v1", "STAFF"],
     ]);
+  });
+
+  it("records the patient's own answer from WhatsApp, read back per clinic", async () => {
+    const later = new Date(NOW.getTime() + 60_000);
+    expect(await repo.recordConsent(clinicId, ids.caio!, false, later, "WHATSAPP")).toBe(true);
+    expect(await repo.consentOf(clinicId, ids.caio!)).toEqual({
+      granted: false,
+      at: later,
+      source: "WHATSAPP",
+    });
+    expect(await repo.consentOf(otherClinicId, ids.caio!)).toBeNull();
+    const row = await db.consent.findFirstOrThrow({
+      where: { patientId: ids.caio!, source: "WHATSAPP" },
+    });
+    expect(row.textVersion).toBe("retorno-whatsapp-v1");
   });
 });
