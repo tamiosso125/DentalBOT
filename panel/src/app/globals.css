@@ -199,3 +199,31 @@ button.secondary,
 .table-wrap {
   overflow-x: auto;
 }
+fieldset.slots {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  margin: 0;
+}
+fieldset.slots legend {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 0 4px;
+}
+label.slot,
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 15px;
+}
+label.slot {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}

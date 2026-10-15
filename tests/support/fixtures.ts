@@ -7,6 +7,7 @@ import { QuoteBillingService } from "../../src/quotes/quote-billing.js";
 import { InMemoryQuoteRepository } from "../../src/quotes/quote-repository.js";
 import { QuoteService } from "../../src/quotes/quote-service.js";
 import { AgendaService } from "../../src/scheduling/agenda-service.js";
+import { StaffAgenda } from "../../src/scheduling/staff-agenda.js";
 import {
   AppointmentReminders,
   InMemoryAppointmentReminderRepository,
@@ -88,6 +89,20 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
+  const staffAgenda = new StaffAgenda({
+    open: async (clinicId) =>
+      clinicId === CLINIC_ID
+        ? {
+            agenda: new AgendaService(agendaRepo, { now: () => clock.now, minNoticeMinutes: 0 }),
+            repo: agendaRepo,
+            clinicName: "Clínica Sorriso",
+          }
+        : null,
+    channel,
+    store,
+    logger: silentLogger,
+    now: () => clock.now,
+  });
   const deps: HandlerDeps = {
     store,
     channel,
@@ -115,6 +130,7 @@ export function makeDeps(
     agenda,
     agendaRepo,
     appointmentReminders,
+    staffAgenda,
     quotes,
     quoteRepo,
     payments,

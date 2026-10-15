@@ -100,6 +100,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     await db.appointment.deleteMany({ where: { clinicId } });
     await db.patient.deleteMany({ where: { clinicId } });
     await db.procedure.deleteMany({ where: { clinicId } });
+    await db.workingHours.deleteMany({ where: { dentist: { clinicId } } });
     await db.dentist.deleteMany({ where: { clinicId } });
     await db.clinic.delete({ where: { id: clinicId } });
     await db.paymentEvent.deleteMany({ where: { id: { startsWith: "evt_e2e_" } } });
@@ -333,5 +334,71 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     });
     const [reply] = await replies(1);
     expect(reply!.body).toContain("está confirmada");
+  });
+
+  it("lets the front desk book from the panel API and the patient confirm by button", async () => {
+    // Wednesdays 8h-12h, far enough ahead that the real clock never catches up.
+    await app.db.workingHours.create({
+      data: { dentistId, weekday: 3, startMinute: 8 * 60, endMinute: 12 * 60 },
+    });
+    const admin = (path: string, init: RequestInit = {}) =>
+      fetch(`${base}${path}`, {
+        ...init,
+        headers: {
+          authorization: `Bearer ${ADMIN_TOKEN}`,
+          ...(init.body ? { "content-type": "application/json" } : {}),
+        },
+      });
+    const slots = (await (
+      await admin(`/admin/slots?procedureId=${procedureId}&from=2030-01-16`)
+    ).json()) as Array<{ dentistId: string; startsAt: string }>;
+    expect(slots[0]).toMatchObject({ dentistId, startsAt: "2030-01-16T11:00:00.000Z" });
+
+    await clearOutbox();
+    const created = await admin("/admin/appointments", {
+      method: "POST",
+      body: JSON.stringify({
+        patient: { id: patientId },
+        procedureId,
+        dentistId,
+        startsAt: slots[0]!.startsAt,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    const [notice] = await outbox();
+    expect(notice).toMatchObject({
+      kind: "template",
+      template: "confirmacao_consulta",
+      to: PATIENT,
+      params: ["Paciente", "Clínica E2E", "quarta-feira, 16/01 às 08:00"],
+    });
+
+    const again = await admin("/admin/appointments", {
+      method: "POST",
+      body: JSON.stringify({
+        patient: { id: patientId },
+        procedureId,
+        dentistId,
+        startsAt: slots[0]!.startsAt,
+      }),
+    });
+    expect(again.status).toBe(409);
+
+    const detail = (await (await admin(`/admin/appointments/${id}`)).json()) as {
+      patientPhone: string;
+    };
+    expect(detail.patientPhone).not.toContain(PATIENT);
+
+    await webhook(button(`appt:${id}:confirm`, "Confirmar"));
+    await until(async () => {
+      const a = await app.db.appointment.findUnique({ where: { id } });
+      return a?.status === "CONFIRMED";
+    });
+
+    expect((await admin(`/admin/appointments/${id}/cancel`, { method: "POST" })).status).toBe(204);
+    expect((await app.db.appointment.findUniqueOrThrow({ where: { id } })).status).toBe(
+      "CANCELLED",
+    );
   });
 });

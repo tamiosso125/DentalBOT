@@ -37,7 +37,7 @@ export default async function NewQuotePage({
               results.length === 0 ? (
                 <p className="muted">
                   Nenhum paciente encontrado. O cadastro acontece quando o paciente agenda pelo
-                  WhatsApp.
+                  WhatsApp ou quando a recepção marca uma consulta em Agenda.
                 </p>
               ) : (
                 <ul>

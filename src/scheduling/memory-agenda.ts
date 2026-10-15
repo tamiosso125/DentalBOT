@@ -72,7 +72,14 @@ export class InMemoryAgendaRepository implements AgendaRepository {
 
   async appointmentOwner(appointmentId: string) {
     const a = this.appointments.find((x) => x.id === appointmentId);
-    return a ? { patientId: a.patientId, status: a.status, startsAt: a.startsAt } : null;
+    return a
+      ? {
+          patientId: a.patientId,
+          procedureId: a.procedureId,
+          status: a.status,
+          startsAt: a.startsAt,
+        }
+      : null;
   }
 
   async confirmAppointment(appointmentId: string) {
@@ -103,6 +110,15 @@ export class InMemoryAgendaRepository implements AgendaRepository {
   async findPatientByPhone(phone: string) {
     const p = this.patients.find((x) => x.phone === phone);
     return p ? { id: p.id, name: p.name } : null;
+  }
+
+  async patientById(patientId: string) {
+    return this.patients.find((p) => p.id === patientId) ?? null;
+  }
+
+  async markReminderSent(appointmentId: string, at: Date) {
+    const a = this.appointments.find((x) => x.id === appointmentId);
+    if (a) a.reminderSentAt = at;
   }
 
   async createPatient(name: string, phone: string) {

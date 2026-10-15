@@ -14,6 +14,8 @@ export type AgendaRow = {
   patientName: string;
   patientPhone: string;
 };
+export type AppointmentDetail = AgendaRow & { procedureId: string; dentistId: string };
+export type StaffSlot = { dentistId: string; startsAt: string; endsAt: string };
 export type PatientRow = { id: string; name: string; phone: string };
 export type Catalog = {
   timeZone: string;
@@ -107,4 +109,23 @@ export const api = {
       method: "POST",
     }),
   handoffs: () => json<HandoffRow[]>("/admin/handoffs"),
+  appointment: (id: string) =>
+    json<AppointmentDetail>(`/admin/appointments/${encodeURIComponent(id)}`),
+  slots: (procedureId: string, from: string) =>
+    json<StaffSlot[]>(
+      `/admin/slots?procedureId=${encodeURIComponent(procedureId)}&from=${from}&days=1`,
+    ),
+  bookAppointment: (body: unknown) =>
+    json<{ id: string; notified: boolean }>("/admin/appointments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  rescheduleAppointment: (id: string, body: unknown) =>
+    json<{ notified: boolean }>(`/admin/appointments/${encodeURIComponent(id)}/reschedule`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  cancelAppointment: async (id: string) => {
+    await call(`/admin/appointments/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+  },
 };

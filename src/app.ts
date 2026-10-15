@@ -29,6 +29,7 @@ import {
   PrismaAppointmentReminderRepository,
 } from "./scheduling/appointment-reminders.js";
 import { prismaAgendaFor } from "./scheduling/prisma-agenda.js";
+import { prismaStaffAgendaOpener, StaffAgenda } from "./scheduling/staff-agenda.js";
 import {
   CloudApiChannel,
   SandboxChannel,
@@ -163,6 +164,12 @@ export function createApp(env: Env, logger: Logger) {
             clinicId: env.DEFAULT_CLINIC_ID,
             quotes,
             panel: new PrismaPanelQueries(db, cipher),
+            agenda: new StaffAgenda({
+              open: prismaStaffAgendaOpener(db, cipher),
+              channel,
+              store: conversationStore,
+              logger,
+            }),
           }
         : undefined,
   });

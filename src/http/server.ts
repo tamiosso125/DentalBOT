@@ -10,6 +10,7 @@ import {
   type PanelQueries,
 } from "../panel/panel-queries.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
+import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
 import {
   isValidSignature,
@@ -37,6 +38,8 @@ export type ServerDeps = {
     clinicId: string;
     quotes: QuoteService;
     panel: PanelQueries;
+    /** Book, move and cancel appointments. Absent = agenda is read-only. */
+    agenda?: StaffAgenda;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -147,6 +150,8 @@ export function buildServer(deps: ServerDeps) {
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)
           return reply.code(422).send({ error: err.message });
+        if (err instanceof StaffAgendaError)
+          return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
         const status = (err as { statusCode?: number }).statusCode;
         // Fastify's own client errors (malformed JSON, wrong content type).
@@ -200,6 +205,28 @@ export function buildServer(deps: ServerDeps) {
       scope.post<{ Params: { id: string } }>("/admin/quotes/:id/send", async (req) =>
         admin.quotes.send(admin.clinicId, req.params.id),
       );
+
+      scope.get<{ Params: { id: string } }>("/admin/appointments/:id", async (req, reply) => {
+        const a = await admin.panel.appointment(admin.clinicId, req.params.id);
+        return a ? a : reply.code(404).send();
+      });
+      const staff = admin.agenda;
+      if (staff) {
+        scope.get("/admin/slots", async (req) => staff.slots(admin.clinicId, req.query));
+        scope.post("/admin/appointments", async (req, reply) =>
+          reply.code(201).send(await staff.book(admin.clinicId, req.body)),
+        );
+        scope.post<{ Params: { id: string } }>("/admin/appointments/:id/reschedule", async (req) =>
+          staff.reschedule(admin.clinicId, req.params.id, req.body),
+        );
+        scope.post<{ Params: { id: string } }>(
+          "/admin/appointments/:id/cancel",
+          async (req, reply) => {
+            await staff.cancel(admin.clinicId, req.params.id);
+            return reply.code(204).send();
+          },
+        );
+      }
     });
   }
 
