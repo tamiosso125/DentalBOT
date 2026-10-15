@@ -37,12 +37,16 @@ export interface AgendaRepository {
   moveAppointment(appointmentId: string, slot: Slot): Promise<boolean>;
   appointmentOwner(
     appointmentId: string,
-  ): Promise<{ patientId: string; status: string; startsAt: Date } | null>;
+  ): Promise<{ patientId: string; procedureId: string; status: string; startsAt: Date } | null>;
   cancelAppointment(appointmentId: string): Promise<void>;
   /** PENDING_CONFIRMATION -> CONFIRMED; any other status is left as is. */
   confirmAppointment(appointmentId: string): Promise<void>;
   patientAppointments(patientId: string, from: Date): Promise<AppointmentInfo[]>;
   findPatientByPhone(phone: string): Promise<PatientRef | null>;
+  /** A patient of this clinic with the decrypted phone (wa_id), or null. */
+  patientById(patientId: string): Promise<(PatientRef & { phone: string }) | null>;
+  /** Records that the patient was already told about this date (no day-before reminder). */
+  markReminderSent(appointmentId: string, at: Date): Promise<void>;
   createPatient(name: string, phone: string): Promise<PatientRef>;
 }
 

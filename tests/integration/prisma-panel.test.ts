@@ -91,6 +91,15 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
     expect(await panel.agenda(otherClinicId, { from: "2026-10-19", days: 7 })).toEqual([]);
   });
 
+  it("shows one appointment with ids for editing, only in its clinic", async () => {
+    const [first] = await panel.agenda(clinicId, { from: "2026-10-19", days: 1 });
+    const detail = (await panel.appointment(clinicId, first!.id))!;
+    expect(detail).toMatchObject({ ...first, patientPhone: "***0021" });
+    expect(detail.procedureId).toMatch(/.+/);
+    expect(detail.dentistId).toMatch(/.+/);
+    expect(await panel.appointment(otherClinicId, first!.id)).toBeNull();
+  });
+
   it("finds patients by name or exact phone, only in the clinic", async () => {
     expect(await panel.patients(clinicId, "maria")).toEqual([
       { id: patientId, name: "Maria Exemplo", phone: "***0021" },

@@ -25,6 +25,7 @@ function stubPanel() {
   const calls: unknown[][] = [];
   const panel: PanelQueries = {
     agenda: async (...a) => (calls.push(["agenda", ...a]), []),
+    appointment: async (...a) => (calls.push(["appointment", ...a]), null),
     patients: async (...a) => (calls.push(["patients", ...a]), []),
     catalog: async (...a) => (calls.push(["catalog", ...a]), null),
     quotes: async (...a) => (calls.push(["quotes", ...a]), []),
@@ -35,7 +36,8 @@ function stubPanel() {
 
 function setup() {
   const { panel, calls } = stubPanel();
-  const { deps, channel, quotes } = makeDeps();
+  const ctx = makeDeps();
+  const { deps, channel, quotes, staffAgenda } = ctx;
   const whatsappQueue = new InMemoryQueue<WhatsAppEvent>(
     (e) => handleWhatsAppEvent(e, deps),
     silentLogger,
@@ -54,9 +56,9 @@ function setup() {
       asaasWebhookToken: ASAAS_TOKEN,
     },
     sandbox: channel,
-    admin: { token: ADMIN, clinicId: CLINIC_ID, quotes, panel },
+    admin: { token: ADMIN, clinicId: CLINIC_ID, quotes, panel, agenda: staffAgenda },
   });
-  return { app, channel, whatsappQueue, asaasQueue, asaasEvents, panelCalls: calls };
+  return { app, ctx, channel, whatsappQueue, asaasQueue, asaasEvents, panelCalls: calls };
 }
 
 describe("WhatsApp webhook", () => {
@@ -285,5 +287,74 @@ describe("admin panel read API", () => {
       expect(res.statusCode, url).toBe(400);
     }
     expect(panelCalls).toEqual([]);
+  });
+});
+
+describe("admin agenda API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+  const booking = (patientId: string, startsAt = "2026-10-21T13:00:00.000Z") => ({
+    patient: { id: patientId },
+    procedureId: "proc_avaliacao",
+    dentistId: "dentist_dev",
+    startsAt,
+  });
+
+  it("requires the bearer token on every agenda route", async () => {
+    const { app } = setup();
+    for (const [method, url] of [
+      ["GET", "/admin/slots?procedureId=proc_avaliacao&from=2026-10-20"],
+      ["GET", "/admin/appointments/a1"],
+      ["POST", "/admin/appointments"],
+      ["POST", "/admin/appointments/a1/reschedule"],
+      ["POST", "/admin/appointments/a1/cancel"],
+    ] as const) {
+      expect((await app.inject({ method, url, payload: {} })).statusCode).toBe(401);
+    }
+  });
+
+  it("lists slots, books, moves and cancels with readable errors", async () => {
+    const { app, ctx } = setup();
+    const p = await ctx.agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: "5511900000001" });
+
+    const slots = await app.inject({
+      method: "GET",
+      url: "/admin/slots?procedureId=proc_avaliacao&from=2026-10-21",
+      headers: auth,
+    });
+    expect(slots.json()[0]).toEqual({
+      dentistId: "dentist_dev",
+      startsAt: "2026-10-21T11:00:00.000Z",
+      endsAt: "2026-10-21T11:30:00.000Z",
+    });
+
+    const post = (url: string, payload: object) =>
+      app.inject({ method: "POST", url, headers: auth, payload });
+    const created = await post("/admin/appointments", booking(p.id));
+    expect(created.statusCode).toBe(201);
+    const { id, notified } = created.json<{ id: string; notified: boolean }>();
+    expect(notified).toBe(true);
+
+    const taken = await post("/admin/appointments", booking(p.id));
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json().error).toContain("não está mais livre");
+    expect((await post("/admin/appointments", { patient: {} })).statusCode).toBe(422);
+
+    const moved = await post(`/admin/appointments/${id}/reschedule`, {
+      dentistId: "dentist_dev",
+      startsAt: "2026-10-21T14:00:00.000Z",
+      notify: false,
+    });
+    expect(moved.json()).toEqual({ notified: false });
+
+    expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(204);
+    expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(404);
+    expect(ctx.agendaRepo.appointments[0]!.status).toBe("CANCELLED");
+  });
+
+  it("returns 404 for an appointment the panel query does not find", async () => {
+    const { app, panelCalls } = setup();
+    const res = await app.inject({ method: "GET", url: "/admin/appointments/a1", headers: auth });
+    expect(res.statusCode).toBe(404);
+    expect(panelCalls).toContainEqual(["appointment", CLINIC_ID, "a1"]);
   });
 });

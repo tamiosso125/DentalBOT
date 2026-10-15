@@ -44,6 +44,20 @@ describe("API client", () => {
     expect(err).toMatchObject({ status: 422, detail: "preço ausente" });
   });
 
+  it("books, moves and cancels appointments on the staff routes", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ id: "a/1", notified: true }, { status: 201 }));
+    fetchMock.mockResolvedValueOnce(Response.json({ notified: false }));
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    expect(await api.bookAppointment({ procedureId: "p" })).toEqual({ id: "a/1", notified: true });
+    await api.rescheduleAppointment("a/1", { startsAt: "x" });
+    await api.cancelAppointment("a/1");
+    expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+      ["http://api.test/admin/appointments", "POST"],
+      ["http://api.test/admin/appointments/a%2F1/reschedule", "POST"],
+      ["http://api.test/admin/appointments/a%2F1/cancel", "POST"],
+    ]);
+  });
+
   it("refuses to run without its settings", async () => {
     delete process.env.ADMIN_API_TOKEN;
     await expect(api.catalog()).rejects.toThrow(/ADMIN_API_TOKEN/);

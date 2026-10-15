@@ -6,7 +6,7 @@ import { FieldCipher } from "../../src/privacy/index.js";
 import { SlotUnavailableError } from "../../src/scheduling/agenda-provider.js";
 import type { AgendaService } from "../../src/scheduling/agenda-service.js";
 import { PrismaAppointmentReminderRepository } from "../../src/scheduling/appointment-reminders.js";
-import { prismaAgendaFor } from "../../src/scheduling/prisma-agenda.js";
+import { PrismaAgendaRepository, prismaAgendaFor } from "../../src/scheduling/prisma-agenda.js";
 
 // Runs only against a disposable database: TEST_DATABASE_URL=postgresql://... pnpm test
 const url = process.env.TEST_DATABASE_URL;
@@ -69,6 +69,11 @@ describe.skipIf(!url)("PrismaAgendaRepository (Postgres)", () => {
   });
 
   it("keeps agenda and patients scoped to the clinic", async () => {
+    const p = (await agenda.buscarPaciente({ phone: "5511900000001" }))!;
+    const repo = new PrismaAgendaRepository(db, cipher, clinicId, "America/Sao_Paulo");
+    expect(await repo.patientById(p.id)).toEqual({ ...p, phone: "5511900000001" });
+    const otherRepo = new PrismaAgendaRepository(db, cipher, otherClinicId, "America/Sao_Paulo");
+    expect(await otherRepo.patientById(p.id)).toBeNull();
     const other = (await prismaAgendaFor(db, cipher, otherClinicId))!;
     expect(await other.buscarPaciente({ phone: "5511900000001" })).toBeNull();
     expect(await other.listarProcedimentos()).toEqual([]);

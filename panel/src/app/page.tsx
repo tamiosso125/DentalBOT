@@ -8,6 +8,7 @@ import {
   formatTime,
   groupByDay,
 } from "@/lib/format";
+import Link from "next/link";
 import { Nav } from "./nav";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,19 @@ const DAYS = 7;
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string }>;
+  searchParams: Promise<{ de?: string; marcada?: string; remarcada?: string; cancelada?: string }>;
 }) {
-  const { de } = await searchParams;
+  const { de, marcada, remarcada, cancelada } = await searchParams;
+  const done = marcada ?? remarcada;
+  const notice = cancelada
+    ? "Consulta cancelada. O horário ficou livre."
+    : done
+      ? `Consulta ${marcada ? "marcada" : "remarcada"}.${
+          done === "avisado"
+            ? " O paciente recebeu o aviso pelo WhatsApp, com os botões Confirmar e Remarcar."
+            : ""
+        }`
+      : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
   const [rows, handoffs] = await Promise.all([api.agenda(from, DAYS), api.handoffs()]);
   const days = groupByDay(rows);
@@ -33,6 +44,7 @@ export default async function AgendaPage({
     <>
       <Nav />
       <main>
+        {notice ? <p className="notice">{notice}</p> : null}
         {handoffs.length > 0 ? (
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Esperando a recepção ({handoffs.length})</h2>
@@ -67,6 +79,9 @@ export default async function AgendaPage({
         <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
           <h1 style={{ margin: 0 }}>Agenda a partir de {formatDate(from)}</h1>
           <div style={{ flex: "0 0 auto", display: "flex", gap: 8 }}>
+            <Link className="button" href="/consultas/nova">
+              Marcar consulta
+            </Link>
             <a className="button secondary" href={`/?de=${shift(-DAYS)}`}>
               Semana anterior
             </a>
@@ -91,6 +106,7 @@ export default async function AgendaPage({
                       <th>Procedimento</th>
                       <th>Dentista</th>
                       <th>Status</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
@@ -117,6 +133,11 @@ export default async function AgendaPage({
                           >
                             {APPOINTMENT_STATUS[a.status] ?? a.status}
                           </span>
+                        </td>
+                        <td>
+                          {a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED" ? (
+                            <Link href={`/consultas/${encodeURIComponent(a.id)}`}>Alterar</Link>
+                          ) : null}
                         </td>
                       </tr>
                     ))}

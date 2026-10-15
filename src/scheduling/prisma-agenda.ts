@@ -82,7 +82,7 @@ export class PrismaAgendaRepository implements AgendaRepository {
   async appointmentOwner(appointmentId: string) {
     const a = await this.db.appointment.findFirst({
       where: { id: appointmentId, clinicId: this.clinicId },
-      select: { patientId: true, status: true, startsAt: true },
+      select: { patientId: true, procedureId: true, status: true, startsAt: true },
     });
     return a;
   }
@@ -124,6 +124,21 @@ export class PrismaAgendaRepository implements AgendaRepository {
         clinicId_phoneHash: { clinicId: this.clinicId, phoneHash: this.cipher.hash(phone) },
       },
       select: { id: true, name: true },
+    });
+  }
+
+  async patientById(patientId: string) {
+    const p = await this.db.patient.findFirst({
+      where: { id: patientId, clinicId: this.clinicId },
+      select: { id: true, name: true, phoneEncrypted: true },
+    });
+    return p ? { id: p.id, name: p.name, phone: this.cipher.decrypt(p.phoneEncrypted) } : null;
+  }
+
+  async markReminderSent(appointmentId: string, at: Date) {
+    await this.db.appointment.updateMany({
+      where: { id: appointmentId, clinicId: this.clinicId },
+      data: { reminderSentAt: at },
     });
   }
 

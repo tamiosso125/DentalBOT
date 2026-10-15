@@ -18,6 +18,8 @@ export type AgendaRow = {
   patientPhone: string;
 };
 
+export type AppointmentDetail = AgendaRow & { procedureId: string; dentistId: string };
+
 export type PatientRow = { id: string; name: string; phone: string };
 
 export type Catalog = {
@@ -64,6 +66,7 @@ export const quoteQuerySchema = z.strictObject({
 
 export interface PanelQueries {
   agenda(clinicId: string, q: z.infer<typeof agendaQuerySchema>): Promise<AgendaRow[]>;
+  appointment(clinicId: string, id: string): Promise<AppointmentDetail | null>;
   patients(clinicId: string, q: string): Promise<PatientRow[]>;
   catalog(clinicId: string): Promise<Catalog | null>;
   quotes(clinicId: string, status?: QuoteStatus): Promise<QuoteRow[]>;
@@ -112,6 +115,31 @@ export class PrismaPanelQueries implements PanelQueries {
       patientName: a.patient.name,
       patientPhone: this.phone(a.patient.phoneEncrypted),
     }));
+  }
+
+  async appointment(clinicId: string, id: string) {
+    const a = await this.db.appointment.findFirst({
+      where: { id, clinicId },
+      include: {
+        patient: { select: { id: true, name: true, phoneEncrypted: true } },
+        procedure: { select: { name: true } },
+        dentist: { select: { name: true } },
+      },
+    });
+    if (!a) return null;
+    return {
+      id: a.id,
+      startsAt: a.startsAt.toISOString(),
+      endsAt: a.endsAt.toISOString(),
+      status: a.status,
+      procedureId: a.procedureId,
+      procedureName: a.procedure.name,
+      dentistId: a.dentistId,
+      dentistName: a.dentist.name,
+      patientId: a.patient.id,
+      patientName: a.patient.name,
+      patientPhone: this.phone(a.patient.phoneEncrypted),
+    };
   }
 
   async patients(clinicId: string, q: string) {
