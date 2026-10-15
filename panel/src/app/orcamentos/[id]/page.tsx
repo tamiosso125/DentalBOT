@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { formatCents, formatDate, formatDateTime, QUOTE_STATUS } from "@/lib/format";
+import { InstallmentsTable } from "../../cobrancas/installments-table";
 import { Nav } from "../../nav";
 import { sendQuote } from "../actions";
 
@@ -21,6 +22,7 @@ export default async function QuotePage({
     throw err;
   });
   const canSend = q.status === "DRAFT" || q.status === "SENT";
+  const installments = q.status === "ACCEPTED" ? await api.installments("todas", q.id) : [];
 
   return (
     <>
@@ -96,6 +98,12 @@ export default async function QuotePage({
             ) : null}
           </div>
         </section>
+        {installments.length ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Parcelas</h2>
+            <InstallmentsTable rows={installments} />
+          </section>
+        ) : null}
       </main>
     </>
   );

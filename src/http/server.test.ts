@@ -12,6 +12,7 @@ import { handleWhatsAppEvent } from "../conversation/handler.js";
 import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
+import { BillingError, type Billing } from "../panel/billing.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
 import { buildServer } from "./server.js";
@@ -97,8 +98,28 @@ function stubSetup() {
   return { setup, calls };
 }
 
+/** Only installment "i1" has a charge in Asaas. */
+function stubBilling() {
+  const calls: unknown[][] = [];
+  const billing: Billing = {
+    installments: async (...a) => (calls.push(["installments", ...a]), []),
+    summary: async (...a) => (
+      calls.push(["summary", ...a]),
+      { openCents: 0, lateCents: 0, lateCount: 0, paidThisMonthCents: 0 }
+    ),
+    paymentLink: async (...a) => {
+      calls.push(["paymentLink", ...a]);
+      if (a[1] !== "i1")
+        throw new BillingError(409, "A cobrança desta parcela ainda não foi emitida no Asaas.");
+      return { url: "https://sandbox.asaas.com/i/pay_1" };
+    },
+  };
+  return { billing, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const billing = stubBilling();
   const clinicSetup = stubSetup();
   const patientData = stubPatientData();
   const ctx = makeDeps();
@@ -129,6 +150,7 @@ function setup() {
       agenda: staffAgenda,
       patientData: patientData.data,
       setup: clinicSetup.setup,
+      billing: billing.billing,
       now: () => NOW,
     },
   });
@@ -142,6 +164,7 @@ function setup() {
     panelCalls: calls,
     dataCalls: patientData.calls,
     setupCalls: clinicSetup.calls,
+    billingCalls: billing.calls,
   };
 }
 
@@ -579,6 +602,45 @@ describe("admin clinic setup API", () => {
       ["setCoverage", CLINIC_ID, "plan9"],
       ["createBlock", CLINIC_ID, block],
       ["deleteBlock", CLINIC_ID, "b1"],
+    ]);
+  });
+});
+
+describe("admin billing API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token", async () => {
+    const { app, billingCalls } = setup();
+    for (const url of [
+      "/admin/installments",
+      "/admin/installments/summary",
+      "/admin/installments/i1/link",
+    ])
+      expect((await app.inject({ method: "GET", url })).statusCode, url).toBe(401);
+    expect(billingCalls).toEqual([]);
+  });
+
+  it("validates the filter and maps a missing charge to a readable error", async () => {
+    const { app, billingCalls } = setup();
+    const get = (url: string) => app.inject({ method: "GET", url, headers: auth });
+
+    expect((await get("/admin/installments")).statusCode).toBe(200);
+    expect((await get("/admin/installments?filtro=vencidas&quoteId=q1")).statusCode).toBe(200);
+    expect((await get("/admin/installments?filtro=outra")).statusCode).toBe(400);
+    expect((await get("/admin/installments/summary")).json()).toMatchObject({ lateCount: 0 });
+    const link = await get("/admin/installments/i1/link");
+    expect(link.json()).toEqual({ url: "https://sandbox.asaas.com/i/pay_1" });
+    expect(link.headers["cache-control"]).toBe("no-store");
+    const missing = await get("/admin/installments/i2/link");
+    expect(missing.statusCode).toBe(409);
+    expect(missing.json().error).toContain("ainda não foi emitida");
+
+    expect(billingCalls).toEqual([
+      ["installments", CLINIC_ID, { filtro: "abertas" }, NOW],
+      ["installments", CLINIC_ID, { filtro: "vencidas", quoteId: "q1" }, NOW],
+      ["summary", CLINIC_ID, NOW],
+      ["paymentLink", CLINIC_ID, "i1"],
+      ["paymentLink", CLINIC_ID, "i2"],
     ]);
   });
 });

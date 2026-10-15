@@ -1,4 +1,5 @@
 import "server-only";
+import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type {
   BlockBody,
   CoverageBody,
@@ -218,6 +219,13 @@ export const api = {
       body: JSON.stringify(body),
     });
   },
+  installments: (filtro: Filter, quoteId?: string) =>
+    json<InstallmentRow[]>(
+      `/admin/installments?filtro=${filtro}${quoteId ? `&quoteId=${encodeURIComponent(quoteId)}` : ""}`,
+    ),
+  billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
+  paymentLink: (id: string) =>
+    json<{ url: string }>(`/admin/installments/${encodeURIComponent(id)}/link`),
   createBlock: (body: BlockBody) =>
     json<{ id: string; appointments: number }>("/admin/setup/blocks", {
       method: "POST",

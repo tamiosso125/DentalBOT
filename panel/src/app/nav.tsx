@@ -8,6 +8,7 @@ export function Nav() {
       <nav>
         <Link href="/">Agenda</Link>
         <Link href="/orcamentos">Orçamentos</Link>
+        <Link href="/cobrancas">Cobranças</Link>
         <Link href="/dados">Dados (LGPD)</Link>
         <Link href="/clinica">Clínica</Link>
       </nav>

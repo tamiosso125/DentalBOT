@@ -80,7 +80,7 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 
 ## Painel da equipe
 
-O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
 
 Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
 
