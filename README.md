@@ -93,6 +93,17 @@ PANEL_SESSION_SECRET=...       # openssl rand -hex 32
 
 e rode `pnpm --filter @dentalbot/panel dev`. O painel abre em http://localhost:3001.
 
+## Cadastro da clínica
+
+Em "Clínica", no painel, a equipe cadastra tudo o que o bot oferece:
+
+- dados da clínica (nome e endereço);
+- dentistas, com CRO, e os horários de atendimento de cada dia da semana (manhã e tarde);
+- procedimentos, com duração e preço particular em reais (sem preço, o bot diz que o valor sai depois da avaliação). Procedimento inativo some do bot e continua no histórico;
+- bloqueios de agenda (férias, feriados, compromissos), em dias inteiros ou em parte de um dia. Consultas já marcadas no período não são canceladas: o painel avisa quantas são para a recepção remarcar.
+
+O topo da página lista o que ainda falta para o bot conseguir marcar consultas. Numa instalação nova, basta escolher um id em `DEFAULT_CLINIC_ID` (por exemplo `clinica`): a clínica é criada no primeiro "Salvar dados". As alterações valem na hora para as próximas conversas.
+
 ## Dados do paciente (LGPD)
 
 O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:

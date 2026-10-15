@@ -57,7 +57,7 @@ PII_HASH_SECRET=            # openssl rand -hex 32
 ADMIN_API_TOKEN=            # openssl rand -hex 32
 PANEL_PASSWORD=             # senha que a recepção vai usar
 PANEL_SESSION_SECRET=       # openssl rand -hex 32
-DEFAULT_CLINIC_ID=          # id da clínica cadastrada no banco
+DEFAULT_CLINIC_ID=clinica   # id da clínica no banco; é criada no primeiro cadastro pelo painel
 
 # WhatsApp (sandbox até a Meta liberar o número)
 WHATSAPP_MODE=sandbox
@@ -98,7 +98,7 @@ curl https://atendimento.suaclinica.com.br/health   # {"status":"ok"}
 
 Abra `https://atendimento.suaclinica.com.br` no navegador e entre com a `PANEL_PASSWORD`.
 
-O cadastro da clínica real (dados, dentista, horários, procedimentos e preços) entra no banco antes do piloto; o comando `/onboarding-clinica` do Claude Code conduz esse passo. O id criado vai em `DEFAULT_CLINIC_ID` (depois rode o `up -d` de novo).
+Antes do piloto, cadastre a clínica real em "Clínica" no painel: dados da clínica, dentista e horários de atendimento, procedimentos com preços e os bloqueios já conhecidos (férias, feriados). A página mostra no topo o que ainda falta para o bot marcar consultas.
 
 ## 6. Atualizar para uma versão nova
 

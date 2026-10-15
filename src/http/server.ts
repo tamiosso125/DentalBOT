@@ -9,6 +9,7 @@ import {
   quoteQuerySchema,
   type PanelQueries,
 } from "../panel/panel-queries.js";
+import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
@@ -43,6 +44,8 @@ export type ServerDeps = {
     agenda?: StaffAgenda;
     /** LGPD requests: export and anonymize a patient's data. Absent = routes not registered. */
     patientData?: PatientData;
+    /** Clinic registration (data, dentists, hours, procedures, blocks). Absent = not registered. */
+    setup?: ClinicSetup;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -153,7 +156,11 @@ export function buildServer(deps: ServerDeps) {
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)
           return reply.code(422).send({ error: err.message });
-        if (err instanceof StaffAgendaError || err instanceof PatientDataError)
+        if (
+          err instanceof StaffAgendaError ||
+          err instanceof PatientDataError ||
+          err instanceof ClinicSetupError
+        )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
         const status = (err as { statusCode?: number }).statusCode;
@@ -266,6 +273,43 @@ export function buildServer(deps: ServerDeps) {
             return result;
           });
         }
+      }
+
+      const setup = admin.setup;
+      if (setup) {
+        type Id = { Params: { id: string } };
+        scope.get("/admin/setup", async () =>
+          setup.view(admin.clinicId, admin.now?.() ?? new Date()),
+        );
+        scope.put("/admin/setup/clinic", async (req, reply) => {
+          await setup.saveClinic(admin.clinicId, req.body);
+          return reply.code(204).send();
+        });
+        scope.post("/admin/setup/dentists", async (req, reply) =>
+          reply.code(201).send(await setup.createDentist(admin.clinicId, req.body)),
+        );
+        scope.put<Id>("/admin/setup/dentists/:id", async (req, reply) => {
+          await setup.updateDentist(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.put<Id>("/admin/setup/dentists/:id/hours", async (req, reply) => {
+          await setup.setWorkingHours(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.post("/admin/setup/procedures", async (req, reply) =>
+          reply.code(201).send(await setup.createProcedure(admin.clinicId, req.body)),
+        );
+        scope.put<Id>("/admin/setup/procedures/:id", async (req, reply) => {
+          await setup.updateProcedure(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.post("/admin/setup/blocks", async (req, reply) =>
+          reply.code(201).send(await setup.createBlock(admin.clinicId, req.body)),
+        );
+        scope.delete<Id>("/admin/setup/blocks/:id", async (req, reply) => {
+          await setup.deleteBlock(admin.clinicId, req.params.id);
+          return reply.code(204).send();
+        });
       }
     });
   }

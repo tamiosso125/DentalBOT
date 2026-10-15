@@ -12,6 +12,7 @@ import { handleWhatsAppEvent } from "../conversation/handler.js";
 import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
+import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
 import { buildServer } from "./server.js";
 
@@ -20,6 +21,7 @@ const VERIFY = "test-verify-token-000";
 const ASAAS_TOKEN = "test-asaas-token-0000";
 
 const ADMIN = "test-admin-token-00000000000000000000";
+const NOW = new Date("2026-10-19T12:00:00Z");
 
 /** Records what the panel routes ask for; the Prisma queries have their own integration test. */
 function stubPanel() {
@@ -61,8 +63,37 @@ function stubPatientData() {
   return { data, calls };
 }
 
+/** Only dentist "d1" exists; procedure names must be unique ("Limpeza" is taken). */
+function stubSetup() {
+  const calls: unknown[][] = [];
+  const noDentist = (id: string) => {
+    if (id !== "d1") throw new ClinicSetupError(404, "Dentista não encontrado.");
+  };
+  const setup: ClinicSetup = {
+    view: async (...a) => (
+      calls.push(["view", ...a]),
+      { clinic: null, dentists: [], procedures: [], blocks: [] }
+    ),
+    saveClinic: async (...a) => void calls.push(["saveClinic", ...a]),
+    createDentist: async (...a) => (calls.push(["createDentist", ...a]), { id: "d2" }),
+    updateDentist: async (...a) => (calls.push(["updateDentist", ...a]), noDentist(a[1])),
+    setWorkingHours: async (...a) => (calls.push(["setWorkingHours", ...a]), noDentist(a[1])),
+    createProcedure: async (...a) => {
+      calls.push(["createProcedure", ...a]);
+      if ((a[1] as { name?: string }).name === "Limpeza")
+        throw new ClinicSetupError(409, "Já existe um procedimento com esse nome.");
+      return { id: "p2" };
+    },
+    updateProcedure: async (...a) => void calls.push(["updateProcedure", ...a]),
+    createBlock: async (...a) => (calls.push(["createBlock", ...a]), { id: "b1", appointments: 2 }),
+    deleteBlock: async (...a) => void calls.push(["deleteBlock", ...a]),
+  };
+  return { setup, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const clinicSetup = stubSetup();
   const patientData = stubPatientData();
   const ctx = makeDeps();
   const { deps, channel, quotes, staffAgenda } = ctx;
@@ -91,6 +122,8 @@ function setup() {
       panel,
       agenda: staffAgenda,
       patientData: patientData.data,
+      setup: clinicSetup.setup,
+      now: () => NOW,
     },
   });
   return {
@@ -102,6 +135,7 @@ function setup() {
     asaasEvents,
     panelCalls: calls,
     dataCalls: patientData.calls,
+    setupCalls: clinicSetup.calls,
   };
 }
 
@@ -454,6 +488,75 @@ describe("admin LGPD API", () => {
       ["summary", CLINIC_ID, "p1"],
       ["resolveRequest", CLINIC_ID, "r1"],
       ["resolveRequest", CLINIC_ID, "r2"],
+    ]);
+  });
+});
+
+describe("admin clinic setup API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+  const routes = [
+    ["GET", "/admin/setup"],
+    ["PUT", "/admin/setup/clinic"],
+    ["POST", "/admin/setup/dentists"],
+    ["PUT", "/admin/setup/dentists/d1"],
+    ["PUT", "/admin/setup/dentists/d1/hours"],
+    ["POST", "/admin/setup/procedures"],
+    ["PUT", "/admin/setup/procedures/p1"],
+    ["POST", "/admin/setup/blocks"],
+    ["DELETE", "/admin/setup/blocks/b1"],
+  ] as const;
+
+  it("requires the bearer token on every route", async () => {
+    const { app, setupCalls } = setup();
+    for (const [method, url] of routes)
+      expect((await app.inject({ method, url, payload: {} })).statusCode, url).toBe(401);
+    expect(setupCalls).toEqual([]);
+  });
+
+  it("passes every change to the clinic of the token and maps refusals", async () => {
+    const { app, setupCalls } = setup();
+    const call = (method: "GET" | "PUT" | "POST" | "DELETE", url: string, payload?: object) =>
+      app.inject({ method, url, headers: auth, payload });
+    const hours = { hours: [{ weekday: 1, startMinute: 480, endMinute: 720 }] };
+    const block = { dentistId: "d1", fromDate: "2026-12-24", toDate: "2026-12-25" };
+
+    expect((await call("GET", "/admin/setup")).json()).toMatchObject({ clinic: null });
+    expect((await call("PUT", "/admin/setup/clinic", { name: "Clínica Sorriso" })).statusCode).toBe(
+      204,
+    );
+    const dentist = await call("POST", "/admin/setup/dentists", { name: "Dra. Ana" });
+    expect([dentist.statusCode, dentist.json()]).toEqual([201, { id: "d2" }]);
+    expect((await call("PUT", "/admin/setup/dentists/d1", { name: "Dra. Ana" })).statusCode).toBe(
+      204,
+    );
+    expect((await call("PUT", "/admin/setup/dentists/d1/hours", hours)).statusCode).toBe(204);
+    const missing = await call("PUT", "/admin/setup/dentists/d9/hours", hours);
+    expect([missing.statusCode, missing.json()]).toEqual([
+      404,
+      { error: "Dentista não encontrado." },
+    ]);
+    const taken = await call("POST", "/admin/setup/procedures", { name: "Limpeza" });
+    expect(taken.statusCode).toBe(409);
+    expect((await call("PUT", "/admin/setup/procedures/p1", { name: "Canal" })).statusCode).toBe(
+      204,
+    );
+    expect((await call("POST", "/admin/setup/blocks", block)).json()).toEqual({
+      id: "b1",
+      appointments: 2,
+    });
+    expect((await call("DELETE", "/admin/setup/blocks/b1")).statusCode).toBe(204);
+
+    expect(setupCalls.map((c) => c.slice(0, 3))).toEqual([
+      ["view", CLINIC_ID, NOW],
+      ["saveClinic", CLINIC_ID, { name: "Clínica Sorriso" }],
+      ["createDentist", CLINIC_ID, { name: "Dra. Ana" }],
+      ["updateDentist", CLINIC_ID, "d1"],
+      ["setWorkingHours", CLINIC_ID, "d1"],
+      ["setWorkingHours", CLINIC_ID, "d9"],
+      ["createProcedure", CLINIC_ID, { name: "Limpeza" }],
+      ["updateProcedure", CLINIC_ID, "p1"],
+      ["createBlock", CLINIC_ID, block],
+      ["deleteBlock", CLINIC_ID, "b1"],
     ]);
   });
 });
