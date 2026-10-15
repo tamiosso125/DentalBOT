@@ -30,7 +30,7 @@ O roteador (Claude Haiku 5.5) classifica cada mensagem e o atendente (Claude Son
 
 ## Orçamentos
 
-A dentista (por enquanto pela API; depois pelo painel) monta o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas e passa para a recepção mandar a cobrança.
+A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas e passa para a recepção mandar a cobrança.
 
 Ligue a API da equipe acrescentando ao `.env` um token (`openssl rand -hex 32`) e o id da clínica:
 
@@ -61,10 +61,26 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
   -d '{"patientId":"patient_dev","dentistId":"dentist_dev","items":[{"procedureId":"<id da limpeza>"}],"installmentCount":2}'
 ```
 
+## Painel da equipe
+
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos, e permite criar um orçamento, ver o PDF e enviar pelo WhatsApp. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+
+Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
+
+```bash
+DENTALBOT_API_URL=http://localhost:3000
+ADMIN_API_TOKEN=...            # o mesmo da API
+PANEL_PASSWORD=...             # senha da equipe
+PANEL_SESSION_SECRET=...       # openssl rand -hex 32
+```
+
+e rode `pnpm --filter @dentalbot/panel dev`. O painel abre em http://localhost:3001.
+
 ## Verificações
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm eval
+pnpm --filter @dentalbot/panel typecheck && pnpm --filter @dentalbot/panel test
 ```
 
 Com um Postgres descartável, `TEST_DATABASE_URL=postgresql://... pnpm test` também roda os testes de integração e os de ponta a ponta (`tests/e2e/`): servidor HTTP de verdade, webhook assinado, fila, banco e saída do sandbox, montados pelo mesmo `createApp()` da produção. O CI roda tudo isso em cada PR. `pnpm test:e2e` roda só esses.
@@ -76,6 +92,7 @@ Com um Postgres descartável, `TEST_DATABASE_URL=postgresql://... pnpm test` tam
 | Pasta                    | Conteúdo                                                                   |
 | ------------------------ | -------------------------------------------------------------------------- |
 | `src/`                   | API (Fastify), WhatsApp, conversa, pagamentos (Asaas), agenda, privacidade |
+| `panel/`                 | Painel da equipe (Next.js): agenda, orçamentos, conversas pausadas         |
 | `prisma/`                | Modelo de dados, migrations e seed                                         |
 | `tests/`                 | Casos de conversa (YAML), fixtures e testes de integração                  |
 | `tools/mcp/`             | MCP servers `whatsapp-sandbox` e `dentalbot-agenda`                        |

@@ -37,3 +37,8 @@ jobs:
       - run: pnpm test
       - run: pnpm eval
       - run: pnpm build
+      - run: pnpm --filter @dentalbot/panel typecheck
+      - run: pnpm --filter @dentalbot/panel test
+      - run: pnpm --filter @dentalbot/panel build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
