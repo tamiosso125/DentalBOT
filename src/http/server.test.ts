@@ -11,6 +11,7 @@ import type { AsaasWebhookEvent } from "../payments/asaas.js";
 import { handleWhatsAppEvent } from "../conversation/handler.js";
 import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
+import type { PanelQueries } from "../panel/panel-queries.js";
 import { buildServer } from "./server.js";
 
 const SECRET = "test-app-secret-0000000000";
@@ -19,7 +20,21 @@ const ASAAS_TOKEN = "test-asaas-token-0000";
 
 const ADMIN = "test-admin-token-00000000000000000000";
 
+/** Records what the panel routes ask for; the Prisma queries have their own integration test. */
+function stubPanel() {
+  const calls: unknown[][] = [];
+  const panel: PanelQueries = {
+    agenda: async (...a) => (calls.push(["agenda", ...a]), []),
+    patients: async (...a) => (calls.push(["patients", ...a]), []),
+    catalog: async (...a) => (calls.push(["catalog", ...a]), null),
+    quotes: async (...a) => (calls.push(["quotes", ...a]), []),
+    handoffs: async (...a) => (calls.push(["handoffs", ...a]), []),
+  };
+  return { panel, calls };
+}
+
 function setup() {
+  const { panel, calls } = stubPanel();
   const { deps, channel, quotes } = makeDeps();
   const whatsappQueue = new InMemoryQueue<WhatsAppEvent>(
     (e) => handleWhatsAppEvent(e, deps),
@@ -39,9 +54,9 @@ function setup() {
       asaasWebhookToken: ASAAS_TOKEN,
     },
     sandbox: channel,
-    admin: { token: ADMIN, clinicId: CLINIC_ID, quotes },
+    admin: { token: ADMIN, clinicId: CLINIC_ID, quotes, panel },
   });
-  return { app, channel, whatsappQueue, asaasQueue, asaasEvents };
+  return { app, channel, whatsappQueue, asaasQueue, asaasEvents, panelCalls: calls };
 }
 
 describe("WhatsApp webhook", () => {
@@ -220,5 +235,55 @@ describe("admin quote API", () => {
     const res = await app.inject({ method: "GET", url: "/dev/sandbox/outbox" });
     expect(res.json().messages[0]).toMatchObject({ kind: "document", bytes: 8 });
     expect(res.json().messages[0].data).toBeUndefined();
+  });
+});
+
+describe("admin panel read API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token on every read route", async () => {
+    const { app } = setup();
+    for (const url of [
+      "/admin/agenda?from=2026-10-19",
+      "/admin/patients?q=maria",
+      "/admin/catalog",
+      "/admin/quotes",
+      "/admin/handoffs",
+    ]) {
+      expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    }
+  });
+
+  it("passes validated queries scoped to the configured clinic", async () => {
+    const { app, panelCalls } = setup();
+    const get = (url: string) => app.inject({ method: "GET", url, headers: auth });
+    expect((await get("/admin/agenda?from=2026-10-19&days=3")).statusCode).toBe(200);
+    expect((await get("/admin/patients?q=%20maria%20")).statusCode).toBe(200);
+    expect((await get("/admin/quotes?status=SENT")).statusCode).toBe(200);
+    expect((await get("/admin/handoffs")).statusCode).toBe(200);
+    expect((await get("/admin/catalog")).statusCode).toBe(404);
+    expect(panelCalls.map((c) => c.slice(0, 3))).toEqual([
+      ["agenda", CLINIC_ID, { from: "2026-10-19", days: 3 }],
+      ["patients", CLINIC_ID, "maria"],
+      ["quotes", CLINIC_ID, "SENT"],
+      ["handoffs", CLINIC_ID, expect.any(Date)],
+      ["catalog", CLINIC_ID],
+    ]);
+  });
+
+  it("answers 400 for invalid or unknown query parameters", async () => {
+    const { app, panelCalls } = setup();
+    for (const url of [
+      "/admin/agenda",
+      "/admin/agenda?from=19/10/2026",
+      "/admin/agenda?from=2026-10-19&days=90",
+      "/admin/patients?q=a",
+      "/admin/quotes?status=PAID",
+      "/admin/quotes?clinicId=other",
+    ]) {
+      const res = await app.inject({ method: "GET", url, headers: auth });
+      expect(res.statusCode, url).toBe(400);
+    }
+    expect(panelCalls).toEqual([]);
   });
 });

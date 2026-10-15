@@ -20,6 +20,7 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 - `src/whatsapp/`: assinatura, schema do webhook, canal (Cloud API ou sandbox), templates.
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
+- `src/panel/`: consultas de leitura do painel da equipe (agenda, pacientes, catálogo, orçamentos, conversas pausadas), sempre por clínica e com telefone mascarado.
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
 - `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras), repositórios Prisma/memória e o MCP da agenda (`agenda-mcp.ts`).
