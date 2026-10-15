@@ -133,6 +133,8 @@ model Patient {
   insurancePlanId        String?
   insuranceCardEncrypted String?
   asaasCustomerId        String?
+  /// LGPD erasure: personal fields were wiped at this moment (financial records stay).
+  anonymizedAt           DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

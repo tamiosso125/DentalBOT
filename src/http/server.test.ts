@@ -12,6 +12,7 @@ import { handleWhatsAppEvent } from "../conversation/handler.js";
 import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
+import { PatientDataError, type PatientData } from "../panel/patient-data.js";
 import { buildServer } from "./server.js";
 
 const SECRET = "test-app-secret-0000000000";
@@ -34,8 +35,35 @@ function stubPanel() {
   return { panel, calls };
 }
 
+/** Patient "p1" has an open installment; "r1" is the only open request. */
+function stubPatientData() {
+  const calls: unknown[][] = [];
+  const data: PatientData = {
+    dataRequests: async (...a) => (
+      calls.push(["dataRequests", ...a]),
+      [{ id: "r1", createdAt: "x", patientId: null, patientName: null, contact: "***0001" }]
+    ),
+    resolveRequest: async (...a) => {
+      calls.push(["resolveRequest", ...a]);
+      if (a[1] !== "r1") throw new PatientDataError(404, "Pedido não encontrado.");
+    },
+    summary: async (...a) => (calls.push(["summary", ...a]), null),
+    export: async (...a) => {
+      calls.push(["export", ...a]);
+      return { generatedAt: "x", clinic: "Clínica Sorriso", patient: null } as never;
+    },
+    anonymize: async (...a) => {
+      calls.push(["anonymize", ...a]);
+      if ("patientId" in a[1]) throw new PatientDataError(409, "Há 1 parcela(s) em aberto.");
+      return { cancelledAppointments: 0, conversations: 1, messages: 3 };
+    },
+  };
+  return { data, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const patientData = stubPatientData();
   const ctx = makeDeps();
   const { deps, channel, quotes, staffAgenda } = ctx;
   const whatsappQueue = new InMemoryQueue<WhatsAppEvent>(
@@ -56,9 +84,25 @@ function setup() {
       asaasWebhookToken: ASAAS_TOKEN,
     },
     sandbox: channel,
-    admin: { token: ADMIN, clinicId: CLINIC_ID, quotes, panel, agenda: staffAgenda },
+    admin: {
+      token: ADMIN,
+      clinicId: CLINIC_ID,
+      quotes,
+      panel,
+      agenda: staffAgenda,
+      patientData: patientData.data,
+    },
   });
-  return { app, ctx, channel, whatsappQueue, asaasQueue, asaasEvents, panelCalls: calls };
+  return {
+    app,
+    ctx,
+    channel,
+    whatsappQueue,
+    asaasQueue,
+    asaasEvents,
+    panelCalls: calls,
+    dataCalls: patientData.calls,
+  };
 }
 
 describe("WhatsApp webhook", () => {
@@ -356,5 +400,60 @@ describe("admin agenda API", () => {
     const res = await app.inject({ method: "GET", url: "/admin/appointments/a1", headers: auth });
     expect(res.statusCode).toBe(404);
     expect(panelCalls).toContainEqual(["appointment", CLINIC_ID, "a1"]);
+  });
+});
+
+describe("admin LGPD API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+  const routes = [
+    ["GET", "/admin/data-requests"],
+    ["POST", "/admin/data-requests/r1/resolve"],
+    ["GET", "/admin/data-requests/r1/export"],
+    ["POST", "/admin/data-requests/r1/anonymize"],
+    ["GET", "/admin/patients/p1"],
+    ["GET", "/admin/patients/p1/export"],
+    ["POST", "/admin/patients/p1/anonymize"],
+  ] as const;
+
+  it("requires the bearer token on every route", async () => {
+    const { app, dataCalls } = setup();
+    for (const [method, url] of routes)
+      expect((await app.inject({ method, url, payload: {} })).statusCode, url).toBe(401);
+    expect(dataCalls).toEqual([]);
+  });
+
+  it("downloads the export as a JSON attachment and maps refusals to readable errors", async () => {
+    const { app, dataCalls } = setup();
+    const call = (method: "GET" | "POST", url: string) =>
+      app.inject({ method, url, headers: auth, payload: method === "POST" ? {} : undefined });
+
+    expect((await call("GET", "/admin/data-requests")).json()).toHaveLength(1);
+    const exported = await call("GET", "/admin/data-requests/r1/export");
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers["content-disposition"]).toBe('attachment; filename="dados-r1.json"');
+    expect(exported.headers["cache-control"]).toBe("no-store");
+    expect(exported.json()).toMatchObject({ clinic: "Clínica Sorriso" });
+
+    expect((await call("POST", "/admin/data-requests/r1/anonymize")).json()).toEqual({
+      cancelledAppointments: 0,
+      conversations: 1,
+      messages: 3,
+    });
+    const refused = await call("POST", "/admin/patients/p1/anonymize");
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error).toContain("parcela");
+    expect((await call("GET", "/admin/patients/p1")).statusCode).toBe(404);
+    expect((await call("POST", "/admin/data-requests/r1/resolve")).statusCode).toBe(204);
+    expect((await call("POST", "/admin/data-requests/r2/resolve")).statusCode).toBe(404);
+
+    expect(dataCalls.map((c) => c.slice(0, 3))).toEqual([
+      ["dataRequests", CLINIC_ID],
+      ["export", CLINIC_ID, { requestId: "r1" }],
+      ["anonymize", CLINIC_ID, { requestId: "r1" }],
+      ["anonymize", CLINIC_ID, { patientId: "p1" }],
+      ["summary", CLINIC_ID, "p1"],
+      ["resolveRequest", CLINIC_ID, "r1"],
+      ["resolveRequest", CLINIC_ID, "r2"],
+    ]);
   });
 });

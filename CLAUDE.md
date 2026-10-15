@@ -22,7 +22,7 @@ Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
 - `panel/`: painel Next.js (App Router). Chama a API `/admin/*` só pelo servidor (`panel/src/lib/api.ts`, `server-only`); login por senha da equipe com cookie HMAC; `middleware.ts` protege tudo menos `/login`.
-- `src/panel/`: consultas de leitura do painel da equipe (agenda, pacientes, catálogo, orçamentos, conversas pausadas), sempre por clínica e com telefone mascarado.
+- `src/panel/`: consultas de leitura do painel da equipe (agenda, pacientes, catálogo, orçamentos, conversas pausadas), sempre por clínica e com telefone mascarado, e os pedidos do titular da LGPD (`patient-data.ts`: exportar e anonimizar).
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
 - `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras), repositórios Prisma/memória, lembrete de consulta da véspera com Confirmar/Remarcar (`appointment-reminders.ts`), agenda da recepção pelo painel (`staff-agenda.ts`) e o MCP da agenda (`agenda-mcp.ts`).

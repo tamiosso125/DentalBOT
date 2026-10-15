@@ -63,6 +63,10 @@ DEFAULT_CLINIC_ID=clinic_dev
 | `GET /admin/patients?q=maria`              | Busca paciente por nome ou pelo celular completo                      |
 | `GET /admin/catalog`                       | Dentistas ativos e procedimentos (para montar o orçamento)            |
 | `GET /admin/handoffs`                      | Conversas com o bot pausado esperando a recepção                      |
+| `GET /admin/data-requests`                 | Pedidos MEUS DADOS em aberto                                          |
+| `GET /admin/patients/:id/export`           | Cópia dos dados do paciente em JSON (também por `/data-requests/:id`) |
+| `POST /admin/patients/:id/anonymize`       | Anonimiza o paciente (também por `/data-requests/:id`)                |
+| `POST /admin/data-requests/:id/resolve`    | Marca o pedido como respondido                                        |
 
 As rotas de leitura alimentam o painel da equipe e mostram só os 4 últimos dígitos do celular.
 
@@ -88,6 +92,15 @@ PANEL_SESSION_SECRET=...       # openssl rand -hex 32
 ```
 
 e rode `pnpm --filter @dentalbot/panel dev`. O painel abre em http://localhost:3001.
+
+## Dados do paciente (LGPD)
+
+O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:
+
+- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
+- anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
+
+A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.
 
 ## Verificações
 

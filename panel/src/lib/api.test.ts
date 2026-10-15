@@ -63,4 +63,20 @@ describe("API client", () => {
     await expect(api.catalog()).rejects.toThrow(/ADMIN_API_TOKEN/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("exports, anonymizes and resolves on the LGPD routes", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ clinic: "x" }));
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ cancelledAppointments: 0, conversations: 1, messages: 2 }),
+    );
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await api.exportData({ kind: "patients", id: "p/1" });
+    expect(await api.anonymize({ kind: "data-requests", id: "r1" })).toMatchObject({ messages: 2 });
+    await api.resolveDataRequest("r1");
+    expect(fetchMock.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+      ["http://api.test/admin/patients/p%2F1/export", undefined],
+      ["http://api.test/admin/data-requests/r1/anonymize", "POST"],
+      ["http://api.test/admin/data-requests/r1/resolve", "POST"],
+    ]);
+  });
 });
