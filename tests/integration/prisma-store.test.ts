@@ -52,7 +52,8 @@ describe.skipIf(!url)("PrismaConversationStore (Postgres)", () => {
 
     const rows = await db.message.findMany({ where: { conversationId: conv.id } });
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.bodyEncrypted).not.toContain("oi");
+    // Ciphertext is random base64, so compare whole values, not substrings.
+    expect(rows[0]!.bodyEncrypted).not.toBe("oi");
     expect(cipher.decrypt(rows[0]!.bodyEncrypted!)).toBe("oi");
 
     const raw = await db.conversation.findUniqueOrThrow({ where: { id: conv.id } });

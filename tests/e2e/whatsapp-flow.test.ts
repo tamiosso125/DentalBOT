@@ -27,7 +27,8 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
   const env = loadEnv({
     NODE_ENV: "test",
     LOG_LEVEL: "fatal",
-    DATABASE_URL: url,
+    // Placeholder keeps collection working when the suite is skipped (no database).
+    DATABASE_URL: url ?? "postgresql://skipped@localhost/skipped",
     QUEUE_MODE: "memory",
     WHATSAPP_MODE: "sandbox",
     ASAAS_ENV: "mock",
@@ -157,7 +158,11 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     expect(sent[0]!.body).toContain("Clínica E2E");
     expect(sent[1]!.kind).toBe("buttons");
 
-    const conv = (await conversationOf(PATIENT))!;
+    // Each reply is stored right after it goes out.
+    const conv = await until(async () => {
+      const c = await conversationOf(PATIENT);
+      return c && c.messages.length >= 3 && c;
+    });
     expect(conv.contactEncrypted).not.toContain(PATIENT);
     expect(conv.privacyNoticeAt).not.toBeNull();
     expect(conv.messages.map((m) => m.direction)).toEqual(["INBOUND", "OUTBOUND", "OUTBOUND"]);
@@ -186,7 +191,11 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     await webhook(text("meu rosto está inchado e não consigo respirar direito", OTHER));
     const sent = await replies(1, OTHER);
     expect(sent.at(-1)!.body).toMatch(/pronto-socorro|SAMU|192/i);
-    const conv = (await conversationOf(OTHER))!;
+    // The handoff is written right after the reply goes out, so wait for it too.
+    const conv = await until(async () => {
+      const c = await conversationOf(OTHER);
+      return c?.botPausedUntil && c;
+    });
     expect(conv.botPausedUntil!.getTime()).toBeGreaterThan(Date.now());
   });
 
@@ -228,7 +237,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
       return q?.status === "ACCEPTED" && q;
     });
     expect(quote.installments.map((i) => i.amountCents).sort()).toEqual([350_00, 350_00]);
-    expect((await conversationOf(PATIENT))!.botPausedUntil).not.toBeNull();
+    await until(async () => (await conversationOf(PATIENT))?.botPausedUntil);
 
     // The front desk billed installment 1 in Asaas; its payment webhook marks it paid.
     const first = quote.installments.find((i) => i.number === 1)!;
