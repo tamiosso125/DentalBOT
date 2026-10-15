@@ -19,6 +19,7 @@ const ADMIN_TOKEN = "e2e-admin-token-0000000000000000000000";
 /** Fictitious numbers (55 11 90000-XXXX), different from other test files. */
 const PATIENT = "5511900000011";
 const OTHER = "5511900000012";
+const REQUESTER = "5511900000013";
 
 type OutboxMessage = {
   kind: string;
@@ -95,6 +96,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     const { db } = app;
     await db.quoteItem.deleteMany({ where: { quote: { clinicId } } });
     await db.quote.deleteMany({ where: { clinicId } });
+    await db.dataSubjectRequest.deleteMany({ where: { clinicId } });
     await db.message.deleteMany({ where: { conversation: { clinicId } } });
     await db.conversation.deleteMany({ where: { clinicId } });
     await db.appointment.deleteMany({ where: { clinicId } });
@@ -400,5 +402,35 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     expect((await app.db.appointment.findUniqueOrThrow({ where: { id } })).status).toBe(
       "CANCELLED",
     );
+  });
+
+  it("takes a MEUS DADOS request to the export and the anonymization", async () => {
+    const admin = async (path: string, method = "GET") =>
+      fetch(`${base}${path}`, { method, headers: { authorization: `Bearer ${ADMIN_TOKEN}` } });
+    await webhook(text("oi", REQUESTER));
+    await replies(1, REQUESTER);
+    await webhook(text("MEUS DADOS", REQUESTER));
+    await until(async () => (await app.db.dataSubjectRequest.count({ where: { clinicId } })) > 0);
+
+    const [request] = (await (await admin("/admin/data-requests")).json()) as Array<{
+      id: string;
+      contact: string;
+      patientId: string | null;
+    }>;
+    expect(request).toMatchObject({ contact: "***0013", patientId: null });
+
+    const exported = await admin(`/admin/data-requests/${request!.id}/export`);
+    expect(exported.headers.get("content-disposition")).toContain("attachment");
+    const dump = (await exported.json()) as {
+      conversations: Array<{ contact: string; messages: Array<{ body: string | null }> }>;
+    };
+    expect(dump.conversations[0]!.contact).toBe(REQUESTER);
+    expect(dump.conversations[0]!.messages.map((m) => m.body)).toContain("MEUS DADOS");
+
+    const done = await admin(`/admin/data-requests/${request!.id}/anonymize`, "POST");
+    expect(((await done.json()) as { messages: number }).messages).toBeGreaterThan(0);
+    expect(await (await admin("/admin/data-requests")).json()).toEqual([]);
+    // Nothing left under that number: a new message starts from scratch.
+    expect(await conversationOf(REQUESTER)).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ Dados de saúde são sensíveis (LGPD art. 11). O padrão é coletar o mínimo e
 ## Comandos do paciente
 
 - `PARAR`: grava `Conversation.marketingOptOutAt`; lembretes de consulta e cobrança continuam (são do atendimento).
-- `MEUS DADOS`: cria `DataSubjectRequest`; a equipe responde acesso, correção e exclusão pelo painel.
+- `MEUS DADOS`: cria `DataSubjectRequest`; a equipe responde pelo painel em "Dados (LGPD)" (`src/panel/patient-data.ts`): cópia em JSON e anonimização. A anonimização mantém orçamentos e parcelas (obrigação legal) e é recusada com parcela em aberto. Campo pessoal novo precisa entrar na exportação e na anonimização, com teste em `tests/integration/prisma-patient-data.test.ts`.
 
 ## Prontuário
 

@@ -8,6 +8,7 @@ export function Nav() {
       <nav>
         <Link href="/">Agenda</Link>
         <Link href="/orcamentos">Orçamentos</Link>
+        <Link href="/dados">Dados (LGPD)</Link>
       </nav>
       <form action={logout}>
         <button type="submit" className="secondary">

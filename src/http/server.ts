@@ -9,6 +9,7 @@ import {
   quoteQuerySchema,
   type PanelQueries,
 } from "../panel/panel-queries.js";
+import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
@@ -40,6 +41,8 @@ export type ServerDeps = {
     panel: PanelQueries;
     /** Book, move and cancel appointments. Absent = agenda is read-only. */
     agenda?: StaffAgenda;
+    /** LGPD requests: export and anonymize a patient's data. Absent = routes not registered. */
+    patientData?: PatientData;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -150,7 +153,7 @@ export function buildServer(deps: ServerDeps) {
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)
           return reply.code(422).send({ error: err.message });
-        if (err instanceof StaffAgendaError)
+        if (err instanceof StaffAgendaError || err instanceof PatientDataError)
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
         const status = (err as { statusCode?: number }).statusCode;
@@ -226,6 +229,43 @@ export function buildServer(deps: ServerDeps) {
             return reply.code(204).send();
           },
         );
+      }
+
+      const data = admin.patientData;
+      if (data) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/data-requests", async () => data.dataRequests(admin.clinicId));
+        scope.post<{ Params: { id: string } }>(
+          "/admin/data-requests/:id/resolve",
+          async (req, reply) => {
+            await data.resolveRequest(admin.clinicId, req.params.id, now());
+            return reply.code(204).send();
+          },
+        );
+        scope.get<{ Params: { id: string } }>("/admin/patients/:id", async (req, reply) => {
+          const p = await data.summary(admin.clinicId, req.params.id);
+          return p ? p : reply.code(404).send();
+        });
+        // The same two actions, for a registered patient or straight from a "MEUS DADOS" request.
+        const subjects: Array<[string, (id: string) => SubjectRef]> = [
+          ["/admin/patients/:id", (patientId) => ({ patientId })],
+          ["/admin/data-requests/:id", (requestId) => ({ requestId })],
+        ];
+        for (const [base, ref] of subjects) {
+          scope.get<{ Params: { id: string } }>(`${base}/export`, async (req, reply) => {
+            const body = await data.export(admin.clinicId, ref(req.params.id), now());
+            deps.logger.info({ subject: req.params.id }, "patient data exported");
+            return reply
+              .header("cache-control", "no-store")
+              .header("content-disposition", `attachment; filename="dados-${req.params.id}.json"`)
+              .send(body);
+          });
+          scope.post<{ Params: { id: string } }>(`${base}/anonymize`, async (req) => {
+            const result = await data.anonymize(admin.clinicId, ref(req.params.id), now());
+            deps.logger.info({ subject: req.params.id, ...result }, "patient data anonymized");
+            return result;
+          });
+        }
       }
     });
   }

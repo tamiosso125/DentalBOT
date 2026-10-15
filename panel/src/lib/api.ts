@@ -57,6 +57,31 @@ export type HandoffRow = {
   lastInboundAt: string | null;
 };
 
+export type DataRequestRow = {
+  id: string;
+  createdAt: string;
+  patientId: string | null;
+  patientName: string | null;
+  contact: string;
+};
+export type PatientSummary = {
+  id: string;
+  name: string;
+  phone: string;
+  createdAt: string;
+  anonymizedAt: string | null;
+  appointments: number;
+  quotes: number;
+  openInstallments: number;
+};
+export type AnonymizeResult = {
+  cancelledAppointments: number;
+  conversations: number;
+  messages: number;
+};
+/** Whose data: a registered patient, or a "MEUS DADOS" request from a conversation. */
+export type DataSubject = { kind: "patients" | "data-requests"; id: string };
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -128,4 +153,14 @@ export const api = {
   cancelAppointment: async (id: string) => {
     await call(`/admin/appointments/${encodeURIComponent(id)}/cancel`, { method: "POST" });
   },
+  dataRequests: () => json<DataRequestRow[]>("/admin/data-requests"),
+  resolveDataRequest: async (id: string) => {
+    await call(`/admin/data-requests/${encodeURIComponent(id)}/resolve`, { method: "POST" });
+  },
+  patientSummary: (id: string) => json<PatientSummary>(`/admin/patients/${encodeURIComponent(id)}`),
+  exportData: (s: DataSubject) => call(`/admin/${s.kind}/${encodeURIComponent(s.id)}/export`),
+  anonymize: (s: DataSubject) =>
+    json<AnonymizeResult>(`/admin/${s.kind}/${encodeURIComponent(s.id)}/anonymize`, {
+      method: "POST",
+    }),
 };
