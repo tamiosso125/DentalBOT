@@ -1,0 +1,14 @@
+name: Orçamento vencido não pode ser aprovado e vai para a recepção
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_canal }
+      validDays: 1
+  - advance_minutes: 4320
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: EXPIRED
+      installments: 0
+      contains: ["venceu em 20/10/2026"]
+      handoff: true

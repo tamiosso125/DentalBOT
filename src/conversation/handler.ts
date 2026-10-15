@@ -1,5 +1,6 @@
 import { respond, type OrchestratorDeps } from "../ai/orchestrator.js";
 import type { Logger } from "../lib/logger.js";
+import type { QuoteService } from "../quotes/quote-service.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
 import { previewText } from "../whatsapp/index.js";
 import { detectIntent } from "./intents.js";
@@ -14,6 +15,8 @@ export type HandlerDeps = {
   config: { handoffPauseMinutes: number; privacyPolicyUrl: string };
   /** LLM orchestrator (router + attendant). Absent = deterministic menu only (AI_MODE=off). */
   ai?: OrchestratorDeps;
+  /** Quote buttons (approve/decline/view). Absent = the front desk handles them. */
+  quotes?: QuoteService;
 };
 
 /**
@@ -74,7 +77,9 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const paused = conv.botPausedUntil !== null && conv.botPausedUntil > now();
 
   // Emergencies always get the safety message, even while a human is handling the chat.
-  if (paused && intent.kind !== "emergency") {
+  // Quote buttons are deterministic answers to something the clinic sent, so they are
+  // recorded even then.
+  if (paused && intent.kind !== "emergency" && intent.kind !== "quote_action") {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
     return;
   }
@@ -108,10 +113,20 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       await store.createDataRequest(clinic.id, conv.id);
       await send({ kind: "text", to: conv.contact, body: MESSAGES.dataRequest });
       return;
+    case "quote_action": {
+      if (!deps.quotes) {
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.quoteSoon });
+        return handoff(conv, "quote:no_service", deps, now());
+      }
+      const out = await deps.quotes.handleAction(conv, intent.quoteId, intent.action);
+      for (const m of out.messages) await send(m);
+      if (out.handoff) await handoff(conv, out.handoff, deps, now());
+      return;
+    }
     case "menu_choice":
       if (deps.ai && intent.choice === "agendar")
         return aiTurn(conv, clinic, "Quero agendar uma consulta", undefined, deps, now());
-      // TODO(fase-1): quote flow (PDF + Asaas) replaces this handoff in the next step.
+      // A new quote needs the dentist's evaluation, so the front desk takes it from here.
       await send({
         kind: "text",
         to: conv.contact,

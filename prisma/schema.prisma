@@ -213,17 +213,22 @@ enum CoverageType {
 }
 
 model Quote {
-  id          String      @id @default(cuid())
-  clinicId    String
-  patientId   String
-  dentistId   String
-  status      QuoteStatus @default(DRAFT)
-  totalCents  Int
-  validUntil  DateTime?   @db.Date
-  sentAt      DateTime?
-  respondedAt DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  clinicId         String
+  patientId        String
+  dentistId        String
+  status           QuoteStatus @default(DRAFT)
+  /// Sum of PRIVATE items, in cents. Insurance-covered items are not charged.
+  totalCents       Int
+  /// Number of monthly installments offered for the private total.
+  installmentCount Int         @default(1)
+  /// Free text from the dentist shown on the PDF (no diagnosis details).
+  notes            String?
+  validUntil       DateTime?   @db.Date
+  sentAt           DateTime?
+  respondedAt      DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   clinic       Clinic        @relation(fields: [clinicId], references: [id])
   patient      Patient       @relation(fields: [patientId], references: [id])

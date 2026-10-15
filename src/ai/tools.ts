@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { normalize } from "../conversation/intents.js";
+import { formatCents } from "../lib/money.js";
 import type { ClinicProfile } from "../conversation/store.js";
 import {
   AppointmentNotFoundError,
@@ -365,10 +366,6 @@ export async function runTool(
 }
 
 // ---------- helpers ----------
-
-export function formatCents(cents: number): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-}
 
 function slotOf(o: Offer): Slot {
   return {

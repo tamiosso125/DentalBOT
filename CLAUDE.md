@@ -16,10 +16,11 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 
 ## Mapa do código
 
-- `src/http/server.ts`: rotas (webhooks WhatsApp e Asaas, health, outbox do sandbox).
+- `src/http/server.ts`: rotas (webhooks WhatsApp e Asaas, health, outbox do sandbox, API da equipe `/admin/*` com token Bearer).
 - `src/whatsapp/`: assinatura, schema do webhook, canal (Cloud API ou sandbox), templates.
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
+- `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
 - `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras) e repositórios Prisma/memória.
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.

@@ -1,0 +1,17 @@
+name: Orçamento dentro da janela vai com PDF e o paciente não aprova
+steps:
+  - patient: "oi"
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_clareamento }
+    expect:
+      sent_via: session
+      document: true
+      contains: ["À vista", "Aprovar"]
+  - button: "quote:{quote}:reject"
+    title: "Não aprovar"
+    expect:
+      quote_status: REJECTED
+      installments: 0
+      contains: ["não vai seguir com este orçamento"]
+      handoff: false

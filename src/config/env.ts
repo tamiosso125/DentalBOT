@@ -35,6 +35,14 @@ export const envSchema = z
     ASAAS_API_KEY: z.string().optional(),
     ASAAS_WEBHOOK_TOKEN: z.string().min(16),
 
+    /// "off" = deterministic menu only; "anthropic" = router + attendant via the Claude API.
+    AI_MODE: z.enum(["off", "anthropic"]).default("off"),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    AI_ATTENDANT_EFFORT: z.enum(["low", "medium", "high"]).default("medium"),
+
+    /// Bearer token for the clinic staff API (/admin/*). Unset = API off. openssl rand -hex 32
+    ADMIN_API_TOKEN: z.string().min(32).optional(),
+
     PRIVACY_POLICY_URL: z.string().url().default("https://example.com/privacidade"),
     /// Clinic used when the WhatsApp phone_number_id is not yet linked to a clinic (sandbox).
     DEFAULT_CLINIC_ID: z.string().optional(),
@@ -45,6 +53,13 @@ export const envSchema = z
         if (!env[key])
           ctx.addIssue({ code: "custom", path: [key], message: "required in cloud mode" });
       }
+    }
+    if (env.AI_MODE === "anthropic" && !env.ANTHROPIC_API_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ANTHROPIC_API_KEY"],
+        message: "required when AI_MODE=anthropic",
+      });
     }
     if (env.ASAAS_ENV !== "mock" && !env.ASAAS_API_KEY) {
       ctx.addIssue({

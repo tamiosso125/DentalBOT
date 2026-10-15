@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import type { Logger } from "../lib/logger.js";
 import { asaasWebhookSchema, type AsaasWebhookEvent } from "../payments/asaas.js";
+import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import type { JobQueue } from "../queue/queue.js";
 import {
   isValidSignature,
@@ -20,6 +21,11 @@ export type ServerDeps = {
     whatsappAppSecret: string;
     asaasWebhookToken: string;
   };
+  /**
+   * Clinic staff API (the panel will use it). Bearer token, single clinic.
+   * Absent = routes not registered.
+   */
+  admin?: { token: string; clinicId: string; quotes: QuoteService };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
   sandbox?: SandboxChannel;
 };
@@ -116,9 +122,58 @@ export function buildServer(deps: ServerDeps) {
     return reply.code(200).send({ received: true });
   });
 
+  if (deps.admin) {
+    const admin = deps.admin;
+    app.register(async (scope) => {
+      scope.addHook("onRequest", async (req, reply) => {
+        const auth = req.headers.authorization;
+        const token =
+          typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : undefined;
+        if (!safeEqual(token, admin.token)) return reply.code(401).send();
+      });
+      scope.setErrorHandler((err, _req, reply) => {
+        if (err instanceof QuoteValidationError)
+          return reply.code(422).send({ error: err.message });
+        const status = (err as { statusCode?: number }).statusCode;
+        // Fastify's own client errors (malformed JSON, wrong content type).
+        if (status && status >= 400 && status < 500)
+          return reply.code(status).send({ error: "bad request" });
+        deps.logger.error(
+          { err: err instanceof Error ? err.name : "unknown" },
+          "admin route failed",
+        );
+        return reply.code(500).send({ error: "internal error" });
+      });
+
+      scope.post("/admin/quotes", async (req, reply) =>
+        reply.code(201).send(await admin.quotes.create(admin.clinicId, req.body)),
+      );
+      scope.get<{ Params: { id: string } }>("/admin/quotes/:id", async (req, reply) => {
+        const q = await admin.quotes.get(admin.clinicId, req.params.id);
+        return q ? q : reply.code(404).send();
+      });
+      scope.get<{ Params: { id: string } }>("/admin/quotes/:id/pdf", async (req, reply) => {
+        const pdf = await admin.quotes.pdf(admin.clinicId, req.params.id);
+        if (!pdf) return reply.code(404).send();
+        return reply
+          .type("application/pdf")
+          .header("content-disposition", `inline; filename="orcamento-${req.params.id}.pdf"`)
+          .send(pdf);
+      });
+      scope.post<{ Params: { id: string } }>("/admin/quotes/:id/send", async (req) =>
+        admin.quotes.send(admin.clinicId, req.params.id),
+      );
+    });
+  }
+
   if (deps.sandbox) {
     const sandbox = deps.sandbox;
-    app.get("/dev/sandbox/outbox", async () => ({ messages: sandbox.outbox }));
+    app.get("/dev/sandbox/outbox", async () => ({
+      // Documents (quote PDFs) are listed by size; the bytes stay out of the JSON.
+      messages: sandbox.outbox.map((m) =>
+        m.kind === "document" ? { ...m, data: undefined, bytes: m.data.length } : m,
+      ),
+    }));
     app.delete("/dev/sandbox/outbox", async () => {
       sandbox.clear();
       return { cleared: true };

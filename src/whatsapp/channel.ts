@@ -9,7 +9,22 @@ export type OutboundMessage =
   | { kind: "text"; to: string; body: string }
   | { kind: "buttons"; to: string; body: string; buttons: ReplyButton[] }
   | { kind: "list"; to: string; body: string; button: string; rows: ListRow[] }
-  | { kind: "template"; to: string; template: TemplateName; params: string[] };
+  | {
+      kind: "document";
+      to: string;
+      filename: string;
+      mimeType: "application/pdf";
+      data: Buffer;
+      caption?: string;
+    }
+  | {
+      kind: "template";
+      to: string;
+      template: TemplateName;
+      params: string[];
+      /** Payload of each quick-reply button, in the template's button order. */
+      buttonPayloads?: string[];
+    };
 
 /**
  * Channel abstraction. The rest of the code never talks to Meta directly, so the
@@ -28,6 +43,8 @@ export function previewText(message: OutboundMessage): string {
       return `${message.body}\n${message.buttons.map((b) => `[${b.title}]`).join(" ")}`;
     case "list":
       return `${message.body}\n${message.rows.map((r) => `- ${r.title}`).join("\n")}`;
+    case "document":
+      return `[documento: ${message.filename}]${message.caption ? ` ${message.caption}` : ""}`;
     case "template":
       return renderTemplate(message.template, message.params);
   }
@@ -64,15 +81,40 @@ export class CloudApiChannel implements WhatsAppChannel {
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
+  private get baseUrl() {
+    return `https://graph.facebook.com/${this.opts.graphApiVersion}/${this.opts.phoneNumberId}`;
+  }
+
+  /** Uploads a file to Meta and returns its media id (valid for 30 days). */
+  private async uploadMedia(data: Buffer, mimeType: string, filename: string) {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", mimeType);
+    form.append("file", new Blob([new Uint8Array(data)], { type: mimeType }), filename);
+    const res = await this.fetchImpl(`${this.baseUrl}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.opts.accessToken}` },
+      body: form,
+    });
+    if (!res.ok) throw new Error(`WhatsApp media upload failed: HTTP ${res.status}`);
+    const { id } = (await res.json()) as { id?: string };
+    if (!id) throw new Error("WhatsApp media upload returned no id");
+    return id;
+  }
+
   async send(message: OutboundMessage) {
-    const url = `https://graph.facebook.com/${this.opts.graphApiVersion}/${this.opts.phoneNumberId}/messages`;
+    const mediaId =
+      message.kind === "document"
+        ? await this.uploadMedia(message.data, message.mimeType, message.filename)
+        : undefined;
+    const url = `${this.baseUrl}/messages`;
     const res = await this.fetchImpl(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.opts.accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(toCloudApiBody(message)),
+      body: JSON.stringify(toCloudApiBody(message, mediaId)),
     });
     if (!res.ok) {
       // Body may echo the recipient; keep only the status and Meta's error code.
@@ -86,7 +128,10 @@ export class CloudApiChannel implements WhatsAppChannel {
   }
 }
 
-export function toCloudApiBody(message: OutboundMessage): Record<string, unknown> {
+export function toCloudApiBody(
+  message: OutboundMessage,
+  mediaId?: string,
+): Record<string, unknown> {
   const base = { messaging_product: "whatsapp", recipient_type: "individual", to: message.to };
   switch (message.kind) {
     case "text":
@@ -128,6 +173,17 @@ export function toCloudApiBody(message: OutboundMessage): Record<string, unknown
           },
         },
       };
+    case "document":
+      if (!mediaId) throw new Error("document messages need an uploaded media id");
+      return {
+        ...base,
+        type: "document",
+        document: {
+          id: mediaId,
+          filename: message.filename,
+          ...(message.caption ? { caption: message.caption } : {}),
+        },
+      };
     case "template": {
       const tpl = TEMPLATES[message.template];
       renderTemplate(message.template, message.params);
@@ -142,6 +198,12 @@ export function toCloudApiBody(message: OutboundMessage): Record<string, unknown
               type: "body",
               parameters: message.params.map((text) => ({ type: "text", text })),
             },
+            ...(message.buttonPayloads ?? []).map((payload, index) => ({
+              type: "button",
+              sub_type: "quick_reply",
+              index: String(index),
+              parameters: [{ type: "payload", payload }],
+            })),
           ],
         },
       };

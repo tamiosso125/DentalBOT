@@ -1,6 +1,6 @@
 ---
 name: orcamentos-cobranca
-description: Use ao mexer em orçamentos, itens, parcelas, Pix, boleto, cartão, integração e webhooks do Asaas ou textos de cobrança (src/payments, modelos Quote, QuoteItem, Installment).
+description: Use ao mexer em orçamentos, PDF do orçamento, itens, parcelas, Pix, boleto, cartão, integração e webhooks do Asaas ou textos de cobrança (src/quotes, src/payments, modelos Quote, QuoteItem, Installment).
 ---
 
 # Orçamentos e cobrança
@@ -10,6 +10,14 @@ description: Use ao mexer em orçamentos, itens, parcelas, Pix, boleto, cartão,
 - `Quote` (DRAFT → SENT → ACCEPTED/REJECTED/EXPIRED) com `QuoteItem` (`coverage`: PRIVATE ou INSURANCE) e `Installment` (PENDING → BILLED → PAID/OVERDUE/CANCELLED).
 - Valores sempre em **centavos inteiros** (`*Cents`). A conversão para reais acontece só em `src/payments/asaas.ts` (`centsToReais`).
 - Itens cobertos pela Odontoprev entram como `INSURANCE` e não geram cobrança; autorização prévia é feita pela recepção no portal da operadora.
+
+## Fluxo do orçamento (`src/quotes/`)
+
+- `QuoteService.create` valida com Zod (`newQuoteSchema`) e checa clínica, dentista, paciente e procedimento. Preço vem da tabela (`Procedure.priceCents`) ou da dentista; item `INSURANCE` custa 0 e fica fora do total.
+- `send`: dentro da janela de 24 h manda o PDF (`document`, upload em `/media`) e os botões; fora dela só o template `orcamento_disponivel`, com payloads `quote:<id>:view` e `handoff`.
+- Botões `quote:<id>:view|accept|reject` (`detectIntent`) chegam a `handleAction`, que só atende o próprio paciente do orçamento (os outros recebem "não encontrei"). Funcionam mesmo com o bot pausado pela recepção.
+- `respond` só muda orçamento `SENT` (update condicional): toque duplo ou concorrente não grava duas vezes. Aceite cria as parcelas (`installmentPlan`: 1ª em hoje + 3 dias, depois mensais; resto dos centavos na 1ª) e passa para a recepção; vencido vira `EXPIRED` e vai para a recepção.
+- Ainda não automatizado: gerar a cobrança no Asaas depois do aceite e lembrar orçamentos sem resposta.
 
 ## Asaas
 

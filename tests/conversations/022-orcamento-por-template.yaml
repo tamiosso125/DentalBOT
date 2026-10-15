@@ -1,0 +1,28 @@
+name: Orçamento fora da janela de 24h vai por template e o paciente aprova
+description: >
+  A clínica manda o orçamento a um paciente que não escreveu nas últimas 24h. Só o template
+  aprovado pode sair; o botão "Ver orçamento" traz o PDF e o paciente aprova em 3 parcelas.
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_limpeza }
+        - { procedureId: proc_resina, quantity: 2 }
+      installmentCount: 3
+    expect:
+      sent_via: template
+      quote_status: SENT
+      contains: ["orçamento do seu tratamento"]
+      document: false
+  - button: "quote:{quote}:view"
+    title: "Ver orçamento"
+    expect:
+      document: true
+      contains: ["Total particular", "3x", "Aprovar", "Não aprovar"]
+      handoff: false
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 3
+      contains: ["Registramos a aprovação"]
+      handoff: true

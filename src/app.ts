@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { AnthropicLlm } from "./ai/llm.js";
+import type { OrchestratorDeps } from "./ai/orchestrator.js";
 import type { Env } from "./config/env.js";
 import { handleWhatsAppEvent } from "./conversation/handler.js";
 import { PrismaConversationStore } from "./conversation/prisma-store.js";
@@ -13,7 +15,10 @@ import {
 } from "./payments/asaas.js";
 import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
 import { FieldCipher } from "./privacy/index.js";
+import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
+import { QuoteService } from "./quotes/quote-service.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
+import { prismaAgendaFor } from "./scheduling/prisma-agenda.js";
 import {
   CloudApiChannel,
   SandboxChannel,
@@ -43,6 +48,24 @@ export function createApp(env: Env, logger: Logger) {
   const conversationStore = new PrismaConversationStore(db, cipher, env.DEFAULT_CLINIC_ID);
   const paymentStore = new PrismaPaymentEventStore(db);
 
+  const quotes = new QuoteService({
+    repo: new PrismaQuoteRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+
+  const ai: OrchestratorDeps | undefined =
+    env.AI_MODE === "anthropic"
+      ? {
+          llm: new AnthropicLlm(env.ANTHROPIC_API_KEY),
+          store: conversationStore,
+          agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
+          logger,
+          effort: env.AI_ATTENDANT_EFFORT,
+        }
+      : undefined;
+
   const makeQueue = <T>(name: string, handler: JobHandler<T>): JobQueue<T> =>
     env.QUEUE_MODE === "redis"
       ? new BullQueue<T>(name, env.REDIS_URL, handler, logger)
@@ -53,6 +76,8 @@ export function createApp(env: Env, logger: Logger) {
       store: conversationStore,
       channel,
       logger,
+      ai,
+      quotes,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,
@@ -73,6 +98,10 @@ export function createApp(env: Env, logger: Logger) {
       asaasWebhookToken: env.ASAAS_WEBHOOK_TOKEN,
     },
     sandbox: env.NODE_ENV !== "production" ? sandbox : undefined,
+    admin:
+      env.ADMIN_API_TOKEN && env.DEFAULT_CLINIC_ID
+        ? { token: env.ADMIN_API_TOKEN, clinicId: env.DEFAULT_CLINIC_ID, quotes }
+        : undefined,
   });
 
   async function close() {

@@ -10,9 +10,13 @@ export type Intent =
   | { kind: "emergency" }
   | { kind: "clinical" }
   | { kind: "menu_choice"; choice: MenuChoice }
+  | { kind: "quote_action"; quoteId: string; action: QuoteAction }
   | { kind: "other" };
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
+export type QuoteAction = "view" | "accept" | "reject";
+
+const QUOTE_REPLY = /^quote:([\w-]{1,64}):(view|accept|reject)$/;
 
 export function normalize(text: string): string {
   return text
@@ -45,6 +49,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
   if (replyId === "menu:orcamento") return { kind: "menu_choice", choice: "orcamento" };
   if (replyId === "menu:info") return { kind: "menu_choice", choice: "info" };
   if (replyId === "handoff") return { kind: "human" };
+  const quote = replyId?.match(QUOTE_REPLY);
+  if (quote) return { kind: "quote_action", quoteId: quote[1]!, action: quote[2] as QuoteAction };
 
   const t = normalize(text ?? "");
   if (t === "parar" || t === "pare" || t === "sair") return { kind: "opt_out" };
