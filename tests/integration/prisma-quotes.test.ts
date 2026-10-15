@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PrismaPaymentEventStore } from "../../src/payments/payment-events.js";
 import { FieldCipher } from "../../src/privacy/index.js";
 import { PrismaQuoteRepository } from "../../src/quotes/prisma-quotes.js";
 
@@ -118,5 +119,48 @@ describe.skipIf(!url)("PrismaQuoteRepository (Postgres)", () => {
       include: { installments: true },
     });
     expect(row.installments).toHaveLength(row.status === "ACCEPTED" ? 2 : 0);
+  });
+
+  it("gives billing the decrypted CPF and records charges without undoing a payment", async () => {
+    await db.patient.update({
+      where: { id: patientId },
+      data: { cpfHash: cipher.hash("52998224725"), cpfEncrypted: cipher.encrypt("52998224725") },
+    });
+    const id = await newQuote();
+    await repo.markSent(clinicId, id, new Date());
+    expect(await repo.billingInfo(clinicId, id)).toBeNull(); // not accepted yet
+    await repo.respond(clinicId, id, "ACCEPTED", new Date(), [
+      { number: 1, amountCents: 350_00, dueDate: "2026-10-22" },
+      { number: 2, amountCents: 350_00, dueDate: "2026-11-22" },
+    ]);
+    const info = (await repo.billingInfo(clinicId, id))!;
+    expect(info).toMatchObject({
+      patientCpf: "52998224725",
+      asaasCustomerId: null,
+      clinicName: "Clínica Orçamento Teste",
+    });
+    expect(info.installments.map((i) => i.dueDate).sort()).toEqual(["2026-10-22", "2026-11-22"]);
+    expect(await repo.billingInfo(otherClinicId, id)).toBeNull();
+
+    await repo.saveAsaasCustomer(clinicId, patientId, "cus_test_1");
+    const [one, two] = [...info.installments].sort((a, b) => a.number - b.number);
+
+    // Installment 2 is paid before we stored its Asaas id: the webhook finds it by our id.
+    const payments = new PrismaPaymentEventStore(db);
+    expect(await payments.markInstallmentPaid(`pay_test_${id}_2`, new Date(), two!.id)).toBe(true);
+    await repo.markBilled(one!.id, `pay_test_${id}_1`);
+    await repo.markBilled(two!.id, `pay_test_${id}_2`);
+
+    const rows = await db.installment.findMany({
+      where: { quoteId: id },
+      orderBy: { number: "asc" },
+    });
+    expect(rows.map((r) => [r.status, r.asaasPaymentId])).toEqual([
+      ["BILLED", `pay_test_${id}_1`],
+      ["PAID", `pay_test_${id}_2`],
+    ]);
+    expect((await db.patient.findUniqueOrThrow({ where: { id: patientId } })).asaasCustomerId).toBe(
+      "cus_test_1",
+    );
   });
 });

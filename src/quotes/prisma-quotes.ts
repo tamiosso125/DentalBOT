@@ -1,11 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
 import type { FieldCipher } from "../privacy/index.js";
+import type { QuoteBillingRepository } from "./quote-billing.js";
 import type { NewInstallment, NewQuote, QuoteRepository, QuoteView } from "./quote-repository.js";
 
 const dateOnly = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
-export class PrismaQuoteRepository implements QuoteRepository {
+export class PrismaQuoteRepository implements QuoteRepository, QuoteBillingRepository {
   constructor(
     private readonly db: PrismaClient,
     private readonly cipher: FieldCipher,
@@ -126,6 +127,47 @@ export class PrismaQuoteRepository implements QuoteRepository {
         });
       }
       return true;
+    });
+  }
+
+  async billingInfo(clinicId: string, quoteId: string) {
+    const q = await this.db.quote.findFirst({
+      where: { id: quoteId, clinicId, status: "ACCEPTED" },
+      include: {
+        clinic: { select: { name: true } },
+        patient: { select: { id: true, name: true, cpfEncrypted: true, asaasCustomerId: true } },
+        installments: { where: { status: { in: ["PENDING", "BILLED"] } } },
+      },
+    });
+    if (!q) return null;
+    return {
+      clinicName: q.clinic.name,
+      patientId: q.patient.id,
+      patientName: q.patient.name,
+      patientCpf: q.patient.cpfEncrypted ? this.cipher.decrypt(q.patient.cpfEncrypted) : null,
+      asaasCustomerId: q.patient.asaasCustomerId,
+      installments: q.installments.map((i) => ({
+        id: i.id,
+        number: i.number,
+        amountCents: i.amountCents,
+        dueDate: dateOnly(i.dueDate)!,
+        asaasPaymentId: i.asaasPaymentId,
+      })),
+    };
+  }
+
+  async saveAsaasCustomer(clinicId: string, patientId: string, customerId: string) {
+    await this.db.patient.updateMany({
+      where: { id: patientId, clinicId },
+      data: { asaasCustomerId: customerId },
+    });
+  }
+
+  async markBilled(installmentId: string, asaasPaymentId: string) {
+    // A webhook may already have marked it PAID: never move it back.
+    await this.db.installment.updateMany({
+      where: { id: installmentId, status: "PENDING" },
+      data: { status: "BILLED", asaasPaymentId },
     });
   }
 }

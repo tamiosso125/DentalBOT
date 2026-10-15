@@ -11,7 +11,7 @@ export function splitInstallments(totalCents: number, count: number): number[] {
   );
 }
 
-const ddmmyyyy = (date: string) => date.split("-").reverse().join("/");
+export const ddmmyyyy = (date: string) => date.split("-").reverse().join("/");
 
 /** Patient-facing summary (pt-BR), shared by the PDF and the WhatsApp message. */
 export function quoteSummary(q: QuoteView) {

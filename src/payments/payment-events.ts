@@ -6,7 +6,15 @@ import { PAID_EVENTS, type AsaasWebhookEvent } from "./asaas.js";
 export interface PaymentEventStore {
   /** Returns false if the event was already processed. */
   markProcessed(eventId: string, event: string): Promise<boolean>;
-  markInstallmentPaid(asaasPaymentId: string, paidAt: Date): Promise<boolean>;
+  /**
+   * `installmentId` is the charge's externalReference: it still finds the installment if
+   * the payment lands before we stored the Asaas id.
+   */
+  markInstallmentPaid(
+    asaasPaymentId: string,
+    paidAt: Date,
+    installmentId?: string | null,
+  ): Promise<boolean>;
   markInstallmentOverdue(asaasPaymentId: string): Promise<boolean>;
 }
 
@@ -19,7 +27,11 @@ export async function handleAsaasEvent(
 
   if (PAID_EVENTS.has(evt.event)) {
     const paidAt = new Date(evt.payment.clientPaymentDate ?? evt.payment.paymentDate ?? Date.now());
-    const found = await deps.store.markInstallmentPaid(evt.payment.id, paidAt);
+    const found = await deps.store.markInstallmentPaid(
+      evt.payment.id,
+      paidAt,
+      evt.payment.externalReference,
+    );
     deps.logger.info({ asaasPaymentId: evt.payment.id, found }, "installment paid");
   } else if (evt.event === "PAYMENT_OVERDUE") {
     await deps.store.markInstallmentOverdue(evt.payment.id);
@@ -62,10 +74,12 @@ export class PrismaPaymentEventStore implements PaymentEventStore {
     return res.count === 1;
   }
 
-  async markInstallmentPaid(asaasPaymentId: string, paidAt: Date) {
+  async markInstallmentPaid(asaasPaymentId: string, paidAt: Date, installmentId?: string | null) {
     const res = await this.db.installment.updateMany({
-      where: { asaasPaymentId },
-      data: { status: "PAID", paidAt },
+      where: installmentId
+        ? { OR: [{ asaasPaymentId }, { id: installmentId, asaasPaymentId: null }] }
+        : { asaasPaymentId },
+      data: { status: "PAID", paidAt, asaasPaymentId },
     });
     return res.count > 0;
   }

@@ -6,7 +6,8 @@ import type { Logger } from "../lib/logger.js";
 import { formatCents } from "../lib/money.js";
 import { addDays, dateInZone } from "../scheduling/time.js";
 import { previewText, type OutboundMessage, type WhatsAppChannel } from "../whatsapp/index.js";
-import { quoteSummary, renderQuotePdf, splitInstallments } from "./quote-pdf.js";
+import type { QuoteBillingService } from "./quote-billing.js";
+import { ddmmyyyy, quoteSummary, renderQuotePdf, splitInstallments } from "./quote-pdf.js";
 import type { NewInstallment, QuoteRepository, QuoteView } from "./quote-repository.js";
 
 /** What the dentist (later, the panel) sends to create a quote. */
@@ -46,6 +47,8 @@ export type QuoteDeps = {
   channel: WhatsAppChannel;
   store: ConversationStore;
   logger: Logger;
+  /** Creates the Asaas charges on approval. Without it, the front desk bills by hand. */
+  billing?: QuoteBillingService;
   now?: () => Date;
 };
 
@@ -210,9 +213,60 @@ export class QuoteService {
 
     this.deps.logger.info({ quoteId: q.id, status }, "quote answered");
     return action === "accept"
-      ? // The front desk takes over to send the charge (Asaas) until billing is automated.
-        { messages: [text(to, MESSAGES.quoteAccepted)], handoff: "quote:accepted" }
+      ? this.afterAccept(conv, q)
       : { messages: [text(to, MESSAGES.quoteRejected)] };
+  }
+
+  /**
+   * Bills the approved quote in Asaas and sends the first payment link. Whenever billing
+   * cannot happen (no CPF on file, Asaas down, billing off), the front desk takes over.
+   */
+  private async afterAccept(
+    conv: ConversationRecord,
+    q: QuoteView,
+  ): Promise<{ messages: OutboundMessage[]; handoff?: string }> {
+    const to = conv.contact;
+    if (q.totalCents === 0)
+      return { messages: [text(to, MESSAGES.quoteAcceptedNoCharge)], handoff: "quote:accepted" };
+    if (!this.deps.billing)
+      return { messages: [text(to, MESSAGES.quoteAccepted)], handoff: "quote:accepted" };
+
+    try {
+      const result = await this.deps.billing.bill(conv.clinicId, q.id);
+      if (result.status === "billed") {
+        const [first, ...rest] = result.installments;
+        if (first)
+          return {
+            messages: [
+              text(
+                to,
+                MESSAGES.quoteAcceptedBilled(
+                  formatCents(first.amountCents),
+                  ddmmyyyy(first.dueDate),
+                  first.invoiceUrl,
+                  rest.length,
+                ),
+              ),
+            ],
+          };
+      }
+      if (result.status === "no_cpf")
+        return {
+          messages: [text(to, MESSAGES.quoteAcceptedNeedsCpf)],
+          handoff: "quote:accepted:no_cpf",
+        };
+    } catch (err) {
+      // Asaas errors carry only method, path, HTTP status and error codes: no patient data.
+      this.deps.logger.error(
+        { quoteId: q.id, err: err instanceof Error ? err.message : "unknown" },
+        "quote billing failed",
+      );
+      return {
+        messages: [text(to, MESSAGES.quoteAccepted)],
+        handoff: "quote:accepted:billing_failed",
+      };
+    }
+    return { messages: [text(to, MESSAGES.quoteAccepted)], handoff: "quote:accepted" };
   }
 
   private async quoteMessages(q: QuoteView, to: string): Promise<OutboundMessage[]> {

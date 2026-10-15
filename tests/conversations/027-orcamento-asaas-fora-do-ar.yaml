@@ -1,0 +1,22 @@
+name: Asaas fora do ar na aprovação não perde o aceite
+description: >
+  Se o Asaas falhar, a aprovação e as parcelas ficam registradas, o paciente não recebe
+  link quebrado e a recepção é chamada para mandar a cobrança.
+asaas_down: true
+steps:
+  - patient: "oi"
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_resina, quantity: 2 }
+      installmentCount: 2
+    expect:
+      sent_via: session
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 2
+      charges: 0
+      contains: ["recepção vai te mandar a cobrança"]
+      not_contains: ["asaas.com"]
+      handoff: true

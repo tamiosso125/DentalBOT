@@ -2,6 +2,7 @@ name: Orçamento fora da janela de 24h vai por template e o paciente aprova
 description: >
   A clínica manda o orçamento a um paciente que não escreveu nas últimas 24h. Só o template
   aprovado pode sair; o botão "Ver orçamento" traz o PDF e o paciente aprova em 3 parcelas.
+  As 3 cobranças vão para o Asaas e o paciente recebe o link da primeira; o bot segue ativo.
 steps:
   - clinic_sends_quote:
       items:
@@ -24,5 +25,7 @@ steps:
     expect:
       quote_status: ACCEPTED
       installments: 3
-      contains: ["Registramos a aprovação"]
-      handoff: true
+      charges: 3
+      contains:
+        ["Registramos a aprovação", "1ª parcela", "Pix, boleto ou cartão", "sandbox.asaas.com"]
+      handoff: false

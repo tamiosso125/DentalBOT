@@ -1,0 +1,22 @@
+name: Paciente sem CPF aprova o orçamento e a recepção assume a cobrança
+description: >
+  O Asaas só emite cobrança com CPF. Sem CPF no cadastro, o bot registra a aprovação e as
+  parcelas, não cria cobrança, avisa que a recepção vai pedir o CPF e chama a equipe.
+patient_cpf: false
+steps:
+  - patient: "oi"
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_limpeza }
+      installmentCount: 1
+    expect:
+      sent_via: session
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      installments: 1
+      charges: 0
+      contains: ["Registramos a aprovação", "CPF"]
+      not_contains: ["asaas.com"]
+      handoff: true
