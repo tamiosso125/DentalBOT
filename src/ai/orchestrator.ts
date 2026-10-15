@@ -3,6 +3,7 @@ import type { ClinicInfo, ConversationRecord, ConversationStore } from "../conve
 import type { Logger } from "../lib/logger.js";
 import type { AgendaProvider } from "../scheduling/agenda-provider.js";
 import { formatShortPtBr, formatTimePtBr, formatWhenPtBr } from "../scheduling/time.js";
+import type { WaitlistService } from "../waitlist/waitlist.js";
 import { checkReply } from "./guard.js";
 import { MODELS, textOf, type LlmClient } from "./llm.js";
 import { attendantSystemPrompt } from "./prompt.js";
@@ -25,6 +26,8 @@ export type OrchestratorDeps = {
   agendaFor(clinicId: string): Promise<AgendaProvider | null>;
   logger: Logger;
   effort?: AttendantEffort;
+  /** Waiting list (entrar_lista_espera). Absent = the tool hands off to the front desk. */
+  waitlist?: Pick<WaitlistService, "join">;
 };
 
 export type ListMessage = {
@@ -135,6 +138,14 @@ async function attend(
     linkPatient: (patientId) => deps.store.updateConversation(conv.id, { patientId }),
     state,
     now,
+    ...(deps.waitlist
+      ? {
+          waitlist: {
+            join: (patientId: string, procedureId: string, until: Date) =>
+              deps.waitlist!.join(input.clinic.id, patientId, procedureId, until),
+          },
+        }
+      : {}),
     effects: {
       offersListed: false,
       allowedTimes: new Set([

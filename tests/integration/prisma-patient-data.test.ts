@@ -83,6 +83,9 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         },
       });
     }
+    await db.waitlistEntry.create({
+      data: { clinicId, patientId, procedureId, until: new Date("2026-10-31T03:00:00Z") },
+    });
     const quote = await db.quote.create({
       data: {
         clinicId,
@@ -126,6 +129,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       await db.message.deleteMany({ where: { conversation: { clinicId: id } } });
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
+      await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
       await db.appointment.deleteMany({ where: { clinicId: id } });
       await db.consent.deleteMany({ where: { patient: { clinicId: id } } });
       await db.patient.deleteMany({ where: { clinicId: id } });
@@ -161,6 +165,9 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       { purpose: "PRIVACY_NOTICE", granted: true, source: "STAFF" },
     ]);
     expect(out.appointments).toHaveLength(2);
+    expect(out.waitlist).toEqual([
+      expect.objectContaining({ procedure: "Limpeza", status: "WAITING", closedAt: null }),
+    ]);
     expect(out.quotes).toMatchObject([
       { notes: "Tratamento em duas sessões", installments: [{ number: 1, status: "PENDING" }] },
     ]);
@@ -204,6 +211,9 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       orderBy: { startsAt: "asc" },
     });
     expect(appts.map((a) => a.status)).toEqual(["CONFIRMED", "CANCELLED"]); // past one kept
+    expect(await db.waitlistEntry.findMany({ where: { patientId } })).toMatchObject([
+      { status: "REMOVED", closedAt: NOW },
+    ]);
     const quote = await db.quote.findFirstOrThrow({
       where: { patientId },
       include: { installments: true },

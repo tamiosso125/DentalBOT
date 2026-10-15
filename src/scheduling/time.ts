@@ -99,13 +99,17 @@ export function formatShortPtBr(instant: Date, timeZone: string): string {
   return `${weekday} ${day} ${formatTimePtBr(instant, timeZone)}`;
 }
 
-/** "segunda-feira, 19/10 às 09:00". */
-export function formatWhenPtBr(instant: Date, timeZone: string): string {
-  const day = new Intl.DateTimeFormat("pt-BR", {
+/** "segunda-feira, 19/10". */
+export function formatDayPtBr(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
     timeZone,
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
   }).format(instant);
-  return `${day} às ${formatTimePtBr(instant, timeZone)}`;
+}
+
+/** "segunda-feira, 19/10 às 09:00". */
+export function formatWhenPtBr(instant: Date, timeZone: string): string {
+  return `${formatDayPtBr(instant, timeZone)} às ${formatTimePtBr(instant, timeZone)}`;
 }

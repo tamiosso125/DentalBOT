@@ -58,6 +58,13 @@ export type PatientExport = {
     procedure: string;
     dentist: string;
   }>;
+  waitlist: Array<{
+    procedure: string;
+    until: string;
+    status: string;
+    createdAt: string;
+    closedAt: string | null;
+  }>;
   quotes: Array<{
     status: string;
     totalCents: number;
@@ -237,6 +244,10 @@ export class PrismaPatientData implements PatientData {
               orderBy: { createdAt: "asc" },
               include: { items: true, installments: { orderBy: { number: "asc" } } },
             },
+            waitlist: {
+              orderBy: { createdAt: "asc" },
+              include: { procedure: { select: { name: true } } },
+            },
           },
         })
       : null;
@@ -274,6 +285,13 @@ export class PrismaPatientData implements PatientData {
         status: a.status,
         procedure: a.procedure.name,
         dentist: a.dentist.name,
+      })),
+      waitlist: (patient?.waitlist ?? []).map((w) => ({
+        procedure: w.procedure.name,
+        until: w.until.toISOString(),
+        status: w.status,
+        createdAt: w.createdAt.toISOString(),
+        closedAt: iso(w.closedAt),
       })),
       quotes: (patient?.quotes ?? []).map((q) => ({
         status: q.status,
@@ -338,6 +356,10 @@ export class PrismaPatientData implements PatientData {
           },
           data: { status: "CANCELLED" },
         }));
+        await tx.waitlistEntry.updateMany({
+          where: { patientId, status: "WAITING" },
+          data: { status: "REMOVED", closedAt: now },
+        });
         await tx.patient.update({
           where: { id: patientId },
           data: {

@@ -14,6 +14,8 @@ import {
 } from "../../src/scheduling/appointment-reminders.js";
 import { InMemoryRecallRepository } from "../../src/recall/memory-recall.js";
 import { RecallService } from "../../src/recall/recall.js";
+import { InMemoryWaitlistRepository } from "../../src/waitlist/memory-waitlist.js";
+import { WaitlistService } from "../../src/waitlist/waitlist.js";
 import { demoAgendaSeed, InMemoryAgendaRepository } from "../../src/scheduling/memory-agenda.js";
 import {
   fakeAppEcho,
@@ -98,6 +100,18 @@ export function makeDeps(
   });
   const recallRepo = new InMemoryRecallRepository(agendaRepo, store, "Clínica Sorriso");
   const recall = new RecallService({ repo: recallRepo, channel, store, logger: silentLogger });
+  const waitlistRepo = new InMemoryWaitlistRepository(
+    agendaRepo,
+    "Clínica Sorriso",
+    () => clock.now,
+  );
+  const waitlist = new WaitlistService({
+    repo: waitlistRepo,
+    agendaFor,
+    channel,
+    store,
+    logger: silentLogger,
+  });
   const staffAgenda = new StaffAgenda({
     open: async (clinicId) =>
       clinicId === CLINIC_ID
@@ -120,6 +134,7 @@ export function makeDeps(
     quotes,
     agendaFor,
     recall: recallRepo,
+    waitlist,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
       ? {
@@ -128,6 +143,7 @@ export function makeDeps(
             store,
             agendaFor,
             logger: silentLogger,
+            waitlist,
           },
         }
       : {}),
@@ -142,6 +158,8 @@ export function makeDeps(
     appointmentReminders,
     recall,
     recallRepo,
+    waitlist,
+    waitlistRepo,
     staffAgenda,
     quotes,
     quoteRepo,

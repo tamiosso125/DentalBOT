@@ -14,6 +14,7 @@ import {
   echoPayload,
   listPayload,
   makeDeps,
+  OTHER_PATIENT,
   PATIENT,
   textPayload,
 } from "./fixtures.js";
@@ -45,6 +46,8 @@ const expectation = z
     charges: z.number().int().nonnegative().optional(),
     /** How the clinic's quote went out: inside the 24h window or by template. */
     sent_via: z.enum(["session", "template"]).optional(),
+    /** Status of the patient's last waiting-list entry. */
+    waitlist_status: z.enum(["WAITING", "BOOKED", "REMOVED", "EXPIRED"]).optional(),
   })
   .strict();
 
@@ -114,6 +117,43 @@ const step = z.union([
   z.object({ clinic_records_consent: z.boolean() }).strict(),
   /** The job that sends recall invitations (convite_retorno) runs now. */
   z.object({ run_recall: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The dentist's time is blocked ("YYYY-MM-DDTHH:MM", clinic time, end exclusive). */
+  z
+    .object({
+      clinic_blocks: z
+        .array(
+          z
+            .object({
+              from: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+              to: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+            })
+            .strict(),
+        )
+        .min(1),
+    })
+    .strict(),
+  /** Another patient (João) books ("YYYY-MM-DDTHH:MM", clinic time) or cancels his last booking. */
+  z
+    .object({
+      other_patient_books: z
+        .object({
+          procedureId: z.string(),
+          at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ other_patient_cancels: z.literal(true) }).strict(),
+  /** The front desk puts the case's patient on the waiting list until a day (inclusive). */
+  z
+    .object({
+      clinic_waitlists: z
+        .object({ procedureId: z.string(), until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+        .strict(),
+    })
+    .strict(),
+  /** The job that offers freed slots to the waiting list (vaga_disponivel) runs now. */
+  z.object({ run_waitlist: z.literal(true), expect: expectation.optional() }).strict(),
 ]);
 
 export const caseSchema = z
@@ -167,6 +207,8 @@ export async function runCase(
     appointmentReminders,
     recall,
     recallRepo,
+    waitlist,
+    waitlistRepo,
     quotes,
     quoteRepo,
     payments,
@@ -218,6 +260,30 @@ export async function runCase(
       continue;
     } else if ("run_recall" in s) {
       await recall.run(clock.now);
+    } else if ("clinic_blocks" in s) {
+      for (const b of s.clinic_blocks)
+        agendaRepo.addBlock({
+          dentistId: "dentist_dev",
+          startsAt: localTime(b.from),
+          endsAt: localTime(b.to),
+        });
+      continue;
+    } else if ("other_patient_books" in s) {
+      await book(s.other_patient_books, await otherPatient());
+      continue;
+    } else if ("other_patient_cancels" in s) {
+      const other = await otherPatient();
+      const last = agendaRepo.appointments.filter(
+        (a) => a.patientId === other.id && a.status !== "CANCELLED",
+      );
+      await agendaRepo.cancelAppointment(last.at(-1)!.id);
+      continue;
+    } else if ("clinic_waitlists" in s) {
+      const patient = await patientOfCase();
+      await waitlist.add(CLINIC_ID, { patientId: patient.id, ...s.clinic_waitlists }, clock.now);
+      continue;
+    } else if ("run_waitlist" in s) {
+      await waitlist.run(clock.now);
     } else {
       await deliver(s, where);
     }
@@ -233,13 +299,23 @@ export async function runCase(
     );
   }
 
-  async function at(input: { procedureId: string; at: string }) {
-    const [date, time] = input.at.split("T") as [string, string];
+  async function otherPatient() {
+    return (
+      (await agenda.buscarPaciente({ phone: OTHER_PATIENT })) ??
+      (await agenda.cadastrarPaciente({ name: "João Exemplo", phone: OTHER_PATIENT }))
+    );
+  }
+
+  function localTime(at: string) {
+    const [date, time] = at.split("T") as [string, string];
     const [h, m] = time.split(":").map(Number) as [number, number];
+    return zonedToUtc(date, h * 60 + m, agenda.timeZone);
+  }
+
+  async function at(input: { procedureId: string; at: string }) {
     const procedure = (await agenda.listarProcedimentos()).find((p) => p.id === input.procedureId);
     if (!procedure) throw new Error(`procedimento ${input.procedureId} não existe`);
-    const startsAt = zonedToUtc(date, h * 60 + m, agenda.timeZone);
-    return { procedure, startsAt };
+    return { procedure, startsAt: localTime(input.at) };
   }
 
   /** Written straight into the agenda: booking rules do not allow dates in the past. */
@@ -258,9 +334,9 @@ export async function runCase(
     });
   }
 
-  async function book(input: { procedureId: string; at: string }) {
+  async function book(input: { procedureId: string; at: string }, who?: { id: string }) {
     const { procedure, startsAt } = await at(input);
-    const patient = await patientOfCase();
+    const patient = who ?? (await patientOfCase());
     await agenda.reservar({
       patientId: patient.id,
       slot: {
@@ -279,14 +355,18 @@ export async function runCase(
     >,
     where: string,
   ) {
-    /** "{appointment}" in a button id is the last appointment in the agenda. */
+    /** "{appointment}" in a button id is the last appointment in the agenda; "{offer}" the last waiting-list offer. */
     const appointmentId = agendaRepo.appointments.at(-1)?.id ?? "";
+    const offerId = waitlistRepo.offers.at(-1)?.id ?? "";
     const payload =
       "patient" in s
         ? textPayload(s.patient)
         : "button" in s
           ? buttonPayload(
-              s.button.replace("{quote}", quoteId).replace("{appointment}", appointmentId),
+              s.button
+                .replace("{quote}", quoteId)
+                .replace("{appointment}", appointmentId)
+                .replace("{offer}", offerId),
               s.title,
             )
           : "list" in s
@@ -357,6 +437,11 @@ export async function runCase(
       );
     if (expect.sent_via !== undefined && sentVia !== expect.sent_via)
       failures.push(`${where}: orçamento enviado por ${sentVia}, esperado ${expect.sent_via}`);
+    const entry = waitlistRepo.entries.at(-1);
+    if (expect.waitlist_status !== undefined && entry?.status !== expect.waitlist_status)
+      failures.push(
+        `${where}: lista de espera ${entry?.status ?? "vazia"}, esperado ${expect.waitlist_status}`,
+      );
     if (
       expect.document !== undefined &&
       sent.some((m) => m.kind === "document") !== expect.document

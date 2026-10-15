@@ -37,6 +37,11 @@ export class InMemoryAgendaRepository implements AgendaRepository {
     return this.seed.procedures;
   }
 
+  /** Blocks a dentist's time (tests and the eval fill the agenda this way). */
+  addBlock(block: { dentistId: string; startsAt: Date; endsAt: Date }) {
+    (this.seed.blocks ??= []).push(block);
+  }
+
   async dentists() {
     return this.seed.dentists;
   }

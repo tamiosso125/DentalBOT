@@ -1,0 +1,23 @@
+name: Recusar a vaga funciona mesmo com a recepção na conversa
+description: >
+  A recepção está falando com a Maria pelo app (bot pausado) quando a vaga é oferecida. O
+  "Não, obrigado" é resposta a uma mensagem da clínica: fica registrado e ela segue na lista.
+steps:
+  - clinic_blocks:
+      - { from: "2026-10-19T00:00", to: "2026-10-20T10:00" }
+      - { from: "2026-10-20T10:30", to: "2026-10-23T00:00" }
+  - other_patient_books: { procedureId: proc_avaliacao, at: "2026-10-20T10:00" }
+  - clinic_waitlists: { procedureId: proc_avaliacao, until: "2026-10-22" }
+  - patient: "oi, alguma novidade da lista de espera?"
+  - reception: "Oi, Maria! Ainda não, mas te avisamos."
+  - other_patient_cancels: true
+  - run_waitlist: true
+    expect:
+      contains: ["Abriu uma vaga"]
+  - button: "wait:{offer}:no"
+    title: "Não, obrigado"
+    expect:
+      contains: ["continua na lista de espera"]
+      appointments: 0
+      waitlist_status: WAITING
+      handoff: true

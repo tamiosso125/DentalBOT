@@ -13,6 +13,7 @@ import { BillingError, installmentQuerySchema, type Billing } from "../panel/bil
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
+import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
@@ -52,6 +53,8 @@ export type ServerDeps = {
     billing?: Billing;
     /** Recall ("Retorno"): candidates and marketing consent. Absent = routes not registered. */
     recall?: Pick<RecallService, "list" | "setConsent">;
+    /** Waiting list ("Lista de espera"). Absent = routes not registered. */
+    waitlist?: Pick<WaitlistService, "list" | "add" | "remove">;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -167,7 +170,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof PatientDataError ||
           err instanceof ClinicSetupError ||
           err instanceof BillingError ||
-          err instanceof RecallError
+          err instanceof RecallError ||
+          err instanceof WaitlistError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -315,6 +319,19 @@ export function buildServer(deps: ServerDeps) {
         scope.get("/admin/recall", async () => recall.list(admin.clinicId, now()));
         scope.post<{ Params: { id: string } }>("/admin/recall/:id/consent", async (req, reply) => {
           await recall.setConsent(admin.clinicId, req.params.id, req.body, now());
+          return reply.code(204).send();
+        });
+      }
+
+      const waitlist = admin.waitlist;
+      if (waitlist) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/waitlist", async () => waitlist.list(admin.clinicId, now()));
+        scope.post("/admin/waitlist", async (req, reply) =>
+          reply.code(201).send(await waitlist.add(admin.clinicId, req.body, now())),
+        );
+        scope.post<{ Params: { id: string } }>("/admin/waitlist/:id/remove", async (req, reply) => {
+          await waitlist.remove(admin.clinicId, req.params.id, now());
           return reply.code(204).send();
         });
       }

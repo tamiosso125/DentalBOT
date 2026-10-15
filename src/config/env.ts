@@ -44,6 +44,8 @@ export const envSchema = z
     RECALL_AFTER_MONTHS: z.coerce.number().int().min(1).max(24).default(6),
     /// How often the recall job checks, in minutes (it only sends on Tuesdays 9h–12h). 0 turns it off.
     RECALL_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+    /// How often the waiting list looks for freed slots to offer, in minutes. 0 turns it off.
+    WAITLIST_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(5),
 
     /// "off" = deterministic menu only; "anthropic" = router + attendant via the Claude API.
     AI_MODE: z.enum(["off", "anthropic"]).default("off"),

@@ -31,6 +31,7 @@ model Clinic {
   quotes         Quote[]
   conversations  Conversation[]
   dataRequests   DataSubjectRequest[]
+  waitlist       WaitlistEntry[]
 }
 
 model Dentist {
@@ -46,6 +47,7 @@ model Dentist {
   scheduleBlocks ScheduleBlock[]
   appointments   Appointment[]
   quotes         Quote[]
+  waitlistOffers WaitlistOffer[]
 
   @@index([clinicId])
 }
@@ -63,6 +65,7 @@ model Procedure {
   coverages    InsuranceCoverage[]
   appointments Appointment[]
   quoteItems   QuoteItem[]
+  waitlist     WaitlistEntry[]
 
   @@unique([clinicId, name])
 }
@@ -140,12 +143,13 @@ model Patient {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  clinic        Clinic         @relation(fields: [clinicId], references: [id])
-  insurancePlan InsurancePlan? @relation(fields: [insurancePlanId], references: [id])
+  clinic        Clinic          @relation(fields: [clinicId], references: [id])
+  insurancePlan InsurancePlan?  @relation(fields: [insurancePlanId], references: [id])
   consents      Consent[]
   appointments  Appointment[]
   quotes        Quote[]
   conversations Conversation[]
+  waitlist      WaitlistEntry[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -210,6 +214,65 @@ model Appointment {
   @@index([dentistId, startsAt])
   @@index([patientId])
   @@index([status, startsAt])
+}
+
+enum WaitlistStatus {
+  WAITING
+  /// The patient took an offered slot.
+  BOOKED
+  /// Taken off the list by the front desk (or the patient was anonymized).
+  REMOVED
+  /// No slot opened before the date the patient wanted.
+  EXPIRED
+}
+
+/// A patient waiting for an earlier slot of a procedure. Freed slots starting before
+/// `until` are offered by template (vaga_disponivel); the first to accept takes it.
+model WaitlistEntry {
+  id            String         @id @default(cuid())
+  clinicId      String
+  patientId     String
+  procedureId   String
+  /// Only slots starting before this moment are offered.
+  until         DateTime
+  status        WaitlistStatus @default(WAITING)
+  /// Appointment booked (or moved) when an offer was accepted.
+  appointmentId String?
+  createdAt     DateTime       @default(now())
+  closedAt      DateTime?
+
+  clinic    Clinic          @relation(fields: [clinicId], references: [id])
+  patient   Patient         @relation(fields: [patientId], references: [id])
+  procedure Procedure       @relation(fields: [procedureId], references: [id])
+  offers    WaitlistOffer[]
+
+  @@index([clinicId, status, createdAt])
+  @@index([patientId])
+}
+
+enum WaitlistAnswer {
+  ACCEPTED
+  DECLINED
+  /// Accepted, but someone else had taken the slot.
+  TAKEN
+}
+
+/// One slot offered to one waiting patient (never the same slot twice to the same entry).
+model WaitlistOffer {
+  id         String          @id @default(cuid())
+  entryId    String
+  dentistId  String
+  startsAt   DateTime
+  endsAt     DateTime
+  sentAt     DateTime
+  answer     WaitlistAnswer?
+  answeredAt DateTime?
+
+  entry   WaitlistEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  dentist Dentist       @relation(fields: [dentistId], references: [id])
+
+  @@unique([entryId, dentistId, startsAt])
+  @@index([dentistId, startsAt, sentAt])
 }
 
 // ---------- Quotes and billing ----------
