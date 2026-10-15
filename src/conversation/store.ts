@@ -2,8 +2,17 @@ import { randomUUID } from "node:crypto";
 
 export type ClinicInfo = { id: string; name: string };
 
+/** A procedure an insurance plan covers, as registered by the clinic. */
+export type PlanCoverage = { plan: string; procedureId: string; requiresAuthorization: boolean };
+
 /** Public clinic data the attendant may tell patients. */
-export type ClinicProfile = { name: string; address: string | null; insurancePlans: string[] };
+export type ClinicProfile = {
+  name: string;
+  address: string | null;
+  insurancePlans: string[];
+  /** Covered procedures per plan. A plan with no rows has no coverage table registered yet. */
+  coverage: PlanCoverage[];
+};
 
 export type ConversationRecord = {
   id: string;
@@ -68,6 +77,7 @@ export class InMemoryConversationStore implements ConversationStore {
       phoneNumberId?: string;
       address?: string;
       insurancePlans?: string[];
+      coverage?: PlanCoverage[];
     },
   ) {}
 
@@ -131,6 +141,7 @@ export class InMemoryConversationStore implements ConversationStore {
       name: this.clinic.name,
       address: this.clinic.address ?? null,
       insurancePlans: this.clinic.insurancePlans ?? [],
+      coverage: this.clinic.coverage ?? [],
     };
   }
 }

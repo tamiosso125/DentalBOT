@@ -1,5 +1,11 @@
 import "server-only";
-import type { BlockBody, ProcedureBody, SetupView, WorkingWindow } from "./clinic-form";
+import type {
+  BlockBody,
+  CoverageBody,
+  ProcedureBody,
+  SetupView,
+  WorkingWindow,
+} from "./clinic-form";
 import { panelConfig } from "./config";
 
 /** Typed client for the DentalBOT staff API (/admin/*), called from the panel server. */
@@ -194,6 +200,20 @@ export const api = {
     }),
   updateProcedure: async (id: string, body: ProcedureBody) => {
     await call(`/admin/setup/procedures/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  createPlan: (body: { name: string }) =>
+    json<{ id: string }>("/admin/setup/plans", { method: "POST", body: JSON.stringify(body) }),
+  updatePlan: async (id: string, body: { name: string }) => {
+    await call(`/admin/setup/plans/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  saveCoverage: async (planId: string, body: CoverageBody) => {
+    await call(`/admin/setup/plans/${encodeURIComponent(planId)}/coverage`, {
       method: "PUT",
       body: JSON.stringify(body),
     });

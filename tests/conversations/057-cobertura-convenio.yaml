@@ -1,0 +1,13 @@
+name: Atendente diz o que o convênio cobre e avisa da autorização prévia
+ai: true
+steps:
+  - patient: "a Odontoprev cobre extração? e canal?"
+    model:
+      route: info
+      replies:
+        - tool: info_clinica
+        - text: "A extração simples é coberta pela Odontoprev, com autorização prévia que a recepção pede para você. O tratamento de canal não consta como coberto pelo plano; a recepção confirma e te passa o valor particular."
+    expect:
+      contains: ["autorização prévia", "recepção confirma"]
+      not_contains: ["R$"]
+      handoff: false

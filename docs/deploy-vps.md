@@ -98,7 +98,7 @@ curl https://atendimento.suaclinica.com.br/health   # {"status":"ok"}
 
 Abra `https://atendimento.suaclinica.com.br` no navegador e entre com a `PANEL_PASSWORD`.
 
-Antes do piloto, cadastre a clínica real em "Clínica" no painel: dados da clínica, dentista e horários de atendimento, procedimentos com preços e os bloqueios já conhecidos (férias, feriados). A página mostra no topo o que ainda falta para o bot marcar consultas.
+Antes do piloto, cadastre a clínica real em "Clínica" no painel: dados da clínica, dentista e horários de atendimento, procedimentos com preços, o convênio Odontoprev com os procedimentos cobertos e os bloqueios já conhecidos (férias, feriados). A página mostra no topo o que ainda falta para o bot marcar consultas.
 
 ## 6. Atualizar para uma versão nova
 

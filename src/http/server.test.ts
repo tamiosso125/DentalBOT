@@ -72,7 +72,7 @@ function stubSetup() {
   const setup: ClinicSetup = {
     view: async (...a) => (
       calls.push(["view", ...a]),
-      { clinic: null, dentists: [], procedures: [], blocks: [] }
+      { clinic: null, dentists: [], procedures: [], insurancePlans: [], blocks: [] }
     ),
     saveClinic: async (...a) => void calls.push(["saveClinic", ...a]),
     createDentist: async (...a) => (calls.push(["createDentist", ...a]), { id: "d2" }),
@@ -85,6 +85,12 @@ function stubSetup() {
       return { id: "p2" };
     },
     updateProcedure: async (...a) => void calls.push(["updateProcedure", ...a]),
+    createPlan: async (...a) => (calls.push(["createPlan", ...a]), { id: "plan2" }),
+    updatePlan: async (...a) => void calls.push(["updatePlan", ...a]),
+    setCoverage: async (...a) => {
+      calls.push(["setCoverage", ...a]);
+      if (a[1] !== "plan1") throw new ClinicSetupError(404, "Convênio não encontrado.");
+    },
     createBlock: async (...a) => (calls.push(["createBlock", ...a]), { id: "b1", appointments: 2 }),
     deleteBlock: async (...a) => void calls.push(["deleteBlock", ...a]),
   };
@@ -502,6 +508,9 @@ describe("admin clinic setup API", () => {
     ["PUT", "/admin/setup/dentists/d1/hours"],
     ["POST", "/admin/setup/procedures"],
     ["PUT", "/admin/setup/procedures/p1"],
+    ["POST", "/admin/setup/plans"],
+    ["PUT", "/admin/setup/plans/plan1"],
+    ["PUT", "/admin/setup/plans/plan1/coverage"],
     ["POST", "/admin/setup/blocks"],
     ["DELETE", "/admin/setup/blocks/b1"],
   ] as const;
@@ -540,6 +549,15 @@ describe("admin clinic setup API", () => {
     expect((await call("PUT", "/admin/setup/procedures/p1", { name: "Canal" })).statusCode).toBe(
       204,
     );
+    const coverage = { items: [{ procedureId: "p1", requiresAuthorization: true }] };
+    expect((await call("POST", "/admin/setup/plans", { name: "Odontoprev" })).json()).toEqual({
+      id: "plan2",
+    });
+    expect((await call("PUT", "/admin/setup/plans/plan1", { name: "Odontoprev" })).statusCode).toBe(
+      204,
+    );
+    expect((await call("PUT", "/admin/setup/plans/plan1/coverage", coverage)).statusCode).toBe(204);
+    expect((await call("PUT", "/admin/setup/plans/plan9/coverage", coverage)).statusCode).toBe(404);
     expect((await call("POST", "/admin/setup/blocks", block)).json()).toEqual({
       id: "b1",
       appointments: 2,
@@ -555,6 +573,10 @@ describe("admin clinic setup API", () => {
       ["setWorkingHours", CLINIC_ID, "d9"],
       ["createProcedure", CLINIC_ID, { name: "Limpeza" }],
       ["updateProcedure", CLINIC_ID, "p1"],
+      ["createPlan", CLINIC_ID, { name: "Odontoprev" }],
+      ["updatePlan", CLINIC_ID, "plan1"],
+      ["setCoverage", CLINIC_ID, "plan1"],
+      ["setCoverage", CLINIC_ID, "plan9"],
       ["createBlock", CLINIC_ID, block],
       ["deleteBlock", CLINIC_ID, "b1"],
     ]);

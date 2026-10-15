@@ -5,8 +5,9 @@ import { addDays, zonedToUtc } from "../scheduling/time.js";
 
 /**
  * Clinic registration from the staff panel: clinic data, dentists and their working hours,
- * procedures with private prices, and schedule blocks (vacations, holidays). Everything the
- * bot offers (procedures, prices, free slots) comes from here. Scoped to one clinic.
+ * procedures with private prices, insurance plans with the procedures they cover, and
+ * schedule blocks (vacations, holidays). Everything the bot offers (procedures, prices,
+ * coverage, free slots) comes from here. Scoped to one clinic.
  */
 
 export type WorkingWindowInput = { weekday: number; startMinute: number; endMinute: number };
@@ -27,6 +28,12 @@ export type SetupView = {
     durationMinutes: number;
     priceCents: number | null;
     active: boolean;
+  }>;
+  /** Accepted plans and the procedures each covers. No rows = coverage not registered yet. */
+  insurancePlans: Array<{
+    id: string;
+    name: string;
+    coverage: Array<{ procedureId: string; requiresAuthorization: boolean }>;
   }>;
   /** Blocks that have not ended yet, soonest first. */
   blocks: Array<{
@@ -100,6 +107,21 @@ export const procedureSchema = z.strictObject({
   active: z.boolean().default(true),
 });
 
+export const planSchema = z.strictObject({ name: z.string().trim().min(2).max(60) });
+
+/** The procedures the plan covers; any procedure left out is not covered. */
+export const coverageSchema = z.strictObject({
+  items: z
+    .array(
+      z.strictObject({
+        procedureId: z.string().min(1).max(64),
+        requiresAuthorization: z.boolean().default(false),
+      }),
+    )
+    .max(300)
+    .refine((items) => new Set(items.map((i) => i.procedureId)).size === items.length),
+});
+
 /**
  * Dates are clinic-local. Without minutes the block covers whole days, `toDate` included.
  * With minutes it runs from `fromDate fromMinute` to `toDate toMinute`.
@@ -165,6 +187,10 @@ export interface ClinicSetup {
   createProcedure(clinicId: string, input: unknown): Promise<{ id: string }>;
   updateProcedure(clinicId: string, id: string, input: unknown): Promise<void>;
   /** `appointments`: active appointments inside the block, left for the front desk to move. */
+  createPlan(clinicId: string, input: unknown): Promise<{ id: string }>;
+  updatePlan(clinicId: string, id: string, input: unknown): Promise<void>;
+  /** Replaces the plan's coverage table. */
+  setCoverage(clinicId: string, planId: string, input: unknown): Promise<void>;
   createBlock(clinicId: string, input: unknown): Promise<{ id: string; appointments: number }>;
   deleteBlock(clinicId: string, id: string): Promise<void>;
 }
@@ -176,7 +202,7 @@ export class PrismaClinicSetup implements ClinicSetup {
   ) {}
 
   async view(clinicId: string, now: Date): Promise<SetupView> {
-    const [clinic, dentists, procedures, blocks] = await Promise.all([
+    const [clinic, dentists, procedures, plans, blocks] = await Promise.all([
       this.db.clinic.findUnique({ where: { id: clinicId } }),
       this.db.dentist.findMany({
         where: { clinicId },
@@ -184,6 +210,16 @@ export class PrismaClinicSetup implements ClinicSetup {
         include: { workingHours: { orderBy: [{ weekday: "asc" }, { startMinute: "asc" }] } },
       }),
       this.db.procedure.findMany({ where: { clinicId }, orderBy: { name: "asc" } }),
+      this.db.insurancePlan.findMany({
+        where: { clinicId },
+        orderBy: { name: "asc" },
+        include: {
+          coverages: {
+            where: { covered: true },
+            select: { procedureId: true, requiresAuthorization: true },
+          },
+        },
+      }),
       this.db.scheduleBlock.findMany({
         where: { dentist: { clinicId }, endsAt: { gt: now } },
         orderBy: { startsAt: "asc" },
@@ -213,6 +249,7 @@ export class PrismaClinicSetup implements ClinicSetup {
         priceCents: p.priceCents,
         active: p.active,
       })),
+      insurancePlans: plans.map((p) => ({ id: p.id, name: p.name, coverage: p.coverages })),
       blocks: blocks.map((b) => ({
         id: b.id,
         dentistId: b.dentistId,
@@ -278,6 +315,43 @@ export class PrismaClinicSetup implements ClinicSetup {
     this.logger.info({ clinicId, procedureId: id }, "procedure updated");
   }
 
+  async createPlan(clinicId: string, input: unknown) {
+    const data = parse(planSchema, input);
+    await this.clinic(clinicId);
+    const { id } = await uniqueName(
+      () => this.db.insurancePlan.create({ data: { clinicId, ...data } }),
+      "Já existe um convênio com esse nome.",
+    );
+    this.logger.info({ clinicId, planId: id }, "insurance plan created");
+    return { id };
+  }
+
+  async updatePlan(clinicId: string, id: string, input: unknown) {
+    const data = parse(planSchema, input);
+    const { count } = await uniqueName(
+      () => this.db.insurancePlan.updateMany({ where: { id, clinicId }, data }),
+      "Já existe um convênio com esse nome.",
+    );
+    if (count === 0) throw new ClinicSetupError(404, "Convênio não encontrado.");
+    this.logger.info({ clinicId, planId: id }, "insurance plan updated");
+  }
+
+  async setCoverage(clinicId: string, planId: string, input: unknown) {
+    const { items } = parse(coverageSchema, input);
+    const plan = await this.db.insurancePlan.findFirst({ where: { id: planId, clinicId } });
+    if (!plan) throw new ClinicSetupError(404, "Convênio não encontrado.");
+    const ids = items.map((i) => i.procedureId);
+    const known = await this.db.procedure.count({ where: { clinicId, id: { in: ids } } });
+    if (known !== ids.length) throw new ClinicSetupError(422, "Procedimento não encontrado.");
+    await this.db.$transaction([
+      this.db.insuranceCoverage.deleteMany({ where: { insurancePlanId: planId } }),
+      this.db.insuranceCoverage.createMany({
+        data: items.map((i) => ({ insurancePlanId: planId, covered: true, ...i })),
+      }),
+    ]);
+    this.logger.info({ clinicId, planId, procedures: items.length }, "insurance coverage saved");
+  }
+
   async createBlock(clinicId: string, input: unknown) {
     const data = parse(blockSchema, input);
     const { timezone } = await this.clinic(clinicId);
@@ -320,12 +394,15 @@ export class PrismaClinicSetup implements ClinicSetup {
   }
 }
 
-async function uniqueName<T>(fn: () => Promise<T>): Promise<T> {
+async function uniqueName<T>(
+  fn: () => Promise<T>,
+  message = "Já existe um procedimento com esse nome.",
+): Promise<T> {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")
-      throw new ClinicSetupError(409, "Já existe um procedimento com esse nome.");
+      throw new ClinicSetupError(409, message);
     throw err;
   }
 }

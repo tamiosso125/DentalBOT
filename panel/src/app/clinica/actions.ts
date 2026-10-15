@@ -5,8 +5,10 @@ import { api, ApiError } from "@/lib/api";
 import {
   parseBlockForm,
   parseClinicForm,
+  parseCoverageForm,
   parseDentistForm,
   parseHoursForm,
+  parsePlanForm,
   parseProcedureForm,
 } from "@/lib/clinic-form";
 
@@ -79,6 +81,30 @@ export async function updateProcedure(id: string, _prev: FormState, form: FormDa
   return submit(parseProcedureForm(form), async (body) => {
     await api.updateProcedure(id, body);
     return [`Procedimento "${body.name}" salvo.`];
+  });
+}
+
+export async function createPlan(_prev: FormState, form: FormData) {
+  return submit(parsePlanForm(form), async (body) => {
+    const { id } = await api.createPlan(body);
+    return [
+      `Convênio "${body.name}" cadastrado. Agora marque os procedimentos que ele cobre.`,
+      `/clinica/convenios/${encodeURIComponent(id)}`,
+    ];
+  });
+}
+
+export async function updatePlan(id: string, _prev: FormState, form: FormData) {
+  return submit(parsePlanForm(form), async (body) => {
+    await api.updatePlan(id, body);
+    return [`Convênio "${body.name}" salvo.`];
+  });
+}
+
+export async function saveCoverage(planId: string, _prev: FormState, form: FormData) {
+  return submit({ body: parseCoverageForm(form) }, async (body) => {
+    await api.saveCoverage(planId, body);
+    return ["Cobertura salva. O bot já responde com a nova tabela."];
   });
 }
 

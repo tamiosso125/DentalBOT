@@ -79,6 +79,8 @@ export const TOOLS = {
         ctx.agenda.listarProcedimentos(),
         ctx.agenda.horariosDeAtendimento(),
       ]);
+      const { coverage, insurancePlans } = ctx.profile;
+      const withTable = new Set(coverage.map((c) => c.plan));
       return {
         nome: ctx.profile.name,
         endereco: ctx.profile.address ?? "não cadastrado: peça para a recepção confirmar",
@@ -88,8 +90,12 @@ export const TOOLS = {
           duracao_minutos: p.durationMinutes,
           preco_particular:
             p.priceCents === null ? "definido na avaliação" : formatCents(p.priceCents),
+          coberto_pelos_convenios: coverage
+            .filter((c) => c.procedureId === p.id)
+            .map((c) => ({ convenio: c.plan, autorizacao_previa: c.requiresAuthorization })),
         })),
-        convenios_aceitos: ctx.profile.insurancePlans,
+        convenios_aceitos: insurancePlans,
+        convenios_sem_tabela_de_cobertura: insurancePlans.filter((n) => !withTable.has(n)),
         formas_de_pagamento: ["Pix", "boleto", "cartão de crédito"],
       };
     },

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
 import type { Catalog } from "@/lib/api";
 import { formatCents } from "@/lib/format";
 import { ITEM_ROWS } from "@/lib/quote-form";
-import { createQuote, type FormState } from "../actions";
+import { useKeptForm } from "@/lib/use-kept-form";
+import { createQuote } from "../actions";
 
 export function QuoteForm(props: {
   patientId: string;
@@ -13,9 +13,10 @@ export function QuoteForm(props: {
   dentists: Catalog["dentists"];
   procedures: Catalog["procedures"];
 }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(createQuote, {});
+  // Keeps the items typed so far when the API refuses the quote.
+  const { state, onSubmit, pending } = useKeptForm(createQuote);
   return (
-    <form action={action} className="card stack">
+    <form onSubmit={onSubmit} className="card stack">
       <input type="hidden" name="patientId" value={props.patientId} />
       <p>
         Paciente: <strong>{props.patientName}</strong> <Link href="/orcamentos/novo">trocar</Link>

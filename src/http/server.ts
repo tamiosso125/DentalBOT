@@ -303,6 +303,17 @@ export function buildServer(deps: ServerDeps) {
           await setup.updateProcedure(admin.clinicId, req.params.id, req.body);
           return reply.code(204).send();
         });
+        scope.post("/admin/setup/plans", async (req, reply) =>
+          reply.code(201).send(await setup.createPlan(admin.clinicId, req.body)),
+        );
+        scope.put<Id>("/admin/setup/plans/:id", async (req, reply) => {
+          await setup.updatePlan(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.put<Id>("/admin/setup/plans/:id/coverage", async (req, reply) => {
+          await setup.setCoverage(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
         scope.post("/admin/setup/blocks", async (req, reply) =>
           reply.code(201).send(await setup.createBlock(admin.clinicId, req.body)),
         );

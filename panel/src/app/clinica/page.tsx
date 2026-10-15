@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { describeBlock, describeHours, describePrice, setupGaps } from "@/lib/clinic-form";
+import {
+  describeBlock,
+  describeCoverage,
+  describeHours,
+  describePrice,
+  setupGaps,
+} from "@/lib/clinic-form";
 import { dateKey } from "@/lib/format";
 import { Nav } from "../nav";
-import { createBlock, createDentist, createProcedure, deleteBlock, saveClinic } from "./actions";
+import {
+  createBlock,
+  createDentist,
+  createPlan,
+  createProcedure,
+  deleteBlock,
+  saveClinic,
+} from "./actions";
 import { ProcedureFields } from "./procedure-fields";
 import { SetupForm } from "./setup-form";
 
@@ -140,6 +153,30 @@ export default async function ClinicPage({
               <h2>Novo procedimento</h2>
               <SetupForm action={createProcedure} submit="Cadastrar procedimento">
                 <ProcedureFields />
+              </SetupForm>
+            </section>
+
+            <section className="card">
+              <h2 style={{ marginTop: 0 }}>Convênios</h2>
+              {view.insurancePlans.length ? (
+                <ul>
+                  {view.insurancePlans.map((p) => (
+                    <li key={p.id}>
+                      <Link href={`/clinica/convenios/${encodeURIComponent(p.id)}`}>{p.name}</Link>
+                      <br />
+                      <span className="muted">{describeCoverage(p.coverage)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Nenhum convênio cadastrado.</p>
+              )}
+              <h2>Adicionar convênio</h2>
+              <SetupForm action={createPlan} submit="Adicionar">
+                <label>
+                  Nome
+                  <input name="name" required maxLength={60} placeholder="Odontoprev" />
+                </label>
               </SetupForm>
             </section>
 
