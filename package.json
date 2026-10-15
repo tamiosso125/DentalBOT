@@ -24,7 +24,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "sandbox:mcp": "tsx tools/mcp/whatsapp-sandbox.ts"
+    "sandbox:mcp": "tsx tools/mcp/whatsapp-sandbox.ts",
+    "agenda:mcp": "tsx tools/mcp/dentalbot-agenda.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.134.0",

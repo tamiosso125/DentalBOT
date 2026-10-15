@@ -22,7 +22,7 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
-- `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras) e repositórios Prisma/memória.
+- `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras), repositórios Prisma/memória e o MCP da agenda (`agenda-mcp.ts`).
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.
 - `tests/conversations/*.yaml`: casos de eval. `tools/mcp/`: MCP servers de desenvolvimento.
 
@@ -48,4 +48,4 @@ Novos fluxos de conversa entram em `tests/conversations/*.yaml` e rodam no eval 
 
 ## Ferramentas do Claude Code
 
-O plugin `plugins/dentalbot-dev` (habilitado em `.claude/settings.json`) traz as skills, os subagents (`arquiteto-backend`, `revisor-lgpd`, `testador-conversas`, `redator-templates`, `integrador-sistemas`), os comandos `/eval`, `/novo-fluxo`, `/novo-template`, `/onboarding-clinica`, os hooks e o MCP `whatsapp-sandbox`.
+O plugin `plugins/dentalbot-dev` (habilitado em `.claude/settings.json`) traz as skills, os subagents (`arquiteto-backend`, `revisor-lgpd`, `testador-conversas`, `redator-templates`, `integrador-sistemas`), os comandos `/eval`, `/novo-fluxo`, `/novo-template`, `/onboarding-clinica`, os hooks e os MCP `whatsapp-sandbox` (conversar com o bot como paciente) e `dentalbot-agenda` (ver e mexer na agenda com as regras do atendente; `AGENDA_SOURCE=memory` ou `database`, nunca produção).

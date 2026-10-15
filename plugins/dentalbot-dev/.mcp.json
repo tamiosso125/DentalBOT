@@ -6,6 +6,13 @@
       "env": {
         "DENTALBOT_URL": "http://localhost:3000"
       }
+    },
+    "dentalbot-agenda": {
+      "command": "pnpm",
+      "args": ["--silent", "agenda:mcp"],
+      "env": {
+        "AGENDA_SOURCE": "memory"
+      }
     }
   }
 }
