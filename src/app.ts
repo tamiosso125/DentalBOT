@@ -14,6 +14,7 @@ import {
   type PaymentsGateway,
 } from "./payments/asaas.js";
 import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
+import { PrismaPanelQueries } from "./panel/panel-queries.js";
 import { FieldCipher } from "./privacy/index.js";
 import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
 import { QuoteService } from "./quotes/quote-service.js";
@@ -100,7 +101,12 @@ export function createApp(env: Env, logger: Logger) {
     sandbox: env.NODE_ENV !== "production" ? sandbox : undefined,
     admin:
       env.ADMIN_API_TOKEN && env.DEFAULT_CLINIC_ID
-        ? { token: env.ADMIN_API_TOKEN, clinicId: env.DEFAULT_CLINIC_ID, quotes }
+        ? {
+            token: env.ADMIN_API_TOKEN,
+            clinicId: env.DEFAULT_CLINIC_ID,
+            quotes,
+            panel: new PrismaPanelQueries(db, cipher),
+          }
         : undefined,
   });
 

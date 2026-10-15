@@ -1,7 +1,14 @@
+import type { z } from "zod";
 import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import type { Logger } from "../lib/logger.js";
 import { asaasWebhookSchema, type AsaasWebhookEvent } from "../payments/asaas.js";
+import {
+  agendaQuerySchema,
+  patientQuerySchema,
+  quoteQuerySchema,
+  type PanelQueries,
+} from "../panel/panel-queries.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import type { JobQueue } from "../queue/queue.js";
 import {
@@ -25,7 +32,13 @@ export type ServerDeps = {
    * Clinic staff API (the panel will use it). Bearer token, single clinic.
    * Absent = routes not registered.
    */
-  admin?: { token: string; clinicId: string; quotes: QuoteService };
+  admin?: {
+    token: string;
+    clinicId: string;
+    quotes: QuoteService;
+    panel: PanelQueries;
+    now?: () => Date;
+  };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
   sandbox?: SandboxChannel;
 };
@@ -134,6 +147,7 @@ export function buildServer(deps: ServerDeps) {
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)
           return reply.code(422).send({ error: err.message });
+        if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
         const status = (err as { statusCode?: number }).statusCode;
         // Fastify's own client errors (malformed JSON, wrong content type).
         if (status && status >= 400 && status < 500)
@@ -144,6 +158,29 @@ export function buildServer(deps: ServerDeps) {
         );
         return reply.code(500).send({ error: "internal error" });
       });
+
+      // Read side for the staff panel. Query strings are validated; 400 on anything else.
+      const parse = <T>(schema: z.ZodType<T>, value: unknown) => {
+        const r = schema.safeParse(value);
+        if (!r.success) throw new BadQueryError();
+        return r.data;
+      };
+      scope.get("/admin/agenda", async (req) =>
+        admin.panel.agenda(admin.clinicId, parse(agendaQuerySchema, req.query)),
+      );
+      scope.get("/admin/patients", async (req) =>
+        admin.panel.patients(admin.clinicId, parse(patientQuerySchema, req.query).q),
+      );
+      scope.get("/admin/catalog", async (_req, reply) => {
+        const c = await admin.panel.catalog(admin.clinicId);
+        return c ? c : reply.code(404).send();
+      });
+      scope.get("/admin/quotes", async (req) =>
+        admin.panel.quotes(admin.clinicId, parse(quoteQuerySchema, req.query).status),
+      );
+      scope.get("/admin/handoffs", async () =>
+        admin.panel.handoffs(admin.clinicId, admin.now?.() ?? new Date()),
+      );
 
       scope.post("/admin/quotes", async (req, reply) =>
         reply.code(201).send(await admin.quotes.create(admin.clinicId, req.body)),
@@ -182,3 +219,5 @@ export function buildServer(deps: ServerDeps) {
 
   return app;
 }
+
+class BadQueryError extends Error {}

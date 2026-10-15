@@ -39,12 +39,19 @@ ADMIN_API_TOKEN=...
 DEFAULT_CLINIC_ID=clinic_dev
 ```
 
-| Rota                          | O que faz                                                             |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `POST /admin/quotes`          | Cria o orçamento (itens da tabela ou com preço da dentista, parcelas) |
-| `GET /admin/quotes/:id`       | Mostra o orçamento e o status                                         |
-| `GET /admin/quotes/:id/pdf`   | Baixa o PDF                                                           |
-| `POST /admin/quotes/:id/send` | Envia ao paciente pelo WhatsApp                                       |
+| Rota                                       | O que faz                                                             |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `POST /admin/quotes`                       | Cria o orçamento (itens da tabela ou com preço da dentista, parcelas) |
+| `GET /admin/quotes/:id`                    | Mostra o orçamento e o status                                         |
+| `GET /admin/quotes/:id/pdf`                | Baixa o PDF                                                           |
+| `POST /admin/quotes/:id/send`              | Envia ao paciente pelo WhatsApp                                       |
+| `GET /admin/quotes?status=SENT`            | Lista os orçamentos (filtro opcional por status)                      |
+| `GET /admin/agenda?from=AAAA-MM-DD&days=7` | Consultas do período, por dia no fuso da clínica                      |
+| `GET /admin/patients?q=maria`              | Busca paciente por nome ou pelo celular completo                      |
+| `GET /admin/catalog`                       | Dentistas ativos e procedimentos (para montar o orçamento)            |
+| `GET /admin/handoffs`                      | Conversas com o bot pausado esperando a recepção                      |
+
+As rotas de leitura alimentam o painel da equipe e mostram só os 4 últimos dígitos do celular.
 
 Exemplo com o paciente fictício do seed:
 
