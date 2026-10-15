@@ -6,11 +6,12 @@ MVP: agendamento, orçamentos e cobrança. Código e comentários em inglês; te
 ## Stack
 
 Node 22 + TypeScript strict, Fastify, Prisma + Postgres, BullMQ + Redis, Vitest, Zod.
-Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Haiku 5.5 como roteador (`src/ai/`, SDK `@anthropic-ai/sdk`), ligado com `AI_MODE=anthropic`.
+Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5 como atendente e Haiku 5.5 como roteador (`src/ai/`, SDK `@anthropic-ai/sdk`), ligado com `AI_MODE=anthropic`.
 
 ## Comandos
 
 - `pnpm dev` | `pnpm test` | `pnpm lint` | `pnpm typecheck` | `pnpm eval` (`pnpm eval --live` usa o Claude real)
+- Painel: `pnpm --filter @dentalbot/panel dev|typecheck|test|build`
 - `pnpm db:migrate` (cria migration) | `pnpm db:seed` (clínica fictícia)
 - `docker compose up -d` sobe Postgres e Redis locais
 
@@ -20,6 +21,7 @@ Painel em Next.js (ainda não criado). IA: Claude Sonnet 5.5 como atendente e Ha
 - `src/whatsapp/`: assinatura, schema do webhook, canal (Cloud API ou sandbox), templates.
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
 - `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
+- `panel/`: painel Next.js (App Router). Chama a API `/admin/*` só pelo servidor (`panel/src/lib/api.ts`, `server-only`); login por senha da equipe com cookie HMAC; `middleware.ts` protege tudo menos `/login`.
 - `src/panel/`: consultas de leitura do painel da equipe (agenda, pacientes, catálogo, orçamentos, conversas pausadas), sempre por clínica e com telefone mascarado.
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), PDF com pdfkit e repositórios Prisma/memória.
 - `src/ai/`: orquestrador (roteador + atendente), ferramentas com Zod, guarda de saída, prompt, `ScriptedLlm` para testes.
