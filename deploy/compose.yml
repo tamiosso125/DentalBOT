@@ -1,0 +1,98 @@
+# Production stack for the VPS. Run from the repo root:
+#   docker compose -f deploy/compose.yml up -d --build
+# Settings and secrets come from deploy/.env (list in docs/deploy-vps.md).
+# Only Caddy is reachable from outside (ports 80 and 443); everything else talks on the
+# internal network.
+name: dentalbot
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dentalbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: dentalbot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentalbot"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://dentalbot:${POSTGRES_PASSWORD}@postgres:5432/dentalbot
+      REDIS_URL: redis://redis:6379
+      QUEUE_MODE: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  panel:
+    build:
+      context: ..
+      dockerfile: panel/Dockerfile
+    restart: unless-stopped
+    environment:
+      DENTALBOT_API_URL: http://api:3000
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?set ADMIN_API_TOKEN in deploy/.env}
+      PANEL_PASSWORD: ${PANEL_PASSWORD:?set PANEL_PASSWORD in deploy/.env}
+      PANEL_SESSION_SECRET: ${PANEL_SESSION_SECRET:?set PANEL_SESSION_SECRET in deploy/.env}
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - panel
+
+  backup:
+    build: ./backup
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?set BACKUP_AGE_RECIPIENT in deploy/.env}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-6}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-}
+    volumes:
+      - backups:/backups
+      - ./rclone:/config/rclone:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
+  backups:

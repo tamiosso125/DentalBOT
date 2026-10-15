@@ -42,3 +42,19 @@ jobs:
       - run: pnpm --filter @dentalbot/panel build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+
+  # The production images and stack (deploy/compose.yml) build and parse.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t dentalbot-api .
+      - run: docker build -f panel/Dockerfile -t dentalbot-panel .
+      - run: docker build -t dentalbot-backup deploy/backup
+      - name: Compose file is valid
+        run: |
+          printf '%s\n' DOMAIN=example.com POSTGRES_PASSWORD=x ADMIN_API_TOKEN=x \
+            PANEL_PASSWORD=x PANEL_SESSION_SECRET=x BACKUP_AGE_RECIPIENT=age1x > deploy/.env
+          docker compose -f deploy/compose.yml config --quiet
+      - name: Backup script is valid shell
+        run: docker run --rm -v "$PWD/deploy/backup:/b:ro" alpine:3 sh -n /b/backup.sh

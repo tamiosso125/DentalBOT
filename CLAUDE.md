@@ -28,6 +28,7 @@ Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5
 - `src/scheduling/`: contrato `AgendaProvider`, `AgendaService` (regras), repositórios Prisma/memória, lembrete de consulta da véspera com Confirmar/Remarcar (`appointment-reminders.ts`), agenda da recepção pelo painel (`staff-agenda.ts`) e o MCP da agenda (`agenda-mcp.ts`).
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.
 - `tests/conversations/*.yaml`: casos de eval. `tools/mcp/`: MCP servers de desenvolvimento.
+- `deploy/`: produção na VPS (`compose.yml` com Caddy/HTTPS, API, painel, Postgres, Redis e backup criptografado com age). Guia em `docs/deploy-vps.md`. Imagens: `Dockerfile` (API) e `panel/Dockerfile`.
 
 ## Regras inegociáveis
 
