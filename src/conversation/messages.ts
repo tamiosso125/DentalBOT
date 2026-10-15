@@ -46,9 +46,9 @@ export const MESSAGES = {
       : `O pagamento, de ${amount}, vence em ${dueDate}. `) +
     `Você pode pagar por Pix, boleto ou cartão neste link: ${url}` +
     (remaining === 1
-      ? `\nA 2ª parcela já está registrada para o mês seguinte, e a recepção te envia o link dela.`
+      ? `\nA 2ª parcela vence no mês seguinte, e o link dela chega por aqui alguns dias antes.`
       : remaining > 1
-        ? `\nAs outras ${remaining} parcelas já estão registradas, uma por mês, e a recepção te envia o link de cada uma.`
+        ? `\nAs outras ${remaining} parcelas vencem uma por mês, e o link de cada uma chega por aqui alguns dias antes.`
         : ""),
   quoteAcceptedNeedsCpf:
     "Obrigado! Registramos a aprovação do seu orçamento. Para emitir a cobrança, a recepção vai te pedir o CPF do responsável pelo pagamento por aqui.",
