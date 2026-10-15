@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { upsertRace } from "../lib/upsert-race.js";
 import type { FieldCipher } from "../privacy/index.js";
 import type { AppointmentInfo, Slot } from "./agenda-provider.js";
 import { AgendaService, type AgendaOptions, type AgendaRepository } from "./agenda-service.js";
@@ -144,17 +145,19 @@ export class PrismaAgendaRepository implements AgendaRepository {
 
   async createPatient(name: string, phone: string) {
     const phoneHash = this.cipher.hash(phone);
-    return this.db.patient.upsert({
-      where: { clinicId_phoneHash: { clinicId: this.clinicId, phoneHash } },
-      create: {
-        clinicId: this.clinicId,
-        name,
-        phoneHash,
-        phoneEncrypted: this.cipher.encrypt(phone),
-      },
-      update: {},
-      select: { id: true, name: true },
-    });
+    return upsertRace(() =>
+      this.db.patient.upsert({
+        where: { clinicId_phoneHash: { clinicId: this.clinicId, phoneHash } },
+        create: {
+          clinicId: this.clinicId,
+          name,
+          phoneHash,
+          phoneEncrypted: this.cipher.encrypt(phone),
+        },
+        update: {},
+        select: { id: true, name: true },
+      }),
+    );
   }
 
   /** Serializes bookings per dentist with a transaction-scoped advisory lock. */
