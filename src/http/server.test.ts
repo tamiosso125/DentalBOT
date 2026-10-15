@@ -13,6 +13,7 @@ import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
 import { BillingError, type Billing } from "../panel/billing.js";
+import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
 import { buildServer } from "./server.js";
@@ -117,8 +118,25 @@ function stubBilling() {
   return { billing, calls };
 }
 
+/** Only patient "p1" is the clinic's. */
+function stubRecall() {
+  const calls: unknown[][] = [];
+  const recall: Pick<RecallService, "list" | "setConsent"> = {
+    list: async (...a) => (
+      calls.push(["list", ...a]),
+      { afterMonths: 6, schedule: "terça, das 9h às 12h", consentText: "Aceito", rows: [] }
+    ),
+    setConsent: async (...a) => {
+      calls.push(["setConsent", ...a]);
+      if (a[1] !== "p1") throw new RecallError(404, "Paciente não encontrado.");
+    },
+  };
+  return { recall, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
   const patientData = stubPatientData();
@@ -151,6 +169,7 @@ function setup() {
       patientData: patientData.data,
       setup: clinicSetup.setup,
       billing: billing.billing,
+      recall: recall.recall,
       now: () => NOW,
     },
   });
@@ -165,6 +184,7 @@ function setup() {
     dataCalls: patientData.calls,
     setupCalls: clinicSetup.calls,
     billingCalls: billing.calls,
+    recallCalls: recall.calls,
   };
 }
 
@@ -641,6 +661,44 @@ describe("admin billing API", () => {
       ["summary", CLINIC_ID, NOW],
       ["paymentLink", CLINIC_ID, "i1"],
       ["paymentLink", CLINIC_ID, "i2"],
+    ]);
+  });
+});
+
+describe("admin recall API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token", async () => {
+    const { app, recallCalls } = setup();
+    expect((await app.inject({ method: "GET", url: "/admin/recall" })).statusCode).toBe(401);
+    const post = await app.inject({
+      method: "POST",
+      url: "/admin/recall/p1/consent",
+      payload: { granted: true },
+    });
+    expect(post.statusCode).toBe(401);
+    expect(recallCalls).toEqual([]);
+  });
+
+  it("lists candidates and records consent for the clinic", async () => {
+    const { app, recallCalls } = setup();
+    const list = await app.inject({ method: "GET", url: "/admin/recall", headers: auth });
+    expect(list.json()).toMatchObject({ afterMonths: 6, rows: [] });
+    const consent = (id: string) =>
+      app.inject({
+        method: "POST",
+        url: `/admin/recall/${id}/consent`,
+        headers: auth,
+        payload: { granted: true },
+      });
+    expect((await consent("p1")).statusCode).toBe(204);
+    const missing = await consent("p9");
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error).toBe("Paciente não encontrado.");
+    expect(recallCalls).toEqual([
+      ["list", CLINIC_ID, NOW],
+      ["setConsent", CLINIC_ID, "p1", { granted: true }, NOW],
+      ["setConsent", CLINIC_ID, "p9", { granted: true }, NOW],
     ]);
   });
 });

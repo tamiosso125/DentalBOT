@@ -1,5 +1,6 @@
 import "server-only";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
+import type { RecallList } from "./recall";
 import type {
   BlockBody,
   CoverageBody,
@@ -223,6 +224,13 @@ export const api = {
     json<InstallmentRow[]>(
       `/admin/installments?filtro=${filtro}${quoteId ? `&quoteId=${encodeURIComponent(quoteId)}` : ""}`,
     ),
+  recall: () => json<RecallList>("/admin/recall"),
+  setRecallConsent: async (patientId: string, granted: boolean) => {
+    await call(`/admin/recall/${encodeURIComponent(patientId)}/consent`, {
+      method: "POST",
+      body: JSON.stringify({ granted }),
+    });
+  },
   billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
   paymentLink: (id: string) =>
     json<{ url: string }>(`/admin/installments/${encodeURIComponent(id)}/link`),

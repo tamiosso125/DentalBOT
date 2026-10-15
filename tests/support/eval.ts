@@ -99,6 +99,21 @@ const step = z.union([
     .strict(),
   /** The hourly job that sends tomorrow's appointment reminders runs now. */
   z.object({ run_reminders: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The case's patient came to an appointment in the past ("YYYY-MM-DDTHH:MM", clinic time). */
+  z
+    .object({
+      past_visit: z
+        .object({
+          procedureId: z.string(),
+          at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+        })
+        .strict(),
+    })
+    .strict(),
+  /** The front desk records (true) or withdraws (false) the patient's recall consent. */
+  z.object({ clinic_records_consent: z.boolean() }).strict(),
+  /** The job that sends recall invitations (convite_retorno) runs now. */
+  z.object({ run_recall: z.literal(true), expect: expectation.optional() }).strict(),
 ]);
 
 export const caseSchema = z
@@ -150,6 +165,8 @@ export async function runCase(
     agenda,
     agendaRepo,
     appointmentReminders,
+    recall,
+    recallRepo,
     quotes,
     quoteRepo,
     payments,
@@ -192,6 +209,15 @@ export async function runCase(
       await book(s.clinic_books);
     } else if ("run_reminders" in s) {
       await appointmentReminders.run(clock.now);
+    } else if ("past_visit" in s) {
+      await pastVisit(s.past_visit);
+      continue;
+    } else if ("clinic_records_consent" in s) {
+      const patient = await patientOfCase();
+      await recallRepo.recordConsent(CLINIC_ID, patient.id, s.clinic_records_consent, clock.now);
+      continue;
+    } else if ("run_recall" in s) {
+      await recall.run(clock.now);
     } else {
       await deliver(s, where);
     }
@@ -200,15 +226,41 @@ export async function runCase(
   }
   return { file, name: c.name, critical: c.critical, failures };
 
-  async function book(input: { procedureId: string; at: string }) {
+  async function patientOfCase() {
+    return (
+      (await agenda.buscarPaciente({ phone: PATIENT })) ??
+      (await agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: PATIENT }))
+    );
+  }
+
+  async function at(input: { procedureId: string; at: string }) {
     const [date, time] = input.at.split("T") as [string, string];
     const [h, m] = time.split(":").map(Number) as [number, number];
     const procedure = (await agenda.listarProcedimentos()).find((p) => p.id === input.procedureId);
     if (!procedure) throw new Error(`procedimento ${input.procedureId} não existe`);
     const startsAt = zonedToUtc(date, h * 60 + m, agenda.timeZone);
-    const patient =
-      (await agenda.buscarPaciente({ phone: PATIENT })) ??
-      (await agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: PATIENT }));
+    return { procedure, startsAt };
+  }
+
+  /** Written straight into the agenda: booking rules do not allow dates in the past. */
+  async function pastVisit(input: { procedureId: string; at: string }) {
+    const { procedure, startsAt } = await at(input);
+    const patient = await patientOfCase();
+    agendaRepo.appointments.push({
+      id: `appt_past_${agendaRepo.appointments.length}`,
+      patientId: patient.id,
+      dentistId: "dentist_dev",
+      procedureId: procedure.id,
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + procedure.durationMinutes * 60_000),
+      status: "COMPLETED",
+      reminderSentAt: null,
+    });
+  }
+
+  async function book(input: { procedureId: string; at: string }) {
+    const { procedure, startsAt } = await at(input);
+    const patient = await patientOfCase();
     await agenda.reservar({
       patientId: patient.id,
       slot: {

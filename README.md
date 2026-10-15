@@ -34,6 +34,15 @@ Na véspera de cada consulta (entre 9h e 19h no fuso da clínica) o bot manda o 
 APPOINTMENT_REMINDER_INTERVAL_MINUTES=60   # 0 desliga
 ```
 
+### Retorno de pacientes
+
+Quem teve a última consulta há mais de 6 meses e não tem nada marcado recebe, nas terças entre 9h e 12h (fuso da clínica), o template de marketing `convite_retorno` com os botões "Quero agendar" e "Não quero receber". Vai um convite por última consulta, no máximo 50 por rodada, e só para quem tem consentimento de marketing registrado pela recepção (página "Retorno" do painel, texto versão `retorno-v1`). PARAR ou "Não quero receber" depois do consentimento bloqueiam o convite até a recepção registrar um consentimento novo. "Quero agendar" abre o agendamento pela conversa com a IA ligada, ou passa para a recepção. Ajustes opcionais no `.env`:
+
+```bash
+RECALL_AFTER_MONTHS=6        # meses desde a última consulta
+RECALL_INTERVAL_MINUTES=60   # de quanto em quanto tempo verifica; 0 desliga
+```
+
 ## Orçamentos
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.
@@ -80,7 +89,7 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 
 ## Painel da equipe
 
-O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
 
 Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
 

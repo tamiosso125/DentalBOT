@@ -26,6 +26,8 @@ import { FieldCipher } from "./privacy/index.js";
 import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
 import { QuoteBillingService } from "./quotes/quote-billing.js";
 import { QuoteService } from "./quotes/quote-service.js";
+import { PrismaRecallRepository } from "./recall/prisma-recall.js";
+import { RecallService } from "./recall/recall.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
 import {
   AppointmentReminders,
@@ -116,6 +118,25 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   appointmentReminderTimer?.unref();
 
+  const recall = new RecallService({
+    repo: new PrismaRecallRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+    config: { afterMonths: env.RECALL_AFTER_MONTHS },
+  });
+  const runRecall = () =>
+    recall
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error({ err: err instanceof Error ? err.message : "unknown" }, "recall run failed"),
+      );
+  const recallTimer =
+    env.RECALL_INTERVAL_MINUTES > 0
+      ? setInterval(runRecall, env.RECALL_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  recallTimer?.unref();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -176,6 +197,7 @@ export function createApp(env: Env, logger: Logger) {
             patientData: new PrismaPatientData(db, cipher),
             setup: new PrismaClinicSetup(db, logger),
             billing: new PrismaBilling(db, cipher, payments),
+            recall,
           }
         : undefined,
   });
@@ -183,11 +205,12 @@ export function createApp(env: Env, logger: Logger) {
   async function close() {
     if (reminderTimer) clearInterval(reminderTimer);
     if (appointmentReminderTimer) clearInterval(appointmentReminderTimer);
+    if (recallTimer) clearInterval(recallTimer);
     await server.close();
     await whatsappQueue.close();
     await asaasQueue.close();
     await db.$disconnect();
   }
 
-  return { server, db, channel, payments, reminders, appointmentReminders, close };
+  return { server, db, channel, payments, reminders, appointmentReminders, recall, close };
 }

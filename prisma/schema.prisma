@@ -135,6 +135,8 @@ model Patient {
   asaasCustomerId        String?
   /// LGPD erasure: personal fields were wiped at this moment (financial records stay).
   anonymizedAt           DateTime?
+  /// When the recall invitation ("convite_retorno") went out; one per last visit.
+  recallInvitedAt        DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

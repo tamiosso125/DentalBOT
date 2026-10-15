@@ -12,6 +12,7 @@ import {
 import { BillingError, installmentQuerySchema, type Billing } from "../panel/billing.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
+import { RecallError, type RecallService } from "../recall/recall.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
@@ -49,6 +50,8 @@ export type ServerDeps = {
     setup?: ClinicSetup;
     /** Installments and payment links ("Cobranças"). Absent = routes not registered. */
     billing?: Billing;
+    /** Recall ("Retorno"): candidates and marketing consent. Absent = routes not registered. */
+    recall?: Pick<RecallService, "list" | "setConsent">;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -163,7 +166,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof StaffAgendaError ||
           err instanceof PatientDataError ||
           err instanceof ClinicSetupError ||
-          err instanceof BillingError
+          err instanceof BillingError ||
+          err instanceof RecallError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -293,6 +297,16 @@ export function buildServer(deps: ServerDeps) {
             .header("cache-control", "no-store")
             .send(await billing.paymentLink(admin.clinicId, req.params.id)),
         );
+      }
+
+      const recall = admin.recall;
+      if (recall) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/recall", async () => recall.list(admin.clinicId, now()));
+        scope.post<{ Params: { id: string } }>("/admin/recall/:id/consent", async (req, reply) => {
+          await recall.setConsent(admin.clinicId, req.params.id, req.body, now());
+          return reply.code(204).send();
+        });
       }
 
       const setup = admin.setup;

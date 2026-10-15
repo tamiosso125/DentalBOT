@@ -20,8 +20,10 @@ describe("templates", () => {
     expect(() => renderTemplate("lembrete_consulta", ["Ana"])).toThrow();
   });
 
-  it("uses only utility templates in the MVP (marketing needs opt-in)", () => {
-    expect(Object.values(TEMPLATES).every((t) => t.category === "UTILITY")).toBe(true);
+  it("keeps marketing to the recall invitation, which always offers a way out", () => {
+    const marketing = Object.values(TEMPLATES).filter((t) => t.category !== "UTILITY");
+    expect(marketing.map((t) => t.name)).toEqual(["convite_retorno"]);
+    expect(TEMPLATES.convite_retorno.buttons).toContain("Não quero receber");
   });
 
   it("builds Cloud API bodies", () => {
