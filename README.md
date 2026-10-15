@@ -14,6 +14,8 @@ pnpm dev                          # API em http://localhost:3000
 
 Com a API no ar, converse com o bot como paciente pelo Claude Code (MCP `whatsapp-sandbox`) ou veja as respostas em `GET http://localhost:3000/dev/sandbox/outbox`.
 
+O MCP `dentalbot-agenda` deixa o Claude Code consultar e mexer na agenda com as mesmas regras do atendente: horários livres, reservar, remarcar e cancelar, sempre por opções numeradas e com o telefone mascarado. Por padrão usa uma clínica fictícia em memória; com `AGENDA_SOURCE=database` usa o Postgres local do `.env` (recusa rodar com `NODE_ENV=production`).
+
 ## Ligar o atendente com Claude
 
 Sem chave, o bot responde com menu e regras fixas (`AI_MODE=off`). Com uma chave da API da Anthropic, acrescente ao `.env`:
@@ -69,7 +71,7 @@ Com um Postgres descartável, `TEST_DATABASE_URL=postgresql://... pnpm test` tam
 | `src/`                   | API (Fastify), WhatsApp, conversa, pagamentos (Asaas), agenda, privacidade |
 | `prisma/`                | Modelo de dados, migrations e seed                                         |
 | `tests/`                 | Casos de conversa (YAML), fixtures e testes de integração                  |
-| `tools/mcp/`             | MCP server `whatsapp-sandbox`                                              |
+| `tools/mcp/`             | MCP servers `whatsapp-sandbox` e `dentalbot-agenda`                        |
 | `plugins/dentalbot-dev/` | Plugin do Claude Code: skills, subagents, comandos, hooks                  |
 | `docs/`                  | Contas pendentes e decisões                                                |
 
