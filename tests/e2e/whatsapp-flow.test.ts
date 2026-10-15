@@ -20,7 +20,14 @@ const ADMIN_TOKEN = "e2e-admin-token-0000000000000000000000";
 const PATIENT = "5511900000011";
 const OTHER = "5511900000012";
 
-type OutboxMessage = { kind: string; to: string; body?: string; template?: string; bytes?: number };
+type OutboxMessage = {
+  kind: string;
+  to: string;
+  body?: string;
+  template?: string;
+  params?: string[];
+  bytes?: number;
+};
 
 describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saída)", () => {
   const phoneNumberId = `1${Date.now()}`;
@@ -35,6 +42,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     AI_MODE: "off",
     // The test runs the reminder job itself, with a fixed clock.
     INSTALLMENT_REMINDER_INTERVAL_MINUTES: "0",
+    APPOINTMENT_REMINDER_INTERVAL_MINUTES: "0",
     PII_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
     PII_HASH_SECRET: randomBytes(32).toString("hex"),
     WHATSAPP_VERIFY_TOKEN: "e2e-verify-token-0000",
@@ -89,6 +97,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     await db.quote.deleteMany({ where: { clinicId } });
     await db.message.deleteMany({ where: { conversation: { clinicId } } });
     await db.conversation.deleteMany({ where: { clinicId } });
+    await db.appointment.deleteMany({ where: { clinicId } });
     await db.patient.deleteMany({ where: { clinicId } });
     await db.procedure.deleteMany({ where: { clinicId } });
     await db.dentist.deleteMany({ where: { clinicId } });
@@ -289,5 +298,40 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     expect(
       (await app.db.installment.findUniqueOrThrow({ where: { id: second.id } })).reminderSentAt,
     ).not.toBeNull();
+  });
+
+  it("reminds an appointment the day before and records the patient's confirmation", async () => {
+    // Far-future date, so the real clock of the webhook path still sees it as upcoming.
+    const startsAt = new Date("2030-01-15T17:00:00Z"); // Tuesday 14:00 in São Paulo
+    const appt = await app.db.appointment.create({
+      data: {
+        clinicId,
+        patientId,
+        dentistId,
+        procedureId,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 60 * 60_000),
+      },
+    });
+    const dayBefore = new Date("2030-01-14T15:00:00Z"); // Monday 12:00 in São Paulo
+    await clearOutbox();
+    expect(await app.appointmentReminders.run(dayBefore)).toEqual({ sent: 1 });
+    expect(await app.appointmentReminders.run(dayBefore)).toEqual({ sent: 0 });
+    const [reminder] = await outbox();
+    expect(reminder).toMatchObject({
+      kind: "template",
+      template: "lembrete_consulta",
+      to: PATIENT,
+    });
+    expect(reminder!.params).toEqual(["Paciente", "terça-feira, 15/01 às 14:00", "Clínica E2E"]);
+
+    await clearOutbox();
+    await webhook(button(`appt:${appt.id}:confirm`, "Confirmar"));
+    await until(async () => {
+      const a = await app.db.appointment.findUnique({ where: { id: appt.id } });
+      return a?.status === "CONFIRMED";
+    });
+    const [reply] = await replies(1);
+    expect(reply!.body).toContain("está confirmada");
   });
 });

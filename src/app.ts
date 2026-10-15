@@ -24,6 +24,10 @@ import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
 import { QuoteBillingService } from "./quotes/quote-billing.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
+import {
+  AppointmentReminders,
+  PrismaAppointmentReminderRepository,
+} from "./scheduling/appointment-reminders.js";
 import { prismaAgendaFor } from "./scheduling/prisma-agenda.js";
 import {
   CloudApiChannel,
@@ -87,6 +91,27 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   reminderTimer?.unref();
 
+  const appointmentReminders = new AppointmentReminders({
+    repo: new PrismaAppointmentReminderRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+  const runAppointmentReminders = () =>
+    appointmentReminders
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "appointment reminders run failed",
+        ),
+      );
+  const appointmentReminderTimer =
+    env.APPOINTMENT_REMINDER_INTERVAL_MINUTES > 0
+      ? setInterval(runAppointmentReminders, env.APPOINTMENT_REMINDER_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  appointmentReminderTimer?.unref();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -110,6 +135,7 @@ export function createApp(env: Env, logger: Logger) {
       logger,
       ai,
       quotes,
+      agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,
@@ -143,11 +169,12 @@ export function createApp(env: Env, logger: Logger) {
 
   async function close() {
     if (reminderTimer) clearInterval(reminderTimer);
+    if (appointmentReminderTimer) clearInterval(appointmentReminderTimer);
     await server.close();
     await whatsappQueue.close();
     await asaasQueue.close();
     await db.$disconnect();
   }
 
-  return { server, db, channel, payments, reminders, close };
+  return { server, db, channel, payments, reminders, appointmentReminders, close };
 }

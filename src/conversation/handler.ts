@@ -1,9 +1,11 @@
 import { respond, type OrchestratorDeps } from "../ai/orchestrator.js";
 import type { Logger } from "../lib/logger.js";
 import type { QuoteService } from "../quotes/quote-service.js";
+import { AppointmentNotFoundError, type AgendaProvider } from "../scheduling/agenda-provider.js";
+import { formatWhenPtBr } from "../scheduling/time.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
 import { previewText } from "../whatsapp/index.js";
-import { detectIntent } from "./intents.js";
+import { detectIntent, type AppointmentAction } from "./intents.js";
 import { MESSAGES } from "./messages.js";
 import type { ClinicInfo, ConversationRecord, ConversationStore } from "./store.js";
 
@@ -17,6 +19,8 @@ export type HandlerDeps = {
   ai?: OrchestratorDeps;
   /** Quote buttons (approve/decline/view). Absent = the front desk handles them. */
   quotes?: QuoteService;
+  /** Agenda of a clinic, for the appointment reminder buttons. Absent = the front desk handles them. */
+  agendaFor?: (clinicId: string) => Promise<AgendaProvider | null>;
 };
 
 /**
@@ -77,9 +81,13 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const paused = conv.botPausedUntil !== null && conv.botPausedUntil > now();
 
   // Emergencies always get the safety message, even while a human is handling the chat.
-  // Quote buttons are deterministic answers to something the clinic sent, so they are
-  // recorded even then.
-  if (paused && intent.kind !== "emergency" && intent.kind !== "quote_action") {
+  // Quote buttons and "Confirmar" on a reminder are deterministic answers to something the
+  // clinic sent, so they are recorded even then. "Remarcar" needs a conversation, which is
+  // the front desk's while it is in the chat.
+  const answersClinic =
+    intent.kind === "quote_action" ||
+    (intent.kind === "appointment_action" && intent.action === "confirm");
+  if (paused && intent.kind !== "emergency" && !answersClinic) {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
     return;
   }
@@ -123,6 +131,8 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       if (out.handoff) await handoff(conv, out.handoff, deps, now());
       return;
     }
+    case "appointment_action":
+      return appointmentAction(conv, clinic, intent.appointmentId, intent.action, deps, now());
     case "menu_choice":
       if (deps.ai && intent.choice === "agendar")
         return aiTurn(conv, clinic, "Quero agendar uma consulta", undefined, deps, now());
@@ -173,6 +183,38 @@ async function aiTurn(
   await send({ kind: "text", to: conv.contact, body: out.text });
   if (out.list) await send({ kind: "list", to: conv.contact, ...out.list });
   if (out.handoff) await handoff(conv, `ai:${out.handoff}`, deps, at);
+}
+
+async function appointmentAction(
+  conv: ConversationRecord,
+  clinic: ClinicInfo,
+  appointmentId: string,
+  action: AppointmentAction,
+  deps: HandlerDeps,
+  at: Date,
+) {
+  const send = (msg: OutboundMessage) => sendAndStore(conv, msg, deps);
+  if (action === "reschedule") {
+    if (deps.ai) return aiTurn(conv, clinic, "Quero remarcar minha consulta", undefined, deps, at);
+    await send({ kind: "text", to: conv.contact, body: MESSAGES.rescheduleSoon });
+    return handoff(conv, "appointment:reschedule", deps, at);
+  }
+
+  const agenda = await deps.agendaFor?.(clinic.id);
+  const patient = agenda ? await agenda.buscarPaciente({ phone: conv.contact }) : null;
+  if (agenda && patient) {
+    try {
+      const { startsAt } = await agenda.confirmar({ appointmentId, patientId: patient.id });
+      const when = formatWhenPtBr(startsAt, agenda.timeZone);
+      await send({ kind: "text", to: conv.contact, body: MESSAGES.appointmentConfirmed(when) });
+      deps.logger.info({ conversationId: conv.id, appointmentId }, "appointment confirmed");
+      return;
+    } catch (err) {
+      if (!(err instanceof AppointmentNotFoundError)) throw err;
+    }
+  }
+  await send({ kind: "text", to: conv.contact, body: MESSAGES.appointmentNotFound });
+  return handoff(conv, "appointment:not_found", deps, at);
 }
 
 function sendMenu(conv: ConversationRecord, deps: HandlerDeps) {

@@ -5,6 +5,7 @@ import { PrismaConversationStore } from "../../src/conversation/prisma-store.js"
 import { FieldCipher } from "../../src/privacy/index.js";
 import { SlotUnavailableError } from "../../src/scheduling/agenda-provider.js";
 import type { AgendaService } from "../../src/scheduling/agenda-service.js";
+import { PrismaAppointmentReminderRepository } from "../../src/scheduling/appointment-reminders.js";
 import { prismaAgendaFor } from "../../src/scheduling/prisma-agenda.js";
 
 // Runs only against a disposable database: TEST_DATABASE_URL=postgresql://... pnpm test
@@ -83,5 +84,39 @@ describe.skipIf(!url)("PrismaAgendaRepository (Postgres)", () => {
     expect(again.agentState).toEqual({ offers: [] });
     await store.updateConversation(conv.id, { agentState: null });
     expect((await store.getOrCreateConversation(clinicId, "5511900000001")).agentState).toBeNull();
+  });
+
+  it("finds tomorrow's appointments to remind, claims each once and confirms", async () => {
+    const p = (await agenda.buscarPaciente({ phone: "5511900000001" }))!;
+    const slots = await agenda.listarHorarios({ procedureId, from: "2026-10-20", days: 1 });
+    const slot = slots.at(-1)!;
+    const { appointmentId } = await agenda.reservar({ patientId: p.id, slot });
+    const repo = new PrismaAppointmentReminderRepository(db, cipher);
+
+    const found = await repo.candidates(now, new Date(now.getTime() + 2 * 86_400_000));
+    expect(found.find((c) => c.appointmentId === appointmentId)).toEqual({
+      appointmentId,
+      clinicId,
+      clinicName: "Clínica Agenda Teste",
+      clinicTimeZone: "America/Sao_Paulo",
+      patientName: "Paciente Exemplo",
+      phone: "5511900000001",
+      startsAt: slot.startsAt,
+    });
+    expect(await repo.claim(appointmentId, now)).toBe(true);
+    expect(await repo.claim(appointmentId, now)).toBe(false);
+    await repo.release(appointmentId);
+    expect(await repo.claim(appointmentId, now)).toBe(true);
+
+    await agenda.confirmar({ appointmentId, patientId: p.id });
+    const row = await db.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+    expect(row.status).toBe("CONFIRMED");
+    expect(row.reminderSentAt).not.toBeNull();
+
+    // Moving it needs a new reminder and a new confirmation.
+    const earlier = slots.find((s) => s.endsAt <= slot.startsAt)!;
+    await agenda.remarcar({ appointmentId, patientId: p.id, slot: earlier });
+    const moved = await db.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+    expect(moved).toMatchObject({ status: "PENDING_CONFIRMATION", reminderSentAt: null });
   });
 });

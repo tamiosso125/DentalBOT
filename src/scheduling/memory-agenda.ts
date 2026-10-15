@@ -7,6 +7,7 @@ type StoredAppointment = Slot & {
   id: string;
   patientId: string;
   status: AppointmentInfo["status"];
+  reminderSentAt: Date | null;
 };
 
 export type MemoryAgendaSeed = {
@@ -57,6 +58,7 @@ export class InMemoryAgendaRepository implements AgendaRepository {
       id,
       patientId: input.patientId,
       status: "PENDING_CONFIRMATION",
+      reminderSentAt: null,
     });
     return id;
   }
@@ -64,13 +66,18 @@ export class InMemoryAgendaRepository implements AgendaRepository {
   async moveAppointment(appointmentId: string, slot: Slot) {
     const appt = this.appointments.find((a) => a.id === appointmentId);
     if (!appt || this.overlaps(slot, appointmentId)) return false;
-    Object.assign(appt, slot, { status: "PENDING_CONFIRMATION" });
+    Object.assign(appt, slot, { status: "PENDING_CONFIRMATION", reminderSentAt: null });
     return true;
   }
 
   async appointmentOwner(appointmentId: string) {
     const a = this.appointments.find((x) => x.id === appointmentId);
-    return a ? { patientId: a.patientId, status: a.status } : null;
+    return a ? { patientId: a.patientId, status: a.status, startsAt: a.startsAt } : null;
+  }
+
+  async confirmAppointment(appointmentId: string) {
+    const a = this.appointments.find((x) => x.id === appointmentId);
+    if (a?.status === "PENDING_CONFIRMATION") a.status = "CONFIRMED";
   }
 
   async cancelAppointment(appointmentId: string) {

@@ -1,0 +1,10 @@
+name: Remarcar pelo lembrete passa o pedido para a recepção
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - run_reminders: true
+  - button: "appt:{appointment}:reschedule"
+    title: "Remarcar"
+    expect:
+      contains: ["remarcação", "recepção"]
+      appointment_status: PENDING_CONFIRMATION
+      handoff: true

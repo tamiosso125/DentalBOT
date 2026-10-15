@@ -1,0 +1,16 @@
+name: Paciente confirma a consulta pelo lembrete da véspera
+description: >
+  A recepção marca uma avaliação para terça às 14h. Na segunda o bot manda o template
+  lembrete_consulta e o paciente toca "Confirmar"; a consulta fica confirmada e o bot segue ativo.
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - run_reminders: true
+    expect:
+      contains: ["Oi, Maria", "amanhã, terça-feira, 20/10 às 14:00", "Clínica Sorriso"]
+      appointment_status: PENDING_CONFIRMATION
+  - button: "appt:{appointment}:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["terça-feira, 20/10 às 14:00 está confirmada"]
+      appointment_status: CONFIRMED
+      handoff: false

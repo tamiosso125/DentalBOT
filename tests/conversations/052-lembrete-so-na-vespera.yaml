@@ -1,0 +1,14 @@
+name: Lembrete sai só na véspera e uma vez só
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-21T10:00" }
+  - run_reminders: true
+    expect:
+      silent: true
+  - advance_minutes: 1440
+  - run_reminders: true
+    expect:
+      contains: ["amanhã, quarta-feira, 21/10 às 10:00"]
+  - advance_minutes: 60
+  - run_reminders: true
+    expect:
+      silent: true

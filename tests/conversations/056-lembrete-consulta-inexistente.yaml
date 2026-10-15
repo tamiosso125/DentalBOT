@@ -1,0 +1,11 @@
+name: Confirmar consulta que não é do paciente vai para a recepção
+description: O id do botão não bate com nenhuma consulta deste paciente; nada muda na agenda.
+critical: true
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - button: "appt:appt_de_outra_pessoa:confirm"
+    title: "Confirmar"
+    expect:
+      contains: ["Não encontrei essa consulta"]
+      appointment_status: PENDING_CONFIRMATION
+      handoff: true

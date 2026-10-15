@@ -26,6 +26,12 @@ export const MESSAGES = {
     "com as informações de acesso, correção ou exclusão.",
   schedulingSoon:
     "Vou passar seu pedido de agendamento para a recepção, que confirma o melhor horário com você por aqui.",
+  rescheduleSoon:
+    "Vou passar seu pedido de remarcação para a recepção, que combina o novo horário com você por aqui.",
+  appointmentConfirmed: (when: string) =>
+    `Obrigado! Sua consulta de ${when} está confirmada. Até lá!`,
+  appointmentNotFound:
+    "Não encontrei essa consulta na agenda. Já chamei a recepção, que te responde em breve.",
   quoteSoon:
     "Vou passar seu pedido sobre orçamento ou pagamento para a recepção, que te responde por aqui.",
   quoteIntro: (firstName: string, total: string, plan: string, validUntil: string | null) =>

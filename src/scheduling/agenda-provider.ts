@@ -62,6 +62,11 @@ export interface AgendaProvider {
   /** Throws AppointmentNotFoundError if the appointment is not this patient's. */
   remarcar(input: { appointmentId: string; patientId: string; slot: Slot }): Promise<void>;
   cancelar(input: { appointmentId: string; patientId: string; reason?: string }): Promise<void>;
+  /**
+   * The patient confirms they will come (reminder button). Idempotent; throws
+   * AppointmentNotFoundError if the appointment is not this patient's or was cancelled.
+   */
+  confirmar(input: { appointmentId: string; patientId: string }): Promise<{ startsAt: Date }>;
   /** Upcoming, non-cancelled appointments of a patient. */
   consultasDoPaciente(input: { patientId: string; from: Date }): Promise<AppointmentInfo[]>;
   /** `phone` is the normalized wa_id (digits only). */
