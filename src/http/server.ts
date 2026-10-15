@@ -9,6 +9,7 @@ import {
   quoteQuerySchema,
   type PanelQueries,
 } from "../panel/panel-queries.js";
+import { BillingError, installmentQuerySchema, type Billing } from "../panel/billing.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
@@ -46,6 +47,8 @@ export type ServerDeps = {
     patientData?: PatientData;
     /** Clinic registration (data, dentists, hours, procedures, blocks). Absent = not registered. */
     setup?: ClinicSetup;
+    /** Installments and payment links ("Cobranças"). Absent = routes not registered. */
+    billing?: Billing;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -159,7 +162,8 @@ export function buildServer(deps: ServerDeps) {
         if (
           err instanceof StaffAgendaError ||
           err instanceof PatientDataError ||
-          err instanceof ClinicSetupError
+          err instanceof ClinicSetupError ||
+          err instanceof BillingError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -273,6 +277,22 @@ export function buildServer(deps: ServerDeps) {
             return result;
           });
         }
+      }
+
+      const billing = admin.billing;
+      if (billing) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/installments", async (req) =>
+          billing.installments(admin.clinicId, parse(installmentQuerySchema, req.query), now()),
+        );
+        scope.get("/admin/installments/summary", async () =>
+          billing.summary(admin.clinicId, now()),
+        );
+        scope.get<{ Params: { id: string } }>("/admin/installments/:id/link", async (req, reply) =>
+          reply
+            .header("cache-control", "no-store")
+            .send(await billing.paymentLink(admin.clinicId, req.params.id)),
+        );
       }
 
       const setup = admin.setup;
