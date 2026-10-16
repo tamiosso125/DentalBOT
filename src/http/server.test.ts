@@ -253,6 +253,17 @@ function stubCertificates() {
   return { certificates, calls };
 }
 
+function stubDaySheets() {
+  const calls: unknown[][] = [];
+  const daySheets: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["daySheets"] = {
+    pdf: async (...a) => {
+      calls.push(["pdf", ...a]);
+      return Buffer.from("%PDF-1.3 stub");
+    },
+  };
+  return { daySheets, calls };
+}
+
 function stubAccessLog() {
   const calls: unknown[][] = [];
   let failing = false;
@@ -342,6 +353,7 @@ function setup() {
   const history = stubMedicalHistory();
   const clinical = stubClinicalRecords();
   const certs = stubCertificates();
+  const sheets = stubDaySheets();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -388,6 +400,7 @@ function setup() {
       medicalHistory: history.medicalHistory,
       clinicalRecords: clinical.clinicalRecords,
       certificates: certs.certificates,
+      daySheets: sheets.daySheets,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -413,6 +426,7 @@ function setup() {
     historyCalls: history.calls,
     clinicalCalls: clinical.calls,
     certCalls: certs.calls,
+    sheetCalls: sheets.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -1099,6 +1113,36 @@ describe("admin medical history API", () => {
       ["record", CLINIC_ID, "VIEW_MEDICAL_HISTORY", "pat_1", NOW],
       ["record", CLINIC_ID, "SET_MEDICAL_HISTORY", "pat_1", NOW],
     ]);
+  });
+});
+
+describe("admin day sheet API", () => {
+  const headers = { authorization: `Bearer ${ADMIN}` };
+  const url = "/admin/agenda/day-sheet?day=2026-10-20";
+
+  it("requires the bearer token and serves the PDF, recording the print", async () => {
+    const { app, sheetCalls, access } = setup();
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    const res = await app.inject({ method: "GET", url, headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain("agenda-2026-10-20.pdf");
+    expect(sheetCalls).toEqual([["pdf", CLINIC_ID, "2026-10-20"]]);
+    expect(access.calls).toEqual([["record", CLINIC_ID, "PRINT_DAY_SHEET", undefined, NOW]]);
+  });
+
+  it("answers 400 to a missing or malformed day, without recording", async () => {
+    const { app, sheetCalls, access } = setup();
+    for (const bad of ["", "?day=amanha", "?day=2026-10-20&x=1"]) {
+      const res = await app.inject({
+        method: "GET",
+        url: `/admin/agenda/day-sheet${bad}`,
+        headers,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    expect(sheetCalls).toEqual([]);
+    expect(access.calls).toEqual([]);
   });
 });
 

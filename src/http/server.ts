@@ -30,6 +30,7 @@ import {
   AttendanceCertificateError,
   type AttendanceCertificates,
 } from "../panel/attendance-certificate.js";
+import { DaySheetError, daySheetQuerySchema, type DaySheets } from "../panel/day-sheet.js";
 import { ClinicalRecordError, type ClinicalRecords } from "../panel/clinical-record.js";
 import { MedicalHistoryError, type MedicalHistories } from "../panel/medical-history.js";
 import {
@@ -84,6 +85,8 @@ export type ServerDeps = {
     clinicalRecords?: Pick<ClinicalRecords, "list" | "add">;
     /** Attendance certificate PDFs. Absent = route not registered. */
     certificates?: Pick<AttendanceCertificates, "pdf">;
+    /** Printable day sheet PDF. Absent = route not registered. */
+    daySheets?: Pick<DaySheets, "pdf">;
     /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
     accessLog?: Pick<AccessLog, "record" | "list">;
     /**
@@ -243,7 +246,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof StaffError ||
           err instanceof MedicalHistoryError ||
           err instanceof ClinicalRecordError ||
-          err instanceof AttendanceCertificateError
+          err instanceof AttendanceCertificateError ||
+          err instanceof DaySheetError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -543,6 +547,18 @@ export function buildServer(deps: ServerDeps) {
                 await certificates.pdf(admin.clinicId, req.params.id, admin.now?.() ?? new Date()),
               ),
         );
+      }
+
+      const daySheets = admin.daySheets;
+      if (daySheets) {
+        scope.get("/admin/agenda/day-sheet", async (req, reply) => {
+          const q = daySheetQuerySchema.safeParse(req.query);
+          if (!q.success) throw new BadQueryError();
+          return reply
+            .type("application/pdf")
+            .header("content-disposition", `inline; filename="agenda-${q.data.day}.pdf"`)
+            .send(await daySheets.pdf(admin.clinicId, q.data.day));
+        });
       }
 
       const clinical = admin.clinicalRecords;

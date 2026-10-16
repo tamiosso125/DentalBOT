@@ -10,6 +10,7 @@ describe("access log helpers", () => {
     expect(actionLabel("ISSUE_ATTENDANCE_CERTIFICATE")).toBe(
       "Emitiu um atestado de comparecimento",
     );
+    expect(actionLabel("PRINT_DAY_SHEET")).toBe("Imprimiu a agenda do dia");
   });
 
   it("links to the appointment or quote, and nothing else", () => {
