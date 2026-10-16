@@ -165,7 +165,13 @@ export class PrismaPatientRecords implements PatientRecords {
           where: { clinicId, patientId },
           orderBy: { createdAt: "desc" },
           take: 200,
-          select: { id: true, author: true, textEncrypted: true, createdAt: true },
+          select: {
+            id: true,
+            author: true,
+            textEncrypted: true,
+            createdAt: true,
+            staffUser: { select: { name: true } },
+          },
         }),
       ]);
 
@@ -255,6 +261,7 @@ export class PrismaPatientRecords implements PatientRecords {
         author: n.author,
         text: this.cipher.decrypt(n.textEncrypted),
         createdAt: n.createdAt.toISOString(),
+        staffName: n.staffUser?.name ?? null,
       })),
     };
   }

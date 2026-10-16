@@ -17,7 +17,9 @@ export type AccessAction =
   | "VIEW_QUOTE_PDF"
   | "RECEIVE_INSTALLMENT"
   | "REGISTER_CLINIC_PAYMENT"
-  | "VIEW_ACCESS_LOG";
+  | "VIEW_ACCESS_LOG"
+  | "LOGIN"
+  | "MANAGE_STAFF";
 
 export type AccessEntry = {
   id: string;
@@ -25,6 +27,7 @@ export type AccessEntry = {
   action: AccessAction;
   patientId: string | null;
   patientName: string | null;
+  staffName: string | null;
   targetId: string | null;
 };
 
@@ -53,6 +56,8 @@ const LABEL: Record<AccessAction, string> = {
   RECEIVE_INSTALLMENT: "Recebeu parcela no balcão",
   REGISTER_CLINIC_PAYMENT: "Registrou pagamento no balcão",
   VIEW_ACCESS_LOG: "Abriu os acessos",
+  LOGIN: "Entrou no painel",
+  MANAGE_STAFF: "Mudou um login da equipe",
 };
 
 export function actionLabel(a: AccessAction): string {

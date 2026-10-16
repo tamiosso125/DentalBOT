@@ -55,7 +55,7 @@ PII_HASH_SECRET=            # openssl rand -hex 32
 
 # Painel da equipe
 ADMIN_API_TOKEN=            # openssl rand -hex 32
-PANEL_PASSWORD=             # senha que a recepção vai usar
+PANEL_PASSWORD=             # usada só no primeiro acesso, para criar o login da dentista
 PANEL_SESSION_SECRET=       # openssl rand -hex 32
 DEFAULT_CLINIC_ID=clinica   # id da clínica no banco; é criada no primeiro cadastro pelo painel
 
@@ -96,7 +96,7 @@ docker compose -f deploy/compose.yml ps        # todos "Up", api e panel "health
 curl https://atendimento.suaclinica.com.br/health   # {"status":"ok"}
 ```
 
-Abra `https://atendimento.suaclinica.com.br` no navegador e entre com a `PANEL_PASSWORD`.
+Abra `https://atendimento.suaclinica.com.br` no navegador. No primeiro acesso, a tela pede a `PANEL_PASSWORD` e cria o login da dentista (nome, e-mail e senha). Depois, em "Equipe", ela cria o login de cada pessoa da recepção; cada uma entra com o próprio e-mail e senha.
 
 Antes do piloto, cadastre a clínica real em "Clínica" no painel: dados da clínica, dentista e horários de atendimento, procedimentos com preços, o convênio Odontoprev com os procedimentos cobertos e os bloqueios já conhecidos (férias, feriados). A página mostra no topo o que ainda falta para o bot marcar consultas.
 

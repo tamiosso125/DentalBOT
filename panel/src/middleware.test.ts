@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createSession, SESSION_COOKIE } from "./lib/session";
+import { createSession, SESSION_COOKIE, type SessionUser } from "./lib/session";
 import { middleware } from "./middleware";
 
 const SECRET = "s".repeat(32);
+const BIA: SessionUser = { id: "u2", name: "Bia", role: "RECEPTION" };
 
 describe("middleware", () => {
   beforeEach(() => {
@@ -26,18 +27,18 @@ describe("middleware", () => {
 
   it("refuses a forged or expired cookie", async () => {
     expect((await middleware(request("9999999999999.abc"))).status).toBe(307);
-    const old = await createSession(SECRET, Date.parse("2026-01-01T00:00:00Z"));
+    const old = await createSession(SECRET, BIA, Date.parse("2026-01-01T00:00:00Z"));
     expect((await middleware(request(old))).status).toBe(307);
   });
 
   it("lets a valid session through", async () => {
-    const res = await middleware(request(await createSession(SECRET)));
+    const res = await middleware(request(await createSession(SECRET, BIA)));
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("locks everything when the secret is missing", async () => {
-    const cookie = await createSession(SECRET);
+    const cookie = await createSession(SECRET, BIA);
     delete process.env.PANEL_SESSION_SECRET;
     expect((await middleware(request(cookie))).status).toBe(307);
   });

@@ -1,29 +1,21 @@
-"use client";
+import { api } from "@/lib/api";
+import { FirstAccessForm, LoginForm } from "./forms";
 
-import { useActionState } from "react";
-import { login, type LoginState } from "../actions";
+export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
-  const [state, action, pending] = useActionState(login, {} as LoginState);
+/** E-mail and password; before the clinic has any login, the dentist's first access. */
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aviso?: string }>;
+}) {
+  const { aviso } = await searchParams;
+  const { hasUsers } = await api.staffStatus();
   return (
-    <main style={{ maxWidth: 360, paddingTop: 80 }}>
+    <main style={{ maxWidth: 380, paddingTop: 80 }}>
       <h1>Painel DentalBOT</h1>
-      <form action={action} className="card stack">
-        <label>
-          Senha da equipe
-          <input
-            type="password"
-            name="password"
-            required
-            autoFocus
-            autoComplete="current-password"
-          />
-        </label>
-        {state.error ? <p className="errors">{state.error}</p> : null}
-        <button type="submit" disabled={pending}>
-          {pending ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+      {aviso ? <p className="notice">{aviso}</p> : null}
+      {hasUsers ? <LoginForm /> : <FirstAccessForm />}
     </main>
   );
 }

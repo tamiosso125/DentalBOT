@@ -45,7 +45,13 @@ export type PatientRecord = {
   }>;
   waitlist: Array<{ id: string; procedure: string; until: string }>;
   /** Staff notes, newest first. */
-  notes: Array<{ id: string; author: NoteAuthor; text: string; createdAt: string }>;
+  notes: Array<{
+    id: string;
+    author: NoteAuthor;
+    text: string;
+    createdAt: string;
+    staffName: string | null;
+  }>;
 };
 
 export type NoteAuthor = "RECEPTION" | "DENTIST";

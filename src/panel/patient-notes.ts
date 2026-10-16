@@ -21,6 +21,8 @@ export type PatientNote = {
   author: "RECEPTION" | "DENTIST";
   text: string;
   createdAt: string;
+  /** Who wrote it, when signed in with a personal login. */
+  staffName: string | null;
 };
 
 export class PatientNoteError extends Error {
@@ -42,16 +44,18 @@ export class PatientNotes {
       where: { clinicId, patientId },
       orderBy: { createdAt: "desc" },
       take: 200,
+      include: { staffUser: { select: { name: true } } },
     });
     return rows.map((n) => ({
       id: n.id,
       author: n.author,
       text: this.deps.cipher.decrypt(n.textEncrypted),
       createdAt: n.createdAt.toISOString(),
+      staffName: n.staffUser?.name ?? null,
     }));
   }
 
-  async add(clinicId: string, patientId: string, input: unknown, now: Date) {
+  async add(clinicId: string, patientId: string, input: unknown, now: Date, staffUserId?: string) {
     const r = noteSchema.safeParse(input);
     if (!r.success)
       throw new PatientNoteError(422, `Escreva a anotação (até ${NOTE_MAX} caracteres).`);
@@ -66,6 +70,7 @@ export class PatientNotes {
         patientId,
         author: r.data.author,
         textEncrypted: this.deps.cipher.encrypt(r.data.text),
+        staffUserId: staffUserId ?? null,
         createdAt: now,
       },
       select: { id: true },

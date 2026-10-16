@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { currentUser } from "@/lib/current-user";
+import { roleLabel } from "@/lib/staff";
 import { logout } from "./actions";
 
-export function Nav() {
+export async function Nav() {
+  const user = await currentUser();
   return (
     <header className="top">
       <strong>DentalBOT</strong>
@@ -17,8 +20,14 @@ export function Nav() {
         <Link href="/dados">Dados (LGPD)</Link>
         <Link href="/acessos">Acessos</Link>
         <Link href="/clinica">Clínica</Link>
+        {user?.role === "DENTIST" ? <Link href="/equipe">Equipe</Link> : null}
       </nav>
-      <form action={logout}>
+      <form action={logout} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {user ? (
+          <Link href="/conta" title="Minha senha">
+            {user.name} ({roleLabel(user.role)})
+          </Link>
+        ) : null}
         <button type="submit" className="secondary">
           Sair
         </button>
