@@ -140,6 +140,7 @@ describe.skipIf(!url)("PrismaClinicSetup (Postgres)", () => {
       durationMinutes: 45,
       priceCents: 280_00,
       active: false,
+      aftercareText: "  Evite café nas primeiras 2 horas.  ",
     });
     expect((await setup.view(clinicId, NOW)).procedures).toContainEqual({
       id: procedureId,
@@ -147,7 +148,34 @@ describe.skipIf(!url)("PrismaClinicSetup (Postgres)", () => {
       durationMinutes: 45,
       priceCents: 280_00,
       active: false,
+      aftercareText: "Evite café nas primeiras 2 horas.",
     });
+    // Left out = unchanged; empty = no care instructions.
+    await setup.updateProcedure(clinicId, procedureId, {
+      name: "Limpeza (profilaxia)",
+      durationMinutes: 45,
+      priceCents: 280_00,
+      active: false,
+    });
+    const kept = (await setup.view(clinicId, NOW)).procedures.find((p) => p.id === procedureId);
+    expect(kept?.aftercareText).toBe("Evite café nas primeiras 2 horas.");
+    await setup.updateProcedure(clinicId, procedureId, {
+      name: "Limpeza (profilaxia)",
+      durationMinutes: 45,
+      priceCents: 280_00,
+      active: false,
+      aftercareText: " ",
+    });
+    const cleared = (await setup.view(clinicId, NOW)).procedures.find((p) => p.id === procedureId);
+    expect(cleared?.aftercareText).toBeNull();
+    await expect(
+      setup.updateProcedure(clinicId, procedureId, {
+        name: "Limpeza (profilaxia)",
+        durationMinutes: 45,
+        priceCents: 280_00,
+        aftercareText: "x".repeat(601),
+      }),
+    ).rejects.toMatchObject({ status: 422 });
     const agenda = (await prismaAgendaFor(db, cipher, clinicId))!;
     expect((await agenda.listarProcedimentos()).map((p) => p.name)).toEqual(["Avaliação"]);
     await expect(

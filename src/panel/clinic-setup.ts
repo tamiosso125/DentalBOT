@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import type { Logger } from "../lib/logger.js";
+import { MAX_AFTERCARE_TEXT } from "../aftercare/aftercare.js";
 import { addDays, zonedToUtc } from "../scheduling/time.js";
 
 /**
@@ -28,6 +29,7 @@ export type SetupView = {
     durationMinutes: number;
     priceCents: number | null;
     active: boolean;
+    aftercareText: string | null;
   }>;
   /** Accepted plans and the procedures each covers. No rows = coverage not registered yet. */
   insurancePlans: Array<{
@@ -105,6 +107,17 @@ export const procedureSchema = z.strictObject({
   /** Private price in cents; null = price only after evaluation. */
   priceCents: z.number().int().min(0).max(10_000_000).nullable(),
   active: z.boolean().default(true),
+  /**
+   * Care instructions the dentist writes, relayed as-is after attendance. Empty = none;
+   * absent = unchanged. Sent on one line inside a template parameter, hence the limit.
+   */
+  aftercareText: z
+    .string()
+    .trim()
+    .max(MAX_AFTERCARE_TEXT)
+    .nullable()
+    .optional()
+    .transform((t) => (t === undefined ? undefined : t || null)),
 });
 
 export const planSchema = z.strictObject({ name: z.string().trim().min(2).max(60) });
@@ -248,6 +261,7 @@ export class PrismaClinicSetup implements ClinicSetup {
         durationMinutes: p.durationMinutes,
         priceCents: p.priceCents,
         active: p.active,
+        aftercareText: p.aftercareText,
       })),
       insurancePlans: plans.map((p) => ({ id: p.id, name: p.name, coverage: p.coverages })),
       blocks: blocks.map((b) => ({

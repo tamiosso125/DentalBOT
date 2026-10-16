@@ -36,6 +36,8 @@ import { NoShowFollowUps, PrismaNoShowFollowUpRepository } from "./scheduling/no
 import { InsuranceAuthorizations } from "./insurance/authorizations.js";
 import { PrismaInsuranceRepository } from "./insurance/prisma-insurance.js";
 import { PrismaSurveyRepository } from "./survey/prisma-survey.js";
+import { AftercareService } from "./aftercare/aftercare.js";
+import { PrismaAftercareRepository } from "./aftercare/prisma-aftercare.js";
 import { SurveyService } from "./survey/survey.js";
 import { PrismaWaitlistRepository } from "./waitlist/prisma-waitlist.js";
 import { WaitlistService } from "./waitlist/waitlist.js";
@@ -235,6 +237,27 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   surveyTimer?.unref();
 
+  const aftercare = new AftercareService({
+    repo: new PrismaAftercareRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+  const runAftercare = () =>
+    aftercare
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "aftercare run failed",
+        ),
+      );
+  const aftercareTimer =
+    env.AFTERCARE_INTERVAL_MINUTES > 0
+      ? setInterval(runAftercare, env.AFTERCARE_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  aftercareTimer?.unref();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -264,6 +287,7 @@ export function createApp(env: Env, logger: Logger) {
       recall: recallRepo,
       waitlist,
       survey,
+      aftercare,
       insurance,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
@@ -306,6 +330,7 @@ export function createApp(env: Env, logger: Logger) {
             recall,
             waitlist,
             survey,
+            aftercare,
             insurance,
           }
         : undefined,
@@ -317,6 +342,7 @@ export function createApp(env: Env, logger: Logger) {
     if (recallTimer) clearInterval(recallTimer);
     if (waitlistTimer) clearInterval(waitlistTimer);
     if (surveyTimer) clearInterval(surveyTimer);
+    if (aftercareTimer) clearInterval(aftercareTimer);
     if (quoteFollowUpTimer) clearInterval(quoteFollowUpTimer);
     await server.close();
     await whatsappQueue.close();
@@ -334,6 +360,7 @@ export function createApp(env: Env, logger: Logger) {
     recall,
     waitlist,
     survey,
+    aftercare,
     close,
   };
 }

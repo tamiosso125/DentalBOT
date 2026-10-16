@@ -33,6 +33,7 @@ model Clinic {
   dataRequests   DataSubjectRequest[]
   waitlist       WaitlistEntry[]
   surveys        SatisfactionSurvey[]
+  aftercare      AftercareFollowUp[]
   authorizations InsuranceAuthorization[]
   clinicPayments ClinicPayment[]
 }
@@ -63,6 +64,9 @@ model Procedure {
   /// Private (particular) price, in cents. Null = price only after evaluation.
   priceCents      Int?
   active          Boolean @default(true)
+  /// Care instructions written by the dentist, sent after the patient attends
+  /// (orientacoes_pos_procedimento). Null = nothing is sent for this procedure.
+  aftercareText   String?
 
   clinic         Clinic              @relation(fields: [clinicId], references: [id])
   coverages      InsuranceCoverage[]
@@ -156,6 +160,7 @@ model Patient {
   conversations  Conversation[]
   waitlist       WaitlistEntry[]
   surveys        SatisfactionSurvey[]
+  aftercare      AftercareFollowUp[]
   authorizations InsuranceAuthorization[]
   clinicPayments ClinicPayment[]
 
@@ -222,6 +227,7 @@ model Appointment {
   procedure     Procedure               @relation(fields: [procedureId], references: [id])
   survey        SatisfactionSurvey?
   authorization InsuranceAuthorization?
+  aftercare     AftercareFollowUp?
 
   @@index([dentistId, startsAt])
   @@index([patientId])
@@ -273,6 +279,33 @@ model SatisfactionSurvey {
 
   @@index([clinicId, sentAt])
   @@index([patientId, sentAt])
+}
+
+enum AftercareAnswer {
+  /// "Tudo bem"
+  OK
+  /// "Preciso de ajuda": the front desk was called.
+  HELP
+}
+
+/// Care instructions sent after an attended appointment, and the next-day check-in
+/// (acompanhamento_pos_procedimento) with "Tudo bem" / "Preciso de ajuda".
+model AftercareFollowUp {
+  id                 String           @id @default(cuid())
+  clinicId           String
+  appointmentId      String           @unique
+  patientId          String
+  instructionsSentAt DateTime
+  checkInSentAt      DateTime?
+  answer             AftercareAnswer?
+  answeredAt         DateTime?
+
+  clinic      Clinic      @relation(fields: [clinicId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient     Patient     @relation(fields: [patientId], references: [id])
+
+  @@index([clinicId, checkInSentAt])
+  @@index([patientId])
 }
 
 enum WaitlistStatus {

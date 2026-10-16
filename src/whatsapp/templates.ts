@@ -111,6 +111,27 @@ export const TEMPLATES = {
     params: ["primeiro_nome", "clinica", "data"],
     buttons: ["5 - Excelente", "4 - Bom", "3 - Regular", "2 - Ruim", "1 - Péssimo"],
   },
+  /**
+   * Right after the front desk marks "Compareceu" on a procedure with care instructions.
+   * {{4}} is the dentist's text from the panel, on one line (Meta refuses line breaks in
+   * parameters). The bot only relays it: it never writes care advice itself.
+   */
+  orientacoes_pos_procedimento: {
+    name: "orientacoes_pos_procedimento",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Estes são os cuidados que a {{2}} recomenda depois do seu procedimento ({{3}}): {{4}} Se tiver dúvida, responda esta mensagem.",
+    params: ["primeiro_nome", "clinica", "procedimento", "orientacoes"],
+  },
+  /** The day after the care instructions. "Preciso de ajuda" calls the front desk. */
+  acompanhamento_pos_procedimento: {
+    name: "acompanhamento_pos_procedimento",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Como você está depois do procedimento ({{2}}) que fez na {{3}}?",
+    params: ["primeiro_nome", "procedimento", "clinica"],
+    buttons: ["Tudo bem", "Preciso de ajuda"],
+  },
   /** Marketing: only to patients with a recorded consent who did not reply "PARAR" since. */
   convite_retorno: {
     name: "convite_retorno",

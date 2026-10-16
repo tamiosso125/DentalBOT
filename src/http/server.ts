@@ -15,6 +15,7 @@ import { PatientDataError, type PatientData, type SubjectRef } from "../panel/pa
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { InsuranceError, type InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
+import type { AftercareService } from "../aftercare/aftercare.js";
 import { reportQuerySchema, type MonthlyReports } from "../panel/monthly-report.js";
 import { ClinicPaymentError, type ClinicPayments } from "../payments/clinic-payments.js";
 import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
@@ -65,6 +66,8 @@ export type ServerDeps = {
     report?: MonthlyReports;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
+    /** Post-procedure follow-ups and help requests. Absent = route not registered. */
+    aftercare?: Pick<AftercareService, "summary">;
     /** Insurance authorizations and the patient's plan. Absent = routes not registered. */
     insurance?: Pick<
       InsuranceAuthorizations,
@@ -389,6 +392,12 @@ export function buildServer(deps: ServerDeps) {
       if (survey) {
         const now = () => admin.now?.() ?? new Date();
         scope.get("/admin/surveys", async () => survey.summary(admin.clinicId, now()));
+      }
+
+      const aftercare = admin.aftercare;
+      if (aftercare) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/aftercare", async () => aftercare.summary(admin.clinicId, now()));
       }
 
       const insurance = admin.insurance;

@@ -12,6 +12,7 @@ import type {
 import type { RecallList } from "./recall";
 import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
+import type { AftercareSummary } from "./aftercare";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -258,6 +259,7 @@ export const api = {
     await call(`/admin/waitlist/${encodeURIComponent(id)}/remove`, { method: "POST" });
   },
   surveys: () => json<SurveySummary>("/admin/surveys"),
+  aftercare: () => json<AftercareSummary>("/admin/aftercare"),
   report: (month?: string) =>
     json<MonthlyReport>(`/admin/report${month ? `?mes=${encodeURIComponent(month)}` : ""}`),
   authorizations: () => json<AuthorizationList>("/admin/authorizations"),

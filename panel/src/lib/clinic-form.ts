@@ -33,6 +33,7 @@ export type SetupView = {
     durationMinutes: number;
     priceCents: number | null;
     active: boolean;
+    aftercareText: string | null;
   }>;
   insurancePlans: Array<{
     id: string;
@@ -139,7 +140,12 @@ export type ProcedureBody = {
   durationMinutes: number;
   priceCents: number | null;
   active: boolean;
+  /** Empty in the form = no care instructions for this procedure. */
+  aftercareText: string | null;
 };
+
+/** Same limit as the API: the text travels inside a WhatsApp template parameter. */
+export const MAX_AFTERCARE_TEXT = 600;
 
 export function parseProcedureForm(f: Form): Parsed<ProcedureBody> {
   const errors: string[] = [];
@@ -151,9 +157,20 @@ export function parseProcedureForm(f: Form): Parsed<ProcedureBody> {
   const priceText = text(f, "price");
   const priceCents = priceText ? parseReais(priceText) : null;
   if (priceText && priceCents === null) errors.push("Preço inválido. Exemplo: 250,00");
+  const aftercareText = text(f, "aftercareText");
+  if (aftercareText.length > MAX_AFTERCARE_TEXT)
+    errors.push(`Os cuidados após o procedimento cabem em até ${MAX_AFTERCARE_TEXT} caracteres.`);
   if (errors.length) return { errors };
   const active = f.get("activeField") === null || checked(f, "active");
-  return { body: { name, durationMinutes: duration, priceCents, active } };
+  return {
+    body: {
+      name,
+      durationMinutes: duration,
+      priceCents,
+      active,
+      aftercareText: aftercareText || null,
+    },
+  };
 }
 
 /** Price as typed in the form ("250,00"), empty when it depends on evaluation. */

@@ -128,6 +128,7 @@ export default async function ClinicPage({
                         <th>Procedimento</th>
                         <th className="num">Duração</th>
                         <th className="num">Preço particular</th>
+                        <th>Cuidados após</th>
                         <th />
                       </tr>
                     </thead>
@@ -139,6 +140,9 @@ export default async function ClinicPage({
                           </td>
                           <td className="num">{p.durationMinutes} min</td>
                           <td className="num">{describePrice(p.priceCents)}</td>
+                          <td>
+                            {p.aftercareText ? "Cadastrados" : <span className="muted">-</span>}
+                          </td>
                           <td>
                             <Link href={`/clinica/procedimentos/${encodeURIComponent(p.id)}`}>
                               Editar

@@ -53,10 +53,20 @@ WAITLIST_INTERVAL_MINUTES=5   # 0 desliga
 
 ### Pesquisa de satisfação
 
-Depois que a recepção marca "Compareceu" no painel, o paciente recebe no dia seguinte, entre 10h e 19h (fuso da clínica), o template `pesquisa_satisfacao` com as notas de 1 a 5 em botões. Vai no máximo uma pesquisa por paciente a cada 30 dias, nunca depois de falta, e não sai enquanto a recepção estiver conversando com o paciente; se a marcação atrasar, a pesquisa ainda vai até 3 dias depois da consulta. A nota vale mesmo com a recepção na conversa e só conta uma vez. Nota 1 ou 2 responde com um pedido de desculpas e chama a recepção. O painel mostra, na Agenda, a nota média do mês, quantos responderam e as notas baixas dos últimos 30 dias. A pesquisa não pede comentário escrito: um texto livre seria confundido com as mensagens normais do paciente. Para mudar a frequência:
+Depois que a recepção marca "Compareceu" no painel, o paciente recebe no dia seguinte, entre 10h e 19h (fuso da clínica), o template `pesquisa_satisfacao` com as notas de 1 a 5 em botões. Vai no máximo uma pesquisa por paciente a cada 30 dias, nunca depois de falta, e não sai enquanto a recepção estiver conversando com o paciente; se a marcação atrasar, a pesquisa ainda vai até 3 dias depois da consulta. A nota vale mesmo com a recepção na conversa e só conta uma vez. Nota 1 ou 2 responde com um pedido de desculpas e chama a recepção. O painel mostra, na Agenda, a nota média do mês, quantos responderam e as notas baixas dos últimos 30 dias. A pesquisa não pede comentário escrito: um texto livre seria confundido com as mensagens normais do paciente. Depois de um procedimento com cuidados cadastrados, a pesquisa espera o paciente responder "Tudo bem" no acompanhamento e não vai para quem pediu ajuda. Para mudar a frequência:
 
 ```bash
 SURVEY_INTERVAL_MINUTES=60   # 0 desliga
+```
+
+### Cuidados após o procedimento
+
+Em "Clínica" > procedimento, a dentista escreve os cuidados que o paciente deve ter depois (por exemplo, na extração: morder a gaze, não cuspir nas primeiras 24 horas). Assim que a recepção marca "Compareceu" numa consulta desse procedimento, o paciente recebe o template `orientacoes_pos_procedimento` com esse texto, do jeito que foi escrito, numa linha só (o WhatsApp não aceita quebra de linha dentro do template; o limite é de 600 caracteres). O bot só repassa o texto da dentista: ele nunca escreve orientação de saúde por conta própria. As orientações saem entre 8h e 21h (fuso da clínica), no mesmo dia ou, se a marcação for feita à noite, na manhã seguinte; procedimento sem texto não manda nada.
+
+No dia seguinte, entre 10h e 19h, o bot pergunta como o paciente está com o template `acompanhamento_pos_procedimento` e os botões "Tudo bem" e "Preciso de ajuda". "Preciso de ajuda" avisa que a equipe vai falar com ele, lembra de procurar o pronto-socorro em caso de inchaço que dificulta respirar ou engolir, febre alta ou sangramento que não para, e chama a recepção. Os botões valem mesmo com a recepção na conversa, e "Preciso de ajuda" chama a recepção mesmo depois de um "Tudo bem". Se o paciente escrever um sinal de alarme a qualquer momento, o bot orienta o pronto-socorro e chama a equipe, como sempre. Nenhum dos dois envios sai enquanto a recepção estiver conversando com o paciente. A Agenda do painel mostra quantos receberam os cuidados no mês, as respostas e quem pediu ajuda nos últimos 14 dias. Para mudar a frequência do job:
+
+```bash
+AFTERCARE_INTERVAL_MINUTES=15   # 0 desliga
 ```
 
 ### Convênio e autorização prévia

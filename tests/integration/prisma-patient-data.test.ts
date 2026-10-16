@@ -106,6 +106,17 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         answeredAt: new Date("2026-10-02T15:00:00Z"),
       },
     });
+    await db.aftercareFollowUp.create({
+      data: {
+        clinicId,
+        patientId,
+        appointmentId: apptIds[0]!,
+        instructionsSentAt: new Date("2026-10-01T14:00:00Z"),
+        checkInSentAt: new Date("2026-10-02T14:00:00Z"),
+        answer: "OK",
+        answeredAt: new Date("2026-10-02T14:30:00Z"),
+      },
+    });
     await db.waitlistEntry.create({
       data: { clinicId, patientId, procedureId, until: new Date("2026-10-31T03:00:00Z") },
     });
@@ -166,6 +177,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
+      await db.aftercareFollowUp.deleteMany({ where: { clinicId: id } });
       await db.clinicPayment.deleteMany({ where: { clinicId: id } });
       await db.satisfactionSurvey.deleteMany({ where: { clinicId: id } });
       await db.insuranceAuthorization.deleteMany({ where: { clinicId: id } });
@@ -231,6 +243,16 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         sentAt: "2026-10-02T14:00:00.000Z",
         rating: 4,
         answeredAt: "2026-10-02T15:00:00.000Z",
+      },
+    ]);
+    expect(out.aftercare).toEqual([
+      {
+        procedure: expect.any(String),
+        appointmentAt: "2026-10-01T13:00:00.000Z",
+        instructionsSentAt: "2026-10-01T14:00:00.000Z",
+        checkInSentAt: "2026-10-02T14:00:00.000Z",
+        answer: "OK",
+        answeredAt: "2026-10-02T14:30:00.000Z",
       },
     ]);
     expect(out.quotes).toMatchObject([

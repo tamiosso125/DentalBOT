@@ -219,6 +219,7 @@ function setup() {
       recall: recall.recall,
       waitlist: ctx.waitlist,
       survey: ctx.survey,
+      aftercare: ctx.aftercare,
       insurance: ctx.insurance,
       report: report.report,
       clinicPayments: desk.desk,
@@ -834,6 +835,20 @@ describe("admin surveys API", () => {
       month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
       low: [],
     });
+  });
+});
+
+describe("admin aftercare API", () => {
+  it("requires the bearer token and returns the clinic's follow-ups", async () => {
+    const { app } = setup();
+    expect((await app.inject({ method: "GET", url: "/admin/aftercare" })).statusCode).toBe(401);
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/aftercare",
+      headers: { authorization: `Bearer ${ADMIN}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ month: { sent: 0, checkIns: 0, ok: 0, help: 0 }, help: [] });
   });
 });
 

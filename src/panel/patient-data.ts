@@ -80,6 +80,15 @@ export type PatientExport = {
     rating: number | null;
     answeredAt: string | null;
   }>;
+  /** Post-procedure care instructions and the next-day check-in. */
+  aftercare: Array<{
+    procedure: string;
+    appointmentAt: string;
+    instructionsSentAt: string;
+    checkInSentAt: string | null;
+    answer: "OK" | "HELP" | null;
+    answeredAt: string | null;
+  }>;
   quotes: Array<{
     status: string;
     totalCents: number;
@@ -282,6 +291,14 @@ export class PrismaPatientData implements PatientData {
               orderBy: { sentAt: "asc" },
               include: { appointment: { select: { startsAt: true } } },
             },
+            aftercare: {
+              orderBy: { instructionsSentAt: "asc" },
+              include: {
+                appointment: {
+                  select: { startsAt: true, procedure: { select: { name: true } } },
+                },
+              },
+            },
             clinicPayments: {
               where: { voidedAt: null },
               orderBy: { paidAt: "asc" },
@@ -344,6 +361,14 @@ export class PrismaPatientData implements PatientData {
         sentAt: v.sentAt.toISOString(),
         rating: v.rating,
         answeredAt: iso(v.answeredAt),
+      })),
+      aftercare: (patient?.aftercare ?? []).map((f) => ({
+        procedure: f.appointment.procedure.name,
+        appointmentAt: f.appointment.startsAt.toISOString(),
+        instructionsSentAt: f.instructionsSentAt.toISOString(),
+        checkInSentAt: iso(f.checkInSentAt),
+        answer: f.answer,
+        answeredAt: iso(f.answeredAt),
       })),
       quotes: (patient?.quotes ?? []).map((q) => ({
         status: q.status,
