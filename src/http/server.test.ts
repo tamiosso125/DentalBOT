@@ -14,6 +14,7 @@ import { InMemoryQueue } from "../queue/queue.js";
 import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
 import { BillingError, type Billing } from "../panel/billing.js";
+import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
@@ -143,8 +144,20 @@ function stubRecall() {
   return { recall, calls };
 }
 
+function stubReport() {
+  const calls: Array<[string, string | undefined]> = [];
+  const report: MonthlyReports = {
+    report: async (clinicId, month) => {
+      calls.push([clinicId, month]);
+      return { month: month ?? "2026-10" } as MonthlyReport;
+    },
+  };
+  return { report, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const report = stubReport();
   const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
@@ -182,6 +195,7 @@ function setup() {
       waitlist: ctx.waitlist,
       survey: ctx.survey,
       insurance: ctx.insurance,
+      report: report.report,
       now: () => NOW,
     },
   });
@@ -197,6 +211,7 @@ function setup() {
     setupCalls: clinicSetup.calls,
     billingCalls: billing.calls,
     recallCalls: recall.calls,
+    reportCalls: report.calls,
   };
 }
 
@@ -792,6 +807,39 @@ describe("admin surveys API", () => {
       month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
       low: [],
     });
+  });
+});
+
+describe("admin monthly report API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the token and a valid month", async () => {
+    const { app, reportCalls } = setup();
+    expect((await app.inject({ method: "GET", url: "/admin/report" })).statusCode).toBe(401);
+    for (const mes of ["2026-13", "outubro", "2026-1"]) {
+      const res = await app.inject({
+        method: "GET",
+        url: `/admin/report?mes=${mes}`,
+        headers: auth,
+      });
+      expect(res.statusCode, mes).toBe(400);
+    }
+    expect(reportCalls).toEqual([]);
+  });
+
+  it("reports the asked month or the current one for the clinic", async () => {
+    const { app, reportCalls } = setup();
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/report?mes=2026-09",
+      headers: auth,
+    });
+    expect(res.json()).toEqual({ month: "2026-09" });
+    await app.inject({ method: "GET", url: "/admin/report", headers: auth });
+    expect(reportCalls).toEqual([
+      [CLINIC_ID, "2026-09"],
+      [CLINIC_ID, undefined],
+    ]);
   });
 });
 

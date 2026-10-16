@@ -15,6 +15,7 @@ import { PatientDataError, type PatientData, type SubjectRef } from "../panel/pa
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { InsuranceError, type InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
+import { reportQuerySchema, type MonthlyReports } from "../panel/monthly-report.js";
 import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
@@ -57,6 +58,8 @@ export type ServerDeps = {
     recall?: Pick<RecallService, "list" | "setConsent">;
     /** Waiting list ("Lista de espera"). Absent = routes not registered. */
     waitlist?: Pick<WaitlistService, "list" | "add" | "remove">;
+    /** Month at a glance for the dentist. Absent = route not registered. */
+    report?: MonthlyReports;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
     /** Insurance authorizations and the patient's plan. Absent = routes not registered. */
@@ -347,6 +350,17 @@ export function buildServer(deps: ServerDeps) {
           await waitlist.remove(admin.clinicId, req.params.id, now());
           return reply.code(204).send();
         });
+      }
+
+      const report = admin.report;
+      if (report) {
+        scope.get("/admin/report", async (req) =>
+          report.report(
+            admin.clinicId,
+            parse(reportQuerySchema, req.query).mes,
+            admin.now?.() ?? new Date(),
+          ),
+        );
       }
 
       const survey = admin.survey;
