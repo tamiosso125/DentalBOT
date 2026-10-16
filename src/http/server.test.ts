@@ -15,6 +15,7 @@ import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
 import { BillingError, type Billing } from "../panel/billing.js";
 import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
+import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
@@ -156,6 +157,17 @@ function stubReport() {
   return { report, calls };
 }
 
+function stubRecords() {
+  const calls: unknown[][] = [];
+  const records: PatientRecords = {
+    record: async (...a) => {
+      calls.push(a);
+      return a[1] === "pat_1" ? ({ patient: { id: "pat_1" } } as PatientRecord) : null;
+    },
+  };
+  return { records, calls };
+}
+
 function stubDesk() {
   const calls: unknown[][] = [];
   const desk: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["clinicPayments"] = {
@@ -183,6 +195,7 @@ function setup() {
   const { panel, calls } = stubPanel();
   const desk = stubDesk();
   const report = stubReport();
+  const records = stubRecords();
   const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
@@ -222,6 +235,7 @@ function setup() {
       aftercare: ctx.aftercare,
       insurance: ctx.insurance,
       report: report.report,
+      records: records.records,
       clinicPayments: desk.desk,
       now: () => NOW,
     },
@@ -240,6 +254,7 @@ function setup() {
     recallCalls: recall.calls,
     reportCalls: report.calls,
     deskCalls: desk.calls,
+    records,
   };
 }
 
@@ -835,6 +850,28 @@ describe("admin surveys API", () => {
       month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
       low: [],
     });
+  });
+});
+
+describe("admin patient record API", () => {
+  it("requires the bearer token, scopes by clinic and 404s an unknown patient", async () => {
+    const { app, records } = setup();
+    const url = "/admin/patients/pat_1/record";
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    const auth = { authorization: `Bearer ${ADMIN}` };
+    const res = await app.inject({ method: "GET", url, headers: auth });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ patient: { id: "pat_1" } });
+    const missing = await app.inject({
+      method: "GET",
+      url: "/admin/patients/outro/record",
+      headers: auth,
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(records.calls).toEqual([
+      [CLINIC_ID, "pat_1", NOW],
+      [CLINIC_ID, "outro", NOW],
+    ]);
   });
 });
 

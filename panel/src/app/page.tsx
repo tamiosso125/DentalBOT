@@ -320,7 +320,9 @@ export default async function AgendaPage({
                           {formatTime(a.startsAt)}–{formatTime(a.endsAt)}
                         </td>
                         <td>
-                          {a.patientName}
+                          <Link href={`/pacientes/${encodeURIComponent(a.patientId)}`}>
+                            {a.patientName}
+                          </Link>
                           <div className="muted">final {a.patientPhone.slice(-4)}</div>
                         </td>
                         <td>{a.procedureName}</td>
