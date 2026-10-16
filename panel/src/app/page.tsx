@@ -301,6 +301,16 @@ export default async function AgendaPage({
           days.map(({ day, items }) => (
             <section key={day} className="card">
               <h2 style={{ marginTop: 0 }}>{formatDayHeading(items[0]!.startsAt)}</h2>
+              <p className="muted">
+                <a
+                  href={`/agenda-do-dia?dia=${encodeURIComponent(day)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Imprimir a agenda do dia
+                </a>{" "}
+                (leva os alertas de saúde da anamnese; guarde com cuidado)
+              </p>
               <div className="table-wrap">
                 <table>
                   <thead>
