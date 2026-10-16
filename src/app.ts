@@ -31,6 +31,8 @@ import { QuoteService } from "./quotes/quote-service.js";
 import { PrismaRecallRepository } from "./recall/prisma-recall.js";
 import { RecallService } from "./recall/recall.js";
 import { NoShowFollowUps, PrismaNoShowFollowUpRepository } from "./scheduling/no-show-follow-up.js";
+import { InsuranceAuthorizations } from "./insurance/authorizations.js";
+import { PrismaInsuranceRepository } from "./insurance/prisma-insurance.js";
 import { PrismaSurveyRepository } from "./survey/prisma-survey.js";
 import { SurveyService } from "./survey/survey.js";
 import { PrismaWaitlistRepository } from "./waitlist/prisma-waitlist.js";
@@ -206,6 +208,13 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   waitlistTimer?.unref();
 
+  const insurance = new InsuranceAuthorizations({
+    repo: new PrismaInsuranceRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+
   const survey = new SurveyService({
     repo: new PrismaSurveyRepository(db, cipher),
     channel,
@@ -233,6 +242,7 @@ export function createApp(env: Env, logger: Logger) {
           logger,
           effort: env.AI_ATTENDANT_EFFORT,
           waitlist,
+          insurance,
         }
       : undefined;
 
@@ -252,6 +262,7 @@ export function createApp(env: Env, logger: Logger) {
       recall: recallRepo,
       waitlist,
       survey,
+      insurance,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,
@@ -291,6 +302,7 @@ export function createApp(env: Env, logger: Logger) {
             recall,
             waitlist,
             survey,
+            insurance,
           }
         : undefined,
   });

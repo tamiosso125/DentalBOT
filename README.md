@@ -59,6 +59,10 @@ Depois que a recepção marca "Compareceu" no painel, o paciente recebe no dia s
 SURVEY_INTERVAL_MINUTES=60   # 0 desliga
 ```
 
+### Convênio e autorização prévia
+
+Odontoprev não tem API pública, então a autorização é pedida pela recepção no portal do convênio. Quando o paciente diz que é do convênio, o atendente com IA pede o número da carteirinha e registra pela ferramenta `informar_convenio` (a carteirinha fica criptografada e o bot não a repete na conversa). Se o procedimento marcado pede autorização prévia na tabela de cobertura do convênio, a consulta aparece no painel em "Autorizações", com a carteirinha completa, e a Agenda mostra quantas estão pendentes. A recepção pede no portal e marca "Autorizado" ou "Negado". O paciente recebe o template `convenio_autorizado` ou `convenio_negado`; este traz os botões "Seguir como particular" (a consulta fica, e o bot informa o preço particular do procedimento) e "Falar com a recepção". O botão vale mesmo com a recepção na conversa. A recepção também cadastra ou corrige o convênio e a carteirinha do paciente na página da consulta.
+
 ## Orçamentos
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.
@@ -145,7 +149,7 @@ O topo da página lista o que ainda falta para o bot conseguir marcar consultas.
 
 O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:
 
-- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, notas da pesquisa de satisfação, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
+- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, autorizações de convênio, notas da pesquisa de satisfação, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
 - anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras e a lista de espera. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
 
 A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.

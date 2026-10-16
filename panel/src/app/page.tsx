@@ -48,12 +48,13 @@ export default async function AgendaPage({
             }`
           : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
-  const [rows, handoffs, attendance, billing, surveys] = await Promise.all([
+  const [rows, handoffs, attendance, billing, surveys, authorizations] = await Promise.all([
     api.agenda(from, DAYS),
     api.handoffs(),
     api.attendance(),
     api.billingSummary(),
     api.surveys(),
+    api.authorizations(),
   ]);
   const answered = answerRate(surveys.month);
   const back = de ? `/?de=${from}` : "/";
@@ -99,6 +100,18 @@ export default async function AgendaPage({
                 </tbody>
               </table>
             </div>
+          </section>
+        ) : null}
+
+        {authorizations.pending.length > 0 ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>
+              Autorizações de convênio pendentes ({authorizations.pending.length})
+            </h2>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              A próxima é {formatDateTime(authorizations.pending[0]!.startsAt)}. Peça no portal do
+              convênio e marque o resultado. <Link href="/autorizacoes">Ver autorizações</Link>
+            </p>
           </section>
         ) : null}
 

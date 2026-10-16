@@ -1,5 +1,6 @@
 import "server-only";
 import type { Attendance } from "./attendance";
+import type { AuthorizationList, PatientInsurance } from "./authorizations";
 import type { QuoteFollowUp } from "./quote-follow-up";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
@@ -250,6 +251,23 @@ export const api = {
     await call(`/admin/waitlist/${encodeURIComponent(id)}/remove`, { method: "POST" });
   },
   surveys: () => json<SurveySummary>("/admin/surveys"),
+  authorizations: () => json<AuthorizationList>("/admin/authorizations"),
+  decideAuthorization: (appointmentId: string, authorized: boolean) =>
+    json<{ notified: boolean }>(`/admin/authorizations/${encodeURIComponent(appointmentId)}`, {
+      method: "POST",
+      body: JSON.stringify({ authorized }),
+    }),
+  patientInsurance: (patientId: string) =>
+    json<PatientInsurance>(`/admin/patients/${encodeURIComponent(patientId)}/insurance`),
+  setPatientInsurance: async (
+    patientId: string,
+    body: { planId: string | null; card?: string },
+  ) => {
+    await call(`/admin/patients/${encodeURIComponent(patientId)}/insurance`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
   billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
   paymentLink: (id: string) =>
     json<{ url: string }>(`/admin/installments/${encodeURIComponent(id)}/link`),

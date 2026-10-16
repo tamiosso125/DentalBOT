@@ -1,0 +1,59 @@
+name: Paciente da Odontoprev informa a carteirinha, marca extração e segue como particular após a negativa
+description: >
+  Com a IA ligada, a paciente diz que vai usar a Odontoprev. O atendente pede a carteirinha e
+  registra o convênio antes de reservar. A extração pede autorização prévia, então o bot avisa
+  que a recepção vai pedir ao convênio. A recepção registra que o convênio negou, a paciente
+  recebe o template convenio_negado e escolhe "Seguir como particular", recebendo o valor da
+  tabela.
+ai: true
+steps:
+  - patient: "oi, quero marcar uma extração pela Odontoprev"
+    model:
+      route: agenda
+      replies:
+        - text: "Claro! Para registrar o convênio, me passe o número da sua carteirinha da Odontoprev e o seu nome completo, por favor."
+    expect:
+      contains: ["carteirinha"]
+      handoff: false
+  - patient: "Maria Exemplo da Silva, carteirinha 1234 5678 9"
+    model:
+      route: agenda
+      replies:
+        - tool: informar_convenio
+          input:
+            {
+              convenio: "Odontoprev",
+              carteirinha: "1234 5678 9",
+              nome_completo: "Maria Exemplo da Silva",
+            }
+        - tool: listar_horarios
+          input: { procedimento: "extração", a_partir_de: "2026-10-21" }
+        - text: "Convênio registrado! Escolha um horário para a extração na lista abaixo."
+    expect:
+      list: true
+      contains: ["qua 21/10 08:00"]
+      not_contains: ["123456789"]
+  - list: "slot:1"
+    title: "qua 21/10 08:00"
+    model:
+      replies:
+        - text: "Confirma a extração na quarta-feira, 21/10 às 08:00?"
+  - patient: "sim"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 1 }
+        - text: "Pronto! Sua extração está marcada para quarta-feira, 21/10 às 08:00. A recepção pede a autorização à Odontoprev e avisa o resultado por aqui."
+    expect:
+      contains: ["autorização", "quarta-feira, 21/10 às 08:00"]
+      appointments: 1
+  - advance_minutes: 120
+  - clinic_decides_authorization: false
+    expect:
+      contains: ["Odontoprev não autorizou", "quarta-feira, 21/10 às 08:00", "particular"]
+  - button: "auth:{authorization}:private"
+    title: "Seguir como particular"
+    expect:
+      contains: ["segue como particular", "300,00"]
+      handoff: false

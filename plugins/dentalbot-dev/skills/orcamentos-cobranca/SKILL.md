@@ -9,7 +9,7 @@ description: Use ao mexer em orçamentos, PDF do orçamento, itens, parcelas, Pi
 
 - `Quote` (DRAFT → SENT → ACCEPTED/REJECTED/EXPIRED) com `QuoteItem` (`coverage`: PRIVATE ou INSURANCE) e `Installment` (PENDING → BILLED → PAID/OVERDUE/CANCELLED).
 - Valores sempre em **centavos inteiros** (`*Cents`). A conversão para reais acontece só em `src/payments/asaas.ts` (`centsToReais`).
-- Itens cobertos pela Odontoprev entram como `INSURANCE` e não geram cobrança; autorização prévia é feita pela recepção no portal da operadora.
+- Itens cobertos pela Odontoprev entram como `INSURANCE` e não geram cobrança; autorização prévia é feita pela recepção no portal da operadora e registrada em "Autorizações" no painel (`src/insurance/`).
 
 ## Fluxo do orçamento (`src/quotes/`)
 

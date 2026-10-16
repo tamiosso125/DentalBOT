@@ -181,6 +181,7 @@ function setup() {
       recall: recall.recall,
       waitlist: ctx.waitlist,
       survey: ctx.survey,
+      insurance: ctx.insurance,
       now: () => NOW,
     },
   });
@@ -791,5 +792,68 @@ describe("admin surveys API", () => {
       month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
       low: [],
     });
+  });
+});
+
+describe("admin insurance API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token", async () => {
+    const { app } = setup();
+    for (const [method, url] of [
+      ["GET", "/admin/authorizations"],
+      ["POST", "/admin/authorizations/a1"],
+      ["GET", "/admin/patients/p1/insurance"],
+      ["POST", "/admin/patients/p1/insurance"],
+    ] as const)
+      expect((await app.inject({ method, url, payload: {} })).statusCode, url).toBe(401);
+  });
+
+  it("sets the patient's plan, lists the pending authorization and records the answer", async () => {
+    const { app, ctx } = setup();
+    const maria = await ctx.agenda.cadastrarPaciente({ name: "Maria Exemplo", phone: PATIENT });
+    const plans = await app.inject({
+      method: "GET",
+      url: `/admin/patients/${maria.id}/insurance`,
+      headers: auth,
+    });
+    expect(plans.json()).toEqual({
+      planId: null,
+      card: null,
+      plans: [{ id: "plan_odontoprev", name: "Odontoprev" }],
+    });
+    const set = (payload: unknown) =>
+      app.inject({
+        method: "POST",
+        url: `/admin/patients/${maria.id}/insurance`,
+        headers: auth,
+        payload: payload as Record<string, unknown>,
+      });
+    expect((await set({ planId: "plan_odontoprev", card: "1" })).statusCode).toBe(422);
+    expect((await set({ planId: "plan_odontoprev", card: "123456789" })).statusCode).toBe(204);
+
+    const slots = await ctx.agenda.listarHorarios({
+      procedureId: "proc_extracao",
+      from: "2026-10-21",
+      days: 1,
+    });
+    const { appointmentId } = await ctx.agenda.reservar({ patientId: maria.id, slot: slots[0]! });
+    const list = await app.inject({ method: "GET", url: "/admin/authorizations", headers: auth });
+    expect(list.json().pending).toEqual([
+      expect.objectContaining({ appointmentId, card: "123456789", status: "PENDING" }),
+    ]);
+    const decide = (id: string, payload: unknown) =>
+      app.inject({
+        method: "POST",
+        url: `/admin/authorizations/${id}`,
+        headers: auth,
+        payload: payload as Record<string, unknown>,
+      });
+    expect((await decide(appointmentId, { authorized: "x" })).statusCode).toBe(422);
+    expect((await decide("a9", { authorized: true })).statusCode).toBe(404);
+    const ok = await decide(appointmentId, { authorized: true });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toEqual({ notified: true });
+    expect((await decide(appointmentId, { authorized: true })).statusCode).toBe(409);
   });
 });

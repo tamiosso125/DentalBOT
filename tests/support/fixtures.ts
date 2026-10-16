@@ -20,6 +20,8 @@ import {
   InMemoryNoShowFollowUpRepository,
   NoShowFollowUps,
 } from "../../src/scheduling/no-show-follow-up.js";
+import { InsuranceAuthorizations } from "../../src/insurance/authorizations.js";
+import { InMemoryInsuranceRepository } from "../../src/insurance/memory-insurance.js";
 import { InMemorySurveyRepository } from "../../src/survey/memory-survey.js";
 import { SurveyService } from "../../src/survey/survey.js";
 import { InMemoryWaitlistRepository } from "../../src/waitlist/memory-waitlist.js";
@@ -46,6 +48,12 @@ export const CLINIC_ID = "clinic_test";
  * Test graph: in-memory stores, sandbox channel and a fixed clock (Monday 2026-10-19,
  * 09:00 in São Paulo). Pass `llm` to turn the orchestrator on.
  */
+const COVERAGE = [
+  { plan: "Odontoprev", procedureId: "proc_avaliacao", requiresAuthorization: false },
+  { plan: "Odontoprev", procedureId: "proc_limpeza", requiresAuthorization: false },
+  { plan: "Odontoprev", procedureId: "proc_extracao", requiresAuthorization: true },
+];
+
 export function makeDeps(
   opts: {
     now?: Date;
@@ -59,11 +67,7 @@ export function makeDeps(
     phoneNumberId: PHONE_NUMBER_ID,
     address: "Rua Exemplo, 123 - São Paulo",
     insurancePlans: ["Odontoprev"],
-    coverage: [
-      { plan: "Odontoprev", procedureId: "proc_avaliacao", requiresAuthorization: false },
-      { plan: "Odontoprev", procedureId: "proc_limpeza", requiresAuthorization: false },
-      { plan: "Odontoprev", procedureId: "proc_extracao", requiresAuthorization: true },
-    ],
+    coverage: COVERAGE,
   });
   const channel = new SandboxChannel();
   const clock = { now: opts.now ?? new Date("2026-10-19T12:00:00Z") };
@@ -139,6 +143,18 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
+  const insuranceRepo = new InMemoryInsuranceRepository(
+    agendaRepo,
+    "Clínica Sorriso",
+    ["Odontoprev"],
+    COVERAGE,
+  );
+  const insurance = new InsuranceAuthorizations({
+    repo: insuranceRepo,
+    channel,
+    store,
+    logger: silentLogger,
+  });
   const surveyRepo = new InMemorySurveyRepository(agendaRepo, "Clínica Sorriso");
   const survey = new SurveyService({ repo: surveyRepo, channel, store, logger: silentLogger });
   const staffAgenda = new StaffAgenda({
@@ -165,6 +181,7 @@ export function makeDeps(
     recall: recallRepo,
     waitlist,
     survey,
+    insurance,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
       ? {
@@ -174,6 +191,7 @@ export function makeDeps(
             agendaFor,
             logger: silentLogger,
             waitlist,
+            insurance,
           },
         }
       : {}),
@@ -193,6 +211,8 @@ export function makeDeps(
     waitlistRepo,
     survey,
     surveyRepo,
+    insurance,
+    insuranceRepo,
     staffAgenda,
     quotes,
     quoteRepo,

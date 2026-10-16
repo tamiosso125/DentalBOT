@@ -33,6 +33,7 @@ model Clinic {
   dataRequests   DataSubjectRequest[]
   waitlist       WaitlistEntry[]
   surveys        SatisfactionSurvey[]
+  authorizations InsuranceAuthorization[]
 }
 
 model Dentist {
@@ -77,9 +78,10 @@ model InsurancePlan {
   /// e.g. "Odontoprev"
   name     String
 
-  clinic    Clinic              @relation(fields: [clinicId], references: [id])
-  coverages InsuranceCoverage[]
-  patients  Patient[]
+  clinic         Clinic                   @relation(fields: [clinicId], references: [id])
+  coverages      InsuranceCoverage[]
+  patients       Patient[]
+  authorizations InsuranceAuthorization[]
 
   @@unique([clinicId, name])
 }
@@ -144,14 +146,15 @@ model Patient {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  clinic        Clinic               @relation(fields: [clinicId], references: [id])
-  insurancePlan InsurancePlan?       @relation(fields: [insurancePlanId], references: [id])
-  consents      Consent[]
-  appointments  Appointment[]
-  quotes        Quote[]
-  conversations Conversation[]
-  waitlist      WaitlistEntry[]
-  surveys       SatisfactionSurvey[]
+  clinic         Clinic                   @relation(fields: [clinicId], references: [id])
+  insurancePlan  InsurancePlan?           @relation(fields: [insurancePlanId], references: [id])
+  consents       Consent[]
+  appointments   Appointment[]
+  quotes         Quote[]
+  conversations  Conversation[]
+  waitlist       WaitlistEntry[]
+  surveys        SatisfactionSurvey[]
+  authorizations InsuranceAuthorization[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -210,11 +213,12 @@ model Appointment {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  clinic    Clinic              @relation(fields: [clinicId], references: [id])
-  patient   Patient             @relation(fields: [patientId], references: [id])
-  dentist   Dentist             @relation(fields: [dentistId], references: [id])
-  procedure Procedure           @relation(fields: [procedureId], references: [id])
-  survey    SatisfactionSurvey?
+  clinic        Clinic                  @relation(fields: [clinicId], references: [id])
+  patient       Patient                 @relation(fields: [patientId], references: [id])
+  dentist       Dentist                 @relation(fields: [dentistId], references: [id])
+  procedure     Procedure               @relation(fields: [procedureId], references: [id])
+  survey        SatisfactionSurvey?
+  authorization InsuranceAuthorization?
 
   @@index([dentistId, startsAt])
   @@index([patientId])
@@ -222,6 +226,34 @@ model Appointment {
 }
 
 /// One satisfaction question per attended appointment, sent the day after (pesquisa_satisfacao).
+enum AuthorizationStatus {
+  AUTHORIZED
+  DENIED
+}
+
+/// The front desk's answer from the insurer's portal for an appointment that needs prior
+/// authorization. Pending ones have no row: they are derived from plan coverage.
+model InsuranceAuthorization {
+  id              String              @id @default(cuid())
+  clinicId        String
+  appointmentId   String              @unique
+  patientId       String
+  insurancePlanId String
+  status          AuthorizationStatus
+  decidedAt       DateTime
+  /// When the patient got the result (template); null if the send failed.
+  notifiedAt      DateTime?
+  /// Denied, then the patient chose "Seguir como particular".
+  privateChosenAt DateTime?
+
+  clinic        Clinic        @relation(fields: [clinicId], references: [id])
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  insurancePlan InsurancePlan @relation(fields: [insurancePlanId], references: [id])
+
+  @@index([clinicId, decidedAt])
+}
+
 model SatisfactionSurvey {
   id            String    @id @default(cuid())
   clinicId      String

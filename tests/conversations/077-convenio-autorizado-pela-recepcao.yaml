@@ -1,0 +1,12 @@
+name: Recepção registra o convênio, marca a extração e avisa que a Odontoprev autorizou
+description: >
+  Sem IA: a recepção cadastra a Odontoprev e a carteirinha da paciente no painel, marca a
+  extração e, depois de pedir no portal do convênio, registra que foi autorizada. A paciente
+  recebe o template convenio_autorizado com a data da consulta.
+steps:
+  - clinic_sets_insurance: { card: "123456789" }
+  - clinic_books: { procedureId: proc_extracao, at: "2026-10-21T10:00" }
+  - advance_minutes: 60
+  - clinic_decides_authorization: true
+    expect:
+      contains: ["Odontoprev autorizou", "quarta-feira, 21/10 às 10:00", "Clínica Sorriso"]

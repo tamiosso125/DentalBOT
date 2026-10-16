@@ -13,6 +13,7 @@ import { BillingError, installmentQuerySchema, type Billing } from "../panel/bil
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
+import { InsuranceError, type InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
 import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
@@ -58,6 +59,11 @@ export type ServerDeps = {
     waitlist?: Pick<WaitlistService, "list" | "add" | "remove">;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
+    /** Insurance authorizations and the patient's plan. Absent = routes not registered. */
+    insurance?: Pick<
+      InsuranceAuthorizations,
+      "list" | "decide" | "patientInsurance" | "setPatientInsurance"
+    >;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -174,7 +180,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof ClinicSetupError ||
           err instanceof BillingError ||
           err instanceof RecallError ||
-          err instanceof WaitlistError
+          err instanceof WaitlistError ||
+          err instanceof InsuranceError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -346,6 +353,23 @@ export function buildServer(deps: ServerDeps) {
       if (survey) {
         const now = () => admin.now?.() ?? new Date();
         scope.get("/admin/surveys", async () => survey.summary(admin.clinicId, now()));
+      }
+
+      const insurance = admin.insurance;
+      if (insurance) {
+        const now = () => admin.now?.() ?? new Date();
+        type Id = { Params: { id: string } };
+        scope.get("/admin/authorizations", async () => insurance.list(admin.clinicId, now()));
+        scope.post<Id>("/admin/authorizations/:id", async (req) =>
+          insurance.decide(admin.clinicId, req.params.id, req.body, now()),
+        );
+        scope.get<Id>("/admin/patients/:id/insurance", async (req) =>
+          insurance.patientInsurance(admin.clinicId, req.params.id),
+        );
+        scope.post<Id>("/admin/patients/:id/insurance", async (req, reply) => {
+          await insurance.setPatientInsurance(admin.clinicId, req.params.id, req.body);
+          return reply.code(204).send();
+        });
       }
 
       const setup = admin.setup;
