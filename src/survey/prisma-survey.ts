@@ -15,6 +15,9 @@ export class PrismaSurveyRepository implements SurveyRepository {
         status: "COMPLETED",
         startsAt: { gte: from, lt: to },
         survey: null,
+        // After a procedure with care instructions, the rating waits for "Tudo bem" on the
+        // check-in, and is never asked of someone who needed help.
+        OR: [{ aftercare: null }, { aftercare: { answer: "OK" } }],
         patient: { anonymizedAt: null },
       },
       orderBy: { startsAt: "asc" },

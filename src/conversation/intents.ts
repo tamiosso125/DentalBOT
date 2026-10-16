@@ -22,6 +22,8 @@ export type Intent =
   | { kind: "insurance_private"; authorizationId: string }
   /** Rating buttons of the satisfaction survey (pesquisa_satisfacao). */
   | { kind: "survey_answer"; surveyId: string; rating: number }
+  /** Buttons of the next-day check-in after a procedure (acompanhamento_pos_procedimento). */
+  | { kind: "aftercare_answer"; followUpId: string; help: boolean }
   | { kind: "other" };
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
@@ -34,6 +36,7 @@ const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule|rebook)$/;
 const WAITLIST_REPLY = /^wait:([\w-]{1,64}):(yes|no)$/;
 const AUTHORIZATION_REPLY = /^auth:([\w-]{1,64}):private$/;
 const SURVEY_REPLY = /^survey:([\w-]{1,64}):([1-5])$/;
+const AFTERCARE_REPLY = /^care:([\w-]{1,64}):(ok|help)$/;
 
 export function normalize(text: string): string {
   return text
@@ -85,6 +88,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
   if (auth) return { kind: "insurance_private", authorizationId: auth[1]! };
   const survey = replyId?.match(SURVEY_REPLY);
   if (survey) return { kind: "survey_answer", surveyId: survey[1]!, rating: Number(survey[2]) };
+  const care = replyId?.match(AFTERCARE_REPLY);
+  if (care) return { kind: "aftercare_answer", followUpId: care[1]!, help: care[2] === "help" };
 
   const t = normalize(text ?? "");
   if (t === "parar" || t === "pare" || t === "sair") return { kind: "opt_out" };

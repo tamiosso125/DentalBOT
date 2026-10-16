@@ -50,6 +50,9 @@ export const envSchema = z
     WAITLIST_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(5),
     /// How often the satisfaction survey job runs, in minutes (sends 10h–19h). 0 turns it off.
     SURVEY_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
+    /// How often the post-procedure job (care instructions and next-day check-in) runs, in
+    /// minutes. 0 turns it off.
+    AFTERCARE_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
     /// Days after sending a quote with no answer before the one reminder (lembrete_orcamento).
     QUOTE_REMINDER_DAYS: z.coerce.number().int().min(1).max(30).default(3),
     /// How often the quote follow-up job (reminder and expiry) runs, in minutes. 0 turns it off.

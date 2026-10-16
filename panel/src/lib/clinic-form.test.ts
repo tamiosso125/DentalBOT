@@ -125,7 +125,15 @@ describe("parseProcedureForm", () => {
   it("reads the price in reais, empty meaning after evaluation", () => {
     expect(
       parseProcedureForm(form({ name: "Limpeza", durationMinutes: "45", price: "250,00" })),
-    ).toEqual({ body: { name: "Limpeza", durationMinutes: 45, priceCents: 250_00, active: true } });
+    ).toEqual({
+      body: {
+        name: "Limpeza",
+        durationMinutes: 45,
+        priceCents: 250_00,
+        active: true,
+        aftercareText: null,
+      },
+    });
     expect(
       parseProcedureForm(form({ name: "Avaliação", durationMinutes: "30", price: "" })),
     ).toMatchObject({ body: { priceCents: null } });
@@ -138,6 +146,19 @@ describe("parseProcedureForm", () => {
     });
     expect(priceInput(1234_50)).toBe("1234,50");
     expect(priceInput(null)).toBe("");
+  });
+
+  it("keeps the care instructions as typed, empty meaning none", () => {
+    const base = { name: "Extração", durationMinutes: "60", price: "" };
+    expect(
+      parseProcedureForm(form({ ...base, aftercareText: "  Não cuspa nas primeiras 24 horas.  " })),
+    ).toMatchObject({ body: { aftercareText: "Não cuspa nas primeiras 24 horas." } });
+    expect(parseProcedureForm(form({ ...base, aftercareText: " " }))).toMatchObject({
+      body: { aftercareText: null },
+    });
+    expect(parseProcedureForm(form({ ...base, aftercareText: "x".repeat(601) }))).toEqual({
+      errors: ["Os cuidados após o procedimento cabem em até 600 caracteres."],
+    });
   });
 });
 
@@ -185,7 +206,16 @@ describe("setupGaps", () => {
         workingHours: [{ weekday: 1, startMinute: 480, endMinute: 720 }],
       },
     ],
-    procedures: [{ id: "p1", name: "Limpeza", durationMinutes: 45, priceCents: 0, active: true }],
+    procedures: [
+      {
+        id: "p1",
+        name: "Limpeza",
+        durationMinutes: 45,
+        priceCents: 0,
+        active: true,
+        aftercareText: null,
+      },
+    ],
     insurancePlans: [],
     blocks: [],
   };

@@ -1,0 +1,32 @@
+name: Depois da extração, sinal de alarme vai ao pronto-socorro e "Preciso de ajuda" chama a recepção
+critical: true
+description: >
+  O paciente recebe os cuidados depois da extração. À noite escreve que o sangramento não para:
+  o bot não comenta os cuidados, orienta o pronto-socorro e chama a equipe. No dia seguinte, no
+  acompanhamento, toca "Preciso de ajuda": o bot avisa que a equipe vai falar com ele, lembra
+  dos sinais de alarme e pausa para a recepção. Quem pediu ajuda não recebe pesquisa.
+steps:
+  - clinic_books: { procedureId: proc_extracao, at: "2026-10-20T14:00" }
+  - advance_minutes: 1815
+  - clinic_marks_attendance: true
+  - run_aftercare: true
+    expect:
+      contains: ["Prefira alimentos frios e pastosos."]
+  - advance_minutes: 300
+  - patient: "o sangramento não para desde a extração"
+    expect:
+      contains: ["pronto-socorro"]
+      handoff: true
+  - advance_minutes: 885
+  - run_aftercare: true
+    expect:
+      contains: ["Como você está depois do procedimento"]
+  - button: "care:{care}:help"
+    title: "Preciso de ajuda"
+    expect:
+      contains: ["equipe da clínica", "pronto-socorro"]
+      handoff: true
+  - advance_minutes: 60
+  - run_survey: true
+    expect:
+      silent: true

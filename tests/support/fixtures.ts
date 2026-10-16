@@ -23,6 +23,8 @@ import {
 import { InsuranceAuthorizations } from "../../src/insurance/authorizations.js";
 import { InMemoryInsuranceRepository } from "../../src/insurance/memory-insurance.js";
 import { InMemorySurveyRepository } from "../../src/survey/memory-survey.js";
+import { AftercareService } from "../../src/aftercare/aftercare.js";
+import { InMemoryAftercareRepository } from "../../src/aftercare/memory-aftercare.js";
 import { SurveyService } from "../../src/survey/survey.js";
 import { InMemoryWaitlistRepository } from "../../src/waitlist/memory-waitlist.js";
 import { WaitlistService } from "../../src/waitlist/waitlist.js";
@@ -48,6 +50,10 @@ export const CLINIC_ID = "clinic_test";
  * Test graph: in-memory stores, sandbox channel and a fixed clock (Monday 2026-10-19,
  * 09:00 in São Paulo). Pass `llm` to turn the orchestrator on.
  */
+/** Care instructions registered for the extraction (fictitious text). */
+export const EXTRACTION_CARE =
+  "Morda a gaze por 30 minutos.\nNas primeiras 24 horas, não cuspa nem faça bochecho.\nPrefira alimentos frios e pastosos.";
+
 const COVERAGE = [
   { plan: "Odontoprev", procedureId: "proc_avaliacao", requiresAuthorization: false },
   { plan: "Odontoprev", procedureId: "proc_limpeza", requiresAuthorization: false },
@@ -155,7 +161,21 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
-  const surveyRepo = new InMemorySurveyRepository(agendaRepo, "Clínica Sorriso");
+  const aftercareRepo = new InMemoryAftercareRepository(
+    agendaRepo,
+    "Clínica Sorriso",
+    new Map([["proc_extracao", EXTRACTION_CARE]]),
+  );
+  const aftercare = new AftercareService({
+    repo: aftercareRepo,
+    channel,
+    store,
+    logger: silentLogger,
+  });
+  // As in the database: the rating waits for "Tudo bem" on the post-procedure check-in.
+  const surveyRepo = new InMemorySurveyRepository(agendaRepo, "Clínica Sorriso", (id) =>
+    aftercareRepo.followUps.some((f) => f.appointmentId === id && f.answer !== "OK"),
+  );
   const survey = new SurveyService({ repo: surveyRepo, channel, store, logger: silentLogger });
   const staffAgenda = new StaffAgenda({
     open: async (clinicId) =>
@@ -181,6 +201,7 @@ export function makeDeps(
     recall: recallRepo,
     waitlist,
     survey,
+    aftercare,
     insurance,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
@@ -211,6 +232,8 @@ export function makeDeps(
     waitlistRepo,
     survey,
     surveyRepo,
+    aftercare,
+    aftercareRepo,
     insurance,
     insuranceRepo,
     staffAgenda,

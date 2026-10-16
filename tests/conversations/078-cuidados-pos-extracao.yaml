@@ -1,0 +1,38 @@
+name: Depois da extração o paciente recebe os cuidados da dentista e responde "Tudo bem"
+description: >
+  A recepção marca uma extração na terça 20/10 às 14h. Antes do "Compareceu" nada sai. Assim
+  que a recepção marca "Compareceu", o bot manda uma vez o template orientacoes_pos_procedimento
+  com o texto que a dentista cadastrou no painel, numa linha só. Na quarta às 11h ele pergunta
+  como o paciente está, com "Tudo bem" e "Preciso de ajuda". O paciente toca "Tudo bem": o bot
+  responde sem chamar a recepção, e só então a pesquisa de satisfação pode sair.
+steps:
+  - clinic_books: { procedureId: proc_extracao, at: "2026-10-20T14:00" }
+  - advance_minutes: 1815
+  - run_aftercare: true
+    expect:
+      silent: true
+  - clinic_marks_attendance: true
+  - run_aftercare: true
+    expect:
+      contains:
+        - "cuidados que a Clínica Sorriso recomenda depois do seu procedimento (Extração simples)"
+        - "Morda a gaze por 30 minutos. Nas primeiras 24 horas, não cuspa nem faça bochecho."
+  - run_aftercare: true
+    expect:
+      silent: true
+  - advance_minutes: 1185
+  - run_survey: true
+    expect:
+      silent: true
+  - run_aftercare: true
+    expect:
+      contains: ["Como você está depois do procedimento (Extração simples)"]
+  - button: "care:{care}:ok"
+    title: "Tudo bem"
+    expect:
+      contains: ["Que bom", "orientações da dentista"]
+      not_contains: ["pronto-socorro"]
+      handoff: false
+  - run_survey: true
+    expect:
+      contains: ["de 1 a 5"]

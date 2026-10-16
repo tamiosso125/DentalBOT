@@ -39,7 +39,7 @@ export type LowRating = {
 export interface SurveyRepository {
   /**
    * COMPLETED appointments starting in [from, to) without a survey, of patients not
-   * anonymized. Every clinic unless `clinicId` narrows it (tests sharing a database).
+   * anonymized. One with a post-procedure follow-up waits until it is answered "Tudo bem". Every clinic unless `clinicId` narrows it (tests sharing a database).
    */
   candidates(from: Date, to: Date, clinicId?: string): Promise<SurveyCandidate[]>;
   /** The patient was asked (any appointment) at or after `since`. */

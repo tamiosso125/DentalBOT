@@ -168,6 +168,8 @@ const step = z.union([
   z.object({ clinic_decides_authorization: z.boolean(), expect: expectation.optional() }).strict(),
   /** The job that sends the satisfaction survey (pesquisa_satisfacao) runs now. */
   z.object({ run_survey: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The post-procedure job (care instructions, next-day check-in) runs now. */
+  z.object({ run_aftercare: z.literal(true), expect: expectation.optional() }).strict(),
   /** The patient pays the last quote's installment N in Asaas (the webhook has not arrived). */
   z.object({ patient_pays_in_asaas: z.number().int().positive() }).strict(),
 ]);
@@ -228,6 +230,8 @@ export async function runCase(
     waitlistRepo,
     survey,
     surveyRepo,
+    aftercare,
+    aftercareRepo,
     insurance,
     insuranceRepo,
     staffAgenda,
@@ -339,6 +343,8 @@ export async function runCase(
       await noShowFollowUps.run(clock.now);
     } else if ("run_survey" in s) {
       await survey.run(clock.now);
+    } else if ("run_aftercare" in s) {
+      await aftercare.run(clock.now);
     } else if ("patient_pays_in_asaas" in s) {
       const inst = quoteRepo.quotes
         .find((q) => q.id === quoteId)
@@ -421,12 +427,13 @@ export async function runCase(
     /**
      * "{appointment}" in a button id is the last appointment in the agenda; "{offer}" the last
      * waiting-list offer; "{survey}" the last satisfaction survey; "{authorization}" the
-     * last insurer answer.
+     * last insurer answer; "{care}" the last post-procedure follow-up.
      */
     const appointmentId = agendaRepo.appointments.at(-1)?.id ?? "";
     const offerId = waitlistRepo.offers.at(-1)?.id ?? "";
     const surveyId = surveyRepo.surveys.at(-1)?.id ?? "";
     const authorizationId = insuranceRepo.decisions.at(-1)?.id ?? "";
+    const careId = aftercareRepo.followUps.at(-1)?.id ?? "";
     const payload =
       "patient" in s
         ? textPayload(s.patient)
@@ -437,7 +444,8 @@ export async function runCase(
                 .replace("{appointment}", appointmentId)
                 .replace("{offer}", offerId)
                 .replace("{survey}", surveyId)
-                .replace("{authorization}", authorizationId),
+                .replace("{authorization}", authorizationId)
+                .replace("{care}", careId),
               s.title,
             )
           : "list" in s

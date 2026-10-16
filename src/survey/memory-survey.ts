@@ -18,6 +18,8 @@ export class InMemorySurveyRepository implements SurveyRepository {
   constructor(
     private readonly agenda: InMemoryAgendaRepository,
     private readonly clinicName: string,
+    /** True = the appointment's rating waits (post-procedure check-in not answered "Tudo bem"). */
+    private readonly hold: (appointmentId: string) => boolean = () => false,
   ) {}
 
   async candidates(from: Date, to: Date, clinicId?: string): Promise<SurveyCandidate[]> {
@@ -28,7 +30,8 @@ export class InMemorySurveyRepository implements SurveyRepository {
           a.status === "COMPLETED" &&
           a.startsAt >= from &&
           a.startsAt < to &&
-          !this.surveys.some((s) => s.appointmentId === a.id),
+          !this.surveys.some((s) => s.appointmentId === a.id) &&
+          !this.hold(a.id),
       )
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
       .flatMap((a) => {

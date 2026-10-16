@@ -6,6 +6,7 @@ import { AppointmentNotFoundError, type AgendaProvider } from "../scheduling/age
 import { formatWhenPtBr } from "../scheduling/time.js";
 import type { InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
+import type { AftercareService } from "../aftercare/aftercare.js";
 import type { WaitlistService } from "../waitlist/waitlist.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
 import { previewText } from "../whatsapp/index.js";
@@ -33,6 +34,8 @@ export type HandlerDeps = {
   insurance?: Pick<InsuranceAuthorizations, "choosePrivate">;
   /** Satisfaction survey ratings. Absent = the front desk reads them in the chat. */
   survey?: Pick<SurveyService, "answer">;
+  /** "Tudo bem" / "Preciso de ajuda" after a procedure. Absent = the front desk handles them. */
+  aftercare?: Pick<AftercareService, "answer">;
 };
 
 /**
@@ -93,15 +96,17 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const paused = conv.botPausedUntil !== null && conv.botPausedUntil > now();
 
   // Emergencies always get the safety message, even while a human is handling the chat.
-  // Quote buttons, "Confirmar" on a reminder, waiting-list offers, survey ratings and opting out are
-  // deterministic answers to something the clinic sent, so they are recorded even then. "Remarcar" and "Quero agendar"
-  // need a conversation, which is the front desk's while it is in the chat.
+  // Quote buttons, "Confirmar" on a reminder, waiting-list offers, survey ratings, the
+  // post-procedure check-in and opting out are deterministic answers to something the clinic
+  // sent, so they are recorded even then. "Remarcar" and "Quero agendar" need a conversation,
+  // which is the front desk's while it is in the chat.
   const answersClinic =
     intent.kind === "quote_action" ||
     intent.kind === "opt_out" ||
     intent.kind === "recall_consent" ||
     intent.kind === "waitlist_answer" ||
     intent.kind === "survey_answer" ||
+    intent.kind === "aftercare_answer" ||
     intent.kind === "insurance_private" ||
     (intent.kind === "appointment_action" && intent.action === "confirm");
   if (paused && intent.kind !== "emergency" && !answersClinic) {
@@ -199,6 +204,22 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
         conv.contact,
         intent.surveyId,
         intent.rating,
+        now(),
+      );
+      await send({ kind: "text", to: conv.contact, body: out.text });
+      if (out.handoff) await handoff(conv, out.handoff, deps, now());
+      return;
+    }
+    case "aftercare_answer": {
+      if (!deps.aftercare) {
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.handoff });
+        return handoff(conv, "aftercare:no_service", deps, now());
+      }
+      const out = await deps.aftercare.answer(
+        clinic.id,
+        conv.contact,
+        intent.followUpId,
+        intent.help ? "HELP" : "OK",
         now(),
       );
       await send({ kind: "text", to: conv.contact, body: out.text });

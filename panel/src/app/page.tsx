@@ -11,6 +11,7 @@ import {
 } from "@/lib/format";
 import Link from "next/link";
 import { answerRate, averageLabel, RATING_LABEL } from "@/lib/survey";
+import { aftercareLine } from "@/lib/aftercare";
 import { markAttendance } from "./consultas/actions";
 import { Nav } from "./nav";
 
@@ -48,14 +49,17 @@ export default async function AgendaPage({
             }`
           : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
-  const [rows, handoffs, attendance, billing, surveys, authorizations] = await Promise.all([
-    api.agenda(from, DAYS),
-    api.handoffs(),
-    api.attendance(),
-    api.billingSummary(),
-    api.surveys(),
-    api.authorizations(),
-  ]);
+  const [rows, handoffs, attendance, billing, surveys, authorizations, aftercare] =
+    await Promise.all([
+      api.agenda(from, DAYS),
+      api.handoffs(),
+      api.attendance(),
+      api.billingSummary(),
+      api.surveys(),
+      api.authorizations(),
+      api.aftercare(),
+    ]);
+  const aftercareMonth = aftercareLine(aftercare.month);
   const answered = answerRate(surveys.month);
   const back = de ? `/?de=${from}` : "/";
   const rate = noShowRate(attendance.month);
@@ -230,6 +234,51 @@ export default async function AgendaPage({
             </>
           ) : null}
         </section>
+
+        {aftercareMonth || aftercare.help.length > 0 ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Pós-procedimento neste mês</h2>
+            <p style={{ marginBottom: aftercare.help.length > 0 ? undefined : 0 }}>
+              {aftercareMonth ?? "Nenhum cuidado enviado neste mês."}
+            </p>
+            {aftercare.help.length > 0 ? (
+              <>
+                <p className="muted">
+                  Tocaram &quot;Preciso de ajuda&quot; nos últimos 14 dias. O bot já chamou a
+                  recepção e orientou procurar o pronto-socorro em caso de sinal de alarme: fale com
+                  o paciente e, se preciso, com a dentista.
+                </p>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Paciente</th>
+                        <th>Procedimento</th>
+                        <th>Consulta</th>
+                        <th>Pediu ajuda</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aftercare.help.map((h) => (
+                        <tr key={h.followUpId}>
+                          <td>
+                            {h.patientName}
+                            <div className="muted">final {h.patientPhone.slice(-4)}</div>
+                          </td>
+                          <td>{h.procedureName}</td>
+                          <td>{formatDateTime(h.appointmentAt)}</td>
+                          <td>
+                            <span className="badge danger">{formatDateTime(h.answeredAt)}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
           <h1 style={{ margin: 0 }}>Agenda a partir de {formatDate(from)}</h1>
