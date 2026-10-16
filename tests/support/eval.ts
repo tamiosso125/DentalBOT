@@ -158,6 +158,10 @@ const step = z.union([
   z.object({ run_quote_follow_up: z.literal(true), expect: expectation.optional() }).strict(),
   /** The hourly job that sends the overdue installment notice (parcela_vencida) runs now. */
   z.object({ run_overdue_notices: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The front desk marks the patient's last appointment "Compareceu" (true) or "Faltou" (false). */
+  z.object({ clinic_marks_attendance: z.boolean() }).strict(),
+  /** The job that sends the satisfaction survey (pesquisa_satisfacao) runs now. */
+  z.object({ run_survey: z.literal(true), expect: expectation.optional() }).strict(),
   /** The patient pays the last quote's installment N in Asaas (the webhook has not arrived). */
   z.object({ patient_pays_in_asaas: z.number().int().positive() }).strict(),
 ]);
@@ -215,6 +219,9 @@ export async function runCase(
     recallRepo,
     waitlist,
     waitlistRepo,
+    survey,
+    surveyRepo,
+    staffAgenda,
     quotes,
     quoteRepo,
     quoteFollowUps,
@@ -296,6 +303,14 @@ export async function runCase(
       await quoteFollowUps.run(clock.now);
     } else if ("run_overdue_notices" in s) {
       await overdueNotices.run(clock.now);
+    } else if ("clinic_marks_attendance" in s) {
+      const patient = await patientOfCase();
+      const last = agendaRepo.appointments.filter((a) => a.patientId === patient.id).at(-1);
+      if (!last) throw new Error("paciente sem consulta para marcar comparecimento");
+      await staffAgenda.attendance(CLINIC_ID, last.id, { attended: s.clinic_marks_attendance });
+      continue;
+    } else if ("run_survey" in s) {
+      await survey.run(clock.now);
     } else if ("patient_pays_in_asaas" in s) {
       const inst = quoteRepo.quotes
         .find((q) => q.id === quoteId)
@@ -375,9 +390,13 @@ export async function runCase(
     >,
     where: string,
   ) {
-    /** "{appointment}" in a button id is the last appointment in the agenda; "{offer}" the last waiting-list offer. */
+    /**
+     * "{appointment}" in a button id is the last appointment in the agenda; "{offer}" the last
+     * waiting-list offer; "{survey}" the last satisfaction survey.
+     */
     const appointmentId = agendaRepo.appointments.at(-1)?.id ?? "";
     const offerId = waitlistRepo.offers.at(-1)?.id ?? "";
+    const surveyId = surveyRepo.surveys.at(-1)?.id ?? "";
     const payload =
       "patient" in s
         ? textPayload(s.patient)
@@ -386,7 +405,8 @@ export async function runCase(
               s.button
                 .replace("{quote}", quoteId)
                 .replace("{appointment}", appointmentId)
-                .replace("{offer}", offerId),
+                .replace("{offer}", offerId)
+                .replace("{survey}", surveyId),
               s.title,
             )
           : "list" in s

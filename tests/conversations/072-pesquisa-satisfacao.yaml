@@ -1,0 +1,31 @@
+name: Paciente que compareceu recebe a pesquisa no dia seguinte e dá nota 5
+description: >
+  A recepção marca uma limpeza na terça 20/10 às 14h e, depois do horário, marca "Compareceu".
+  No mesmo dia o bot não pergunta nada. Na quarta às 11h ele manda uma vez o template
+  pesquisa_satisfacao com as notas de 1 a 5. O paciente toca "5 - Excelente" e recebe um
+  obrigado, sem chamar a recepção. Um segundo toque não muda a nota.
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-20T14:00" }
+  - advance_minutes: 1800
+  - clinic_marks_attendance: true
+  - run_survey: true
+    expect:
+      silent: true
+  - advance_minutes: 1200
+  - run_survey: true
+    expect:
+      contains: ["Obrigado por vir à Clínica Sorriso em 20/10", "de 1 a 5"]
+  - advance_minutes: 60
+  - run_survey: true
+    expect:
+      silent: true
+  - button: "survey:{survey}:5"
+    title: "5 - Excelente"
+    expect:
+      contains: ["Obrigado pela sua avaliação"]
+      handoff: false
+  - button: "survey:{survey}:1"
+    title: "1 - Péssimo"
+    expect:
+      contains: ["já respondeu"]
+      handoff: false

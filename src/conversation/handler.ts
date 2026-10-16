@@ -4,6 +4,7 @@ import type { QuoteService } from "../quotes/quote-service.js";
 import type { RecallRepository } from "../recall/recall.js";
 import { AppointmentNotFoundError, type AgendaProvider } from "../scheduling/agenda-provider.js";
 import { formatWhenPtBr } from "../scheduling/time.js";
+import type { SurveyService } from "../survey/survey.js";
 import type { WaitlistService } from "../waitlist/waitlist.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
 import { previewText } from "../whatsapp/index.js";
@@ -27,6 +28,8 @@ export type HandlerDeps = {
   recall?: Pick<RecallRepository, "recordConsent" | "consentOf">;
   /** Waiting-list offer buttons. Absent = the front desk handles them. */
   waitlist?: Pick<WaitlistService, "answer">;
+  /** Satisfaction survey ratings. Absent = the front desk reads them in the chat. */
+  survey?: Pick<SurveyService, "answer">;
 };
 
 /**
@@ -87,7 +90,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
   const paused = conv.botPausedUntil !== null && conv.botPausedUntil > now();
 
   // Emergencies always get the safety message, even while a human is handling the chat.
-  // Quote buttons, "Confirmar" on a reminder, waiting-list offers and opting out are
+  // Quote buttons, "Confirmar" on a reminder, waiting-list offers, survey ratings and opting out are
   // deterministic answers to something the clinic sent, so they are recorded even then. "Remarcar" and "Quero agendar"
   // need a conversation, which is the front desk's while it is in the chat.
   const answersClinic =
@@ -95,6 +98,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
     intent.kind === "opt_out" ||
     intent.kind === "recall_consent" ||
     intent.kind === "waitlist_answer" ||
+    intent.kind === "survey_answer" ||
     (intent.kind === "appointment_action" && intent.action === "confirm");
   if (paused && intent.kind !== "emergency" && !answersClinic) {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
@@ -161,6 +165,22 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
         conv.contact,
         intent.offerId,
         intent.accept,
+        now(),
+      );
+      await send({ kind: "text", to: conv.contact, body: out.text });
+      if (out.handoff) await handoff(conv, out.handoff, deps, now());
+      return;
+    }
+    case "survey_answer": {
+      if (!deps.survey) {
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.surveyThanks });
+        return handoff(conv, "survey:no_service", deps, now());
+      }
+      const out = await deps.survey.answer(
+        clinic.id,
+        conv.contact,
+        intent.surveyId,
+        intent.rating,
         now(),
       );
       await send({ kind: "text", to: conv.contact, body: out.text });

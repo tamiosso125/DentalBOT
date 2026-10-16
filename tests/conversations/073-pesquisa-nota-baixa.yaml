@@ -1,0 +1,25 @@
+name: Nota baixa na pesquisa chama a recepção e quem faltou não recebe pesquisa
+description: >
+  Maria faltou na terça (a recepção marca "Faltou") e não recebe pesquisa. Na quinta ela vem,
+  a recepção marca "Compareceu" e na sexta o bot pergunta a nota. Maria toca "2 - Ruim": o bot
+  pede desculpas, avisa que a recepção vai entrar em contato e pausa para a equipe.
+steps:
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-20T14:00" }
+  - advance_minutes: 1800
+  - clinic_marks_attendance: false
+  - advance_minutes: 1200
+  - run_survey: true
+    expect:
+      silent: true
+  - clinic_books: { procedureId: proc_limpeza, at: "2026-10-22T14:00" }
+  - advance_minutes: 1680
+  - clinic_marks_attendance: true
+  - advance_minutes: 1200
+  - run_survey: true
+    expect:
+      contains: ["em 22/10", "de 1 a 5"]
+  - button: "survey:{survey}:2"
+    title: "2 - Ruim"
+    expect:
+      contains: ["Sentimos muito", "recepção"]
+      handoff: true

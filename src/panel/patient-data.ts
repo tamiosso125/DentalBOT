@@ -65,6 +65,13 @@ export type PatientExport = {
     createdAt: string;
     closedAt: string | null;
   }>;
+  /** Satisfaction survey ratings (pesquisa_satisfacao). */
+  surveys: Array<{
+    appointmentAt: string;
+    sentAt: string;
+    rating: number | null;
+    answeredAt: string | null;
+  }>;
   quotes: Array<{
     status: string;
     totalCents: number;
@@ -248,6 +255,10 @@ export class PrismaPatientData implements PatientData {
               orderBy: { createdAt: "asc" },
               include: { procedure: { select: { name: true } } },
             },
+            surveys: {
+              orderBy: { sentAt: "asc" },
+              include: { appointment: { select: { startsAt: true } } },
+            },
           },
         })
       : null;
@@ -292,6 +303,12 @@ export class PrismaPatientData implements PatientData {
         status: w.status,
         createdAt: w.createdAt.toISOString(),
         closedAt: iso(w.closedAt),
+      })),
+      surveys: (patient?.surveys ?? []).map((v) => ({
+        appointmentAt: v.appointment.startsAt.toISOString(),
+        sentAt: v.sentAt.toISOString(),
+        rating: v.rating,
+        answeredAt: iso(v.answeredAt),
       })),
       quotes: (patient?.quotes ?? []).map((q) => ({
         status: q.status,

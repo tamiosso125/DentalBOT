@@ -16,6 +16,8 @@ import {
 } from "../../src/scheduling/appointment-reminders.js";
 import { InMemoryRecallRepository } from "../../src/recall/memory-recall.js";
 import { RecallService } from "../../src/recall/recall.js";
+import { InMemorySurveyRepository } from "../../src/survey/memory-survey.js";
+import { SurveyService } from "../../src/survey/survey.js";
 import { InMemoryWaitlistRepository } from "../../src/waitlist/memory-waitlist.js";
 import { WaitlistService } from "../../src/waitlist/waitlist.js";
 import { demoAgendaSeed, InMemoryAgendaRepository } from "../../src/scheduling/memory-agenda.js";
@@ -127,6 +129,8 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
+  const surveyRepo = new InMemorySurveyRepository(agendaRepo, "Clínica Sorriso");
+  const survey = new SurveyService({ repo: surveyRepo, channel, store, logger: silentLogger });
   const staffAgenda = new StaffAgenda({
     open: async (clinicId) =>
       clinicId === CLINIC_ID
@@ -150,6 +154,7 @@ export function makeDeps(
     agendaFor,
     recall: recallRepo,
     waitlist,
+    survey,
     config: { handoffPauseMinutes: 240, privacyPolicyUrl: "https://example.com/privacidade" },
     ...(opts.llm
       ? {
@@ -175,6 +180,8 @@ export function makeDeps(
     recallRepo,
     waitlist,
     waitlistRepo,
+    survey,
+    surveyRepo,
     staffAgenda,
     quotes,
     quoteRepo,

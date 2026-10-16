@@ -18,6 +18,8 @@ export type Intent =
   | { kind: "recall_consent"; granted: boolean }
   /** Buttons of a waiting-list offer (vaga_disponivel). */
   | { kind: "waitlist_answer"; offerId: string; accept: boolean }
+  /** Rating buttons of the satisfaction survey (pesquisa_satisfacao). */
+  | { kind: "survey_answer"; surveyId: string; rating: number }
   | { kind: "other" };
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
@@ -27,6 +29,7 @@ export type AppointmentAction = "confirm" | "reschedule";
 const QUOTE_REPLY = /^quote:([\w-]{1,64}):(view|accept|reject)$/;
 const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule)$/;
 const WAITLIST_REPLY = /^wait:([\w-]{1,64}):(yes|no)$/;
+const SURVEY_REPLY = /^survey:([\w-]{1,64}):([1-5])$/;
 
 export function normalize(text: string): string {
   return text
@@ -74,6 +77,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
     };
   const wait = replyId?.match(WAITLIST_REPLY);
   if (wait) return { kind: "waitlist_answer", offerId: wait[1]!, accept: wait[2] === "yes" };
+  const survey = replyId?.match(SURVEY_REPLY);
+  if (survey) return { kind: "survey_answer", surveyId: survey[1]!, rating: Number(survey[2]) };
 
   const t = normalize(text ?? "");
   if (t === "parar" || t === "pare" || t === "sair") return { kind: "opt_out" };
