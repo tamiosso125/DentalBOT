@@ -24,6 +24,7 @@ import { PrismaBilling } from "./panel/billing.js";
 import { PrismaMonthlyReports } from "./panel/monthly-report.js";
 import { PrismaPatientRecords } from "./panel/patient-record.js";
 import { PatientNotes } from "./panel/patient-notes.js";
+import { AccessLog } from "./panel/access-log.js";
 import { ClinicPayments } from "./payments/clinic-payments.js";
 import { PrismaClinicSetup } from "./panel/clinic-setup.js";
 import { PrismaPatientData } from "./panel/patient-data.js";
@@ -260,6 +261,20 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   aftercareTimer?.unref();
 
+  const accessLog = new AccessLog({ db, logger });
+  const purgeAccessLog = () =>
+    accessLog
+      .purge(env.ACCESS_LOG_RETENTION_DAYS, new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "access log purge failed",
+        ),
+      );
+  const accessLogTimer = setInterval(purgeAccessLog, 24 * 60 * 60_000);
+  accessLogTimer.unref();
+  void purgeAccessLog();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -330,6 +345,7 @@ export function createApp(env: Env, logger: Logger) {
             report: new PrismaMonthlyReports(db),
             records: new PrismaPatientRecords(db, cipher),
             notes: new PatientNotes({ db, cipher, logger }),
+            accessLog,
             clinicPayments: new ClinicPayments({ db, cipher, gateway: payments, logger }),
             recall,
             waitlist,
@@ -347,6 +363,7 @@ export function createApp(env: Env, logger: Logger) {
     if (waitlistTimer) clearInterval(waitlistTimer);
     if (surveyTimer) clearInterval(surveyTimer);
     if (aftercareTimer) clearInterval(aftercareTimer);
+    clearInterval(accessLogTimer);
     if (quoteFollowUpTimer) clearInterval(quoteFollowUpTimer);
     await server.close();
     await whatsappQueue.close();
