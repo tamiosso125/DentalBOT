@@ -34,14 +34,22 @@ export default async function BillingPage({
             </strong>
           </div>
           <div className="card" style={{ margin: 0 }}>
+            <div className="muted">Para ligar</div>
+            <strong style={summary.toCallCount ? { color: "var(--danger)" } : undefined}>
+              {summary.toCallCount} parcela(s)
+            </strong>
+          </div>
+          <div className="card" style={{ margin: 0 }}>
             <div className="muted">Recebido no mês</div>
             <strong>{formatCents(summary.paidThisMonthCents)}</strong>
           </div>
         </div>
         <p className="muted">
           A cobrança sai sozinha quando o paciente aprova o orçamento, e o lembrete de cada parcela
-          vai pelo WhatsApp alguns dias antes do vencimento. O pagamento cai aqui quando o Asaas
-          confirma. Para cobrar uma parcela vencida, abra o link de pagamento e mande ao paciente.
+          vai pelo WhatsApp alguns dias antes do vencimento. Um dia depois do vencimento, o bot
+          manda um aviso com o link de pagamento. O pagamento cai aqui quando o Asaas confirma. Se a
+          parcela continuar em aberto uma semana depois do vencimento, ela aparece em &quot;Para
+          ligar&quot;: ligue para o paciente.
         </p>
         <p>
           {(Object.entries(FILTERS) as Array<[Filter, string]>).map(([key, label], i) => (

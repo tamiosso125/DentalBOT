@@ -1,0 +1,20 @@
+name: Parcela já paga no Asaas não recebe aviso de vencida
+critical: true
+description: >
+  O paciente pagou a primeira parcela, mas a confirmação do Asaas ainda não chegou. O job de
+  aviso consulta o Asaas antes de mandar e não cobra quem já pagou.
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_limpeza }
+      installmentCount: 1
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      charges: 1
+  - patient_pays_in_asaas: 1
+  - advance_minutes: 5760
+  - run_overdue_notices: true
+    expect:
+      silent: true

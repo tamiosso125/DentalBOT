@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MockPaymentsGateway } from "../../src/payments/asaas.js";
+import { PrismaOverdueNoticeRepository } from "../../src/payments/overdue-notices.js";
 import { BillingError, PrismaBilling } from "../../src/panel/billing.js";
 import { FieldCipher } from "../../src/privacy/index.js";
 
@@ -119,6 +120,8 @@ describe.skipIf(!url)("PrismaBilling (Postgres)", () => {
     expect(numbers(await billing.installments(clinicId, { filtro: "vencidas" }, NOW))).toEqual([
       2, 3,
     ]);
+    // Only installment 2 is a week or more late.
+    expect(numbers(await billing.installments(clinicId, { filtro: "ligar" }, NOW))).toEqual([2]);
     const paid = await billing.installments(clinicId, { filtro: "pagas" }, NOW);
     expect(paid).toMatchObject([{ number: 1, paymentMethod: "PIX", late: false }]);
     expect(
@@ -135,12 +138,14 @@ describe.skipIf(!url)("PrismaBilling (Postgres)", () => {
       openCents: 300_00,
       lateCents: 200_00,
       lateCount: 2,
+      toCallCount: 1,
       paidThisMonthCents: 100_00,
     });
     expect(await billing.summary(otherClinicId, NOW)).toEqual({
       openCents: 0,
       lateCents: 0,
       lateCount: 0,
+      toCallCount: 0,
       paidThisMonthCents: 0,
     });
   });
@@ -154,5 +159,34 @@ describe.skipIf(!url)("PrismaBilling (Postgres)", () => {
     expect(await fail(otherClinicId, ids[2]!)).toMatchObject({ status: 404 });
     expect(await fail(clinicId, ids[1]!)).toMatchObject({ status: 409 }); // paid
     expect(await fail(clinicId, ids[4]!)).toMatchObject({ status: 409 }); // no charge yet
+  });
+
+  it("finds charged late installments for the overdue notice, once", async () => {
+    const repo = new PrismaOverdueNoticeRepository(db, cipher);
+    const rows = await repo.overdueCandidates("2026-09-01", "2026-10-18", clinicId);
+    // 1 is paid and 3 has no Asaas charge yet.
+    expect(rows).toEqual([
+      {
+        installmentId: ids[2],
+        clinicId,
+        clinicName: "Clínica Cobrança",
+        clinicTimeZone: "America/Sao_Paulo",
+        patientName: "Maria Exemplo",
+        phone: PHONE,
+        number: 2,
+        installmentCount: 4,
+        amountCents: 100_00,
+        dueDate: "2026-10-10",
+      },
+    ]);
+    expect(await repo.overdueCandidates("2026-09-01", "2026-10-18", otherClinicId)).toEqual([]);
+    expect(await repo.claimOverdueNotice(ids[2]!, NOW)).toBe(true);
+    expect(await repo.claimOverdueNotice(ids[2]!, NOW)).toBe(false);
+    expect(await repo.claimOverdueNotice(ids[1]!, NOW)).toBe(false);
+    expect(await repo.overdueCandidates("2026-09-01", "2026-10-18", clinicId)).toEqual([]);
+    const [row] = await billing.installments(clinicId, { filtro: "ligar" }, NOW);
+    expect(row?.overdueNoticeAt).toBe(NOW.toISOString());
+    await repo.releaseOverdueNotice(ids[2]!);
+    expect(await repo.overdueCandidates("2026-09-01", "2026-10-18", clinicId)).toHaveLength(1);
   });
 });

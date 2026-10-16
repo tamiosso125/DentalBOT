@@ -47,10 +47,11 @@ export default async function AgendaPage({
             }`
           : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
-  const [rows, handoffs, attendance] = await Promise.all([
+  const [rows, handoffs, attendance, billing] = await Promise.all([
     api.agenda(from, DAYS),
     api.handoffs(),
     api.attendance(),
+    api.billingSummary(),
   ]);
   const back = de ? `/?de=${from}` : "/";
   const rate = noShowRate(attendance.month);
@@ -94,6 +95,18 @@ export default async function AgendaPage({
                 </tbody>
               </table>
             </div>
+          </section>
+        ) : null}
+
+        {billing.toCallCount > 0 ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>
+              Parcelas para cobrar por telefone ({billing.toCallCount})
+            </h2>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Vencidas há uma semana ou mais, mesmo depois do aviso do bot.{" "}
+              <Link href="/cobrancas?filtro=ligar">Ver parcelas</Link>
+            </p>
           </section>
         ) : null}
 

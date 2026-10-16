@@ -17,6 +17,7 @@ import {
   InstallmentReminders,
   PrismaReminderRepository,
 } from "./payments/installment-reminders.js";
+import { OverdueNotices, PrismaOverdueNoticeRepository } from "./payments/overdue-notices.js";
 import { handleAsaasEvent, PrismaPaymentEventStore } from "./payments/payment-events.js";
 import { PrismaPanelQueries } from "./panel/panel-queries.js";
 import { PrismaBilling } from "./panel/billing.js";
@@ -106,9 +107,18 @@ export function createApp(env: Env, logger: Logger) {
     logger,
     config: { daysBefore: env.INSTALLMENT_REMINDER_DAYS },
   });
+  const overdueNotices = new OverdueNotices({
+    repo: new PrismaOverdueNoticeRepository(db, cipher),
+    gateway: payments,
+    channel,
+    store: conversationStore,
+    logger,
+    config: { daysAfter: env.OVERDUE_NOTICE_DAYS },
+  });
   const runReminders = () =>
     reminders
       .run(new Date())
+      .then(() => overdueNotices.run(new Date()))
       .catch((err: unknown) =>
         logger.error(
           { err: err instanceof Error ? err.message : "unknown" },

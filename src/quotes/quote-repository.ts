@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { QuoteBillingInfo, QuoteBillingRepository } from "./quote-billing.js";
 import type { QuoteFollowUpRepository, UnansweredQuote } from "./quote-follow-up.js";
+import type { OverdueCandidate, OverdueNoticeRepository } from "../payments/overdue-notices.js";
 
 export type Coverage = "PRIVATE" | "INSURANCE";
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
@@ -51,7 +52,7 @@ export type NewInstallment = { number: number; amountCents: number; dueDate: str
 
 export type StoredInstallment = NewInstallment & {
   id: string;
-  status: "PENDING" | "BILLED";
+  status: "PENDING" | "BILLED" | "OVERDUE" | "PAID";
   asaasPaymentId: string | null;
 };
 
@@ -101,11 +102,17 @@ type MemoryPatient = {
 
 /** In-memory quotes (and their billing) for tests and the conversation eval. */
 export class InMemoryQuoteRepository
-  implements QuoteRepository, QuoteBillingRepository, QuoteFollowUpRepository
+  implements
+    QuoteRepository,
+    QuoteBillingRepository,
+    QuoteFollowUpRepository,
+    OverdueNoticeRepository
 {
   readonly quotes: Stored[] = [];
   /** quote id -> when its follow-up reminder went out. */
   readonly reminders = new Map<string, Date>();
+  /** installment id -> when its overdue notice went out. */
+  readonly overdueNotices = new Map<string, Date>();
 
   constructor(
     private readonly data: {
@@ -277,5 +284,50 @@ export class InMemoryQuoteRepository
     if (!q || q.status !== "SENT") return false;
     Object.assign(q, { status: "EXPIRED", respondedAt: at });
     return true;
+  }
+
+  async overdueCandidates(fromDate: string, toDate: string, clinicId?: string) {
+    const { clinic } = this.data;
+    const rows: OverdueCandidate[] = [];
+    for (const q of this.quotes) {
+      if (q.status !== "ACCEPTED" || (clinicId && q.clinicId !== clinicId)) continue;
+      const patient = this.data.patients.find((p) => p.id === q.patientId)!;
+      for (const i of q.installments)
+        if (
+          (i.status === "BILLED" || i.status === "OVERDUE") &&
+          i.asaasPaymentId &&
+          !this.overdueNotices.has(i.id) &&
+          i.dueDate >= fromDate &&
+          i.dueDate <= toDate
+        )
+          rows.push({
+            installmentId: i.id,
+            clinicId: q.clinicId,
+            clinicName: clinic.name,
+            clinicTimeZone: clinic.timeZone,
+            patientName: patient.name,
+            phone: patient.phone,
+            number: i.number,
+            installmentCount: q.installmentCount,
+            amountCents: i.amountCents,
+            dueDate: i.dueDate,
+          });
+    }
+    return rows;
+  }
+
+  async claimOverdueNotice(installmentId: string, at: Date) {
+    const open = this.quotes.some((q) =>
+      q.installments.some(
+        (i) => i.id === installmentId && (i.status === "BILLED" || i.status === "OVERDUE"),
+      ),
+    );
+    if (!open || this.overdueNotices.has(installmentId)) return false;
+    this.overdueNotices.set(installmentId, at);
+    return true;
+  }
+
+  async releaseOverdueNotice(installmentId: string) {
+    this.overdueNotices.delete(installmentId);
   }
 }

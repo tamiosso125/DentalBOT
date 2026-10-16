@@ -359,6 +359,8 @@ model Installment {
   paidAt         DateTime?
   /// When the WhatsApp reminder with the payment link went out (one per installment).
   reminderSentAt DateTime?
+  /// When the "your installment is past due" notice went out (one per installment).
+  overdueNoticeAt DateTime?
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 

@@ -15,12 +15,14 @@ const row = (r: Partial<InstallmentRow>): InstallmentRow => ({
   charged: true,
   paidAt: null,
   paymentMethod: null,
+  overdueNoticeAt: null,
   ...r,
 });
 
 describe("billing helpers", () => {
   it("falls back to open installments for an unknown filter", () => {
     expect(parseFilter("vencidas")).toBe("vencidas");
+    expect(parseFilter("ligar")).toBe("ligar");
     expect(parseFilter("x")).toBe("abertas");
     expect(parseFilter(undefined)).toBe("abertas");
   });

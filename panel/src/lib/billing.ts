@@ -14,18 +14,22 @@ export type InstallmentRow = {
   charged: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  overdueNoticeAt: string | null;
 };
 
 export type BillingSummary = {
   openCents: number;
   lateCents: number;
   lateCount: number;
+  /** Late a week or more: the bot's notice was not enough, the front desk calls. */
+  toCallCount: number;
   paidThisMonthCents: number;
 };
 
 export const FILTERS = {
   abertas: "Em aberto",
   vencidas: "Vencidas",
+  ligar: "Para ligar",
   pagas: "Pagas",
   todas: "Todas",
 } as const;
