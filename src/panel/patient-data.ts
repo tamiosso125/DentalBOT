@@ -65,6 +65,14 @@ export type PatientExport = {
     createdAt: string;
     closedAt: string | null;
   }>;
+  /** Insurer answers recorded by the front desk for prior authorization. */
+  authorizations: Array<{
+    appointmentAt: string;
+    plan: string;
+    status: string;
+    decidedAt: string;
+    privateChosenAt: string | null;
+  }>;
   /** Satisfaction survey ratings (pesquisa_satisfacao). */
   surveys: Array<{
     appointmentAt: string;
@@ -255,6 +263,13 @@ export class PrismaPatientData implements PatientData {
               orderBy: { createdAt: "asc" },
               include: { procedure: { select: { name: true } } },
             },
+            authorizations: {
+              orderBy: { decidedAt: "asc" },
+              include: {
+                appointment: { select: { startsAt: true } },
+                insurancePlan: { select: { name: true } },
+              },
+            },
             surveys: {
               orderBy: { sentAt: "asc" },
               include: { appointment: { select: { startsAt: true } } },
@@ -303,6 +318,13 @@ export class PrismaPatientData implements PatientData {
         status: w.status,
         createdAt: w.createdAt.toISOString(),
         closedAt: iso(w.closedAt),
+      })),
+      authorizations: (patient?.authorizations ?? []).map((a) => ({
+        appointmentAt: a.appointment.startsAt.toISOString(),
+        plan: a.insurancePlan.name,
+        status: a.status,
+        decidedAt: a.decidedAt.toISOString(),
+        privateChosenAt: iso(a.privateChosenAt),
       })),
       surveys: (patient?.surveys ?? []).map((v) => ({
         appointmentAt: v.appointment.startsAt.toISOString(),

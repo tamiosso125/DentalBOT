@@ -69,3 +69,17 @@ export async function markAttendance(id: string, attended: boolean, back: string
   }
   redirect(`${to}${sep}presenca=${attended ? "compareceu" : "faltou"}`);
 }
+
+/** Sets or clears the patient's insurance plan and card from the appointment page. */
+export async function savePatientInsurance(patientId: string, back: string, form: FormData) {
+  const planId = String(form.get("planId") ?? "") || null;
+  const card = String(form.get("card") ?? "").trim();
+  let aviso = planId ? "Convênio do paciente salvo." : "Paciente marcado como particular.";
+  try {
+    await api.setPatientInsurance(patientId, planId ? { planId, card } : { planId: null });
+  } catch (err) {
+    if (!(err instanceof ApiError && [404, 422].includes(err.status))) throw err;
+    aviso = err.detail;
+  }
+  redirect(`${back}?aviso=${encodeURIComponent(aviso)}`);
+}

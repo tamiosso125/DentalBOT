@@ -10,7 +10,12 @@ import {
   formatTime,
 } from "@/lib/format";
 import { Nav } from "../../nav";
-import { cancelAppointment, markAttendance, rescheduleAppointment } from "../actions";
+import {
+  cancelAppointment,
+  markAttendance,
+  rescheduleAppointment,
+  savePatientInsurance,
+} from "../actions";
 import { CancelForm } from "../cancel-form";
 import { SlotPicker } from "../slot-picker";
 
@@ -32,9 +37,13 @@ export default async function AppointmentPage({
   });
   const editable = a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED";
   const date = data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : undefined;
-  const [catalog, slots] = await Promise.all([
+  const [catalog, slots, insurance] = await Promise.all([
     api.catalog(),
     editable && date ? api.slots(a.procedureId, date) : Promise.resolve(null),
+    api.patientInsurance(a.patientId).catch((err: unknown) => {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }),
   ]);
   const dentists = Object.fromEntries(catalog.dentists.map((d) => [d.id, d.name]));
   const back = `/consultas/${encodeURIComponent(a.id)}`;
@@ -65,6 +74,44 @@ export default async function AppointmentPage({
             {a.patientPhone.slice(-4)}
           </p>
         </section>
+
+        {insurance && insurance.plans.length > 0 ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Convênio do paciente</h2>
+            <p className="muted">
+              Com convênio, procedimentos que pedem autorização prévia aparecem em{" "}
+              <Link href="/autorizacoes">Autorizações</Link>. O bot também pede a carteirinha na
+              conversa.
+            </p>
+            <form className="row" action={savePatientInsurance.bind(null, a.patientId, back)}>
+              <label>
+                Convênio
+                <select name="planId" defaultValue={insurance.planId ?? ""}>
+                  <option value="">Particular</option>
+                  {insurance.plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Carteirinha
+                <input
+                  name="card"
+                  defaultValue={insurance.card ?? ""}
+                  maxLength={40}
+                  autoComplete="off"
+                />
+              </label>
+              <div style={{ flex: "0 0 auto" }}>
+                <button type="submit" className="secondary">
+                  Salvar convênio
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
 
         {canMarkAttendance(a) ? (
           <section className="card">

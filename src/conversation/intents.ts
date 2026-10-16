@@ -18,6 +18,8 @@ export type Intent =
   | { kind: "recall_consent"; granted: boolean }
   /** Buttons of a waiting-list offer (vaga_disponivel). */
   | { kind: "waitlist_answer"; offerId: string; accept: boolean }
+  /** "Seguir como particular" after the insurer denied the authorization (convenio_negado). */
+  | { kind: "insurance_private"; authorizationId: string }
   /** Rating buttons of the satisfaction survey (pesquisa_satisfacao). */
   | { kind: "survey_answer"; surveyId: string; rating: number }
   | { kind: "other" };
@@ -30,6 +32,7 @@ export type AppointmentAction = "confirm" | "reschedule" | "rebook";
 const QUOTE_REPLY = /^quote:([\w-]{1,64}):(view|accept|reject)$/;
 const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule|rebook)$/;
 const WAITLIST_REPLY = /^wait:([\w-]{1,64}):(yes|no)$/;
+const AUTHORIZATION_REPLY = /^auth:([\w-]{1,64}):private$/;
 const SURVEY_REPLY = /^survey:([\w-]{1,64}):([1-5])$/;
 
 export function normalize(text: string): string {
@@ -78,6 +81,8 @@ export function detectIntent(text: string | undefined, replyId?: string): Intent
     };
   const wait = replyId?.match(WAITLIST_REPLY);
   if (wait) return { kind: "waitlist_answer", offerId: wait[1]!, accept: wait[2] === "yes" };
+  const auth = replyId?.match(AUTHORIZATION_REPLY);
+  if (auth) return { kind: "insurance_private", authorizationId: auth[1]! };
   const survey = replyId?.match(SURVEY_REPLY);
   if (survey) return { kind: "survey_answer", surveyId: survey[1]!, rating: Number(survey[2]) };
 

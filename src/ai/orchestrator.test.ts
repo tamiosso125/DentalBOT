@@ -26,6 +26,7 @@ describe("orchestrator", () => {
       "minhas_consultas",
       "remarcar",
       "cancelar",
+      "informar_convenio",
       "entrar_lista_espera",
       "transferir_humano",
     ]);
@@ -163,5 +164,38 @@ describe("orchestrator", () => {
       "listar_horarios em vez da lista de espera",
     );
     expect(waitlistRepo.entries).toEqual([]);
+  });
+
+  it("registers the plan and card, then flags the authorization when booking", async () => {
+    const llm = new ScriptedLlm()
+      .route("agenda")
+      .push({
+        tool: "informar_convenio",
+        input: { convenio: "Amil", carteirinha: "123456789", nome_completo: "Paciente Exemplo" },
+      })
+      .push({
+        tool: "informar_convenio",
+        input: { convenio: "Odontoprev", carteirinha: "1234-56789" },
+      })
+      .push({ tool: "listar_horarios", input: { procedimento: "extração" } })
+      .push({ tool: "reservar", input: { opcao: 1 } })
+      .push({ text: "Pronto! A recepção pede a autorização à Odontoprev e avisa por aqui." });
+    const { deps, insuranceRepo, agendaRepo } = makeDeps({ llm });
+    await deliver(textPayload("extração pela Odontoprev, carteirinha 1234-56789"), deps);
+    // Every tool result of the turn, in order.
+    const results = llm.requests
+      .at(-1)!
+      .messages.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .flatMap((b) =>
+        b.type === "tool_result" ? [JSON.parse(String(b.content)) as Record<string, unknown>] : [],
+      );
+    expect(results[0]).toMatchObject({ convenios_aceitos: ["Odontoprev"] });
+    expect(results[1]).toMatchObject({ ok: true, convenio: "Odontoprev" });
+    expect(results[3]).toMatchObject({ ok: true, autorizacao_previa: expect.any(String) });
+    const patientId = agendaRepo.appointments[0]!.patientId;
+    expect(insuranceRepo.patientPlans.get(patientId)).toEqual({
+      planId: "plan_odontoprev",
+      card: "123456789",
+    });
   });
 });

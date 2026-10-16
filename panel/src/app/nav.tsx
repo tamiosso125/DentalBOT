@@ -9,6 +9,7 @@ export function Nav() {
         <Link href="/">Agenda</Link>
         <Link href="/orcamentos">Orçamentos</Link>
         <Link href="/cobrancas">Cobranças</Link>
+        <Link href="/autorizacoes">Autorizações</Link>
         <Link href="/espera">Lista de espera</Link>
         <Link href="/retorno">Retorno</Link>
         <Link href="/dados">Dados (LGPD)</Link>

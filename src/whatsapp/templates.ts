@@ -76,6 +76,23 @@ export const TEMPLATES = {
     params: ["primeiro_nome", "procedimento", "clinica", "data_hora"],
     buttons: ["Quero esse horário", "Não, obrigado"],
   },
+  /** The insurer authorized the procedure of a booked appointment (front desk, via the panel). */
+  convenio_autorizado: {
+    name: "convenio_autorizado",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! O {{2}} autorizou o procedimento da sua consulta de {{3}} na {{4}}. Até lá!",
+    params: ["primeiro_nome", "convenio", "data_hora", "clinica"],
+  },
+  /** The insurer denied it: keep the appointment as private or talk to the front desk. */
+  convenio_negado: {
+    name: "convenio_negado",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}. O {{2}} não autorizou o procedimento da sua consulta de {{3}} na {{4}}. Você pode manter a consulta como particular ou falar com a recepção.",
+    params: ["primeiro_nome", "convenio", "data_hora", "clinica"],
+    buttons: ["Seguir como particular", "Falar com a recepção"],
+  },
   /** Once per missed appointment, the day after, while nothing new is booked. */
   consulta_perdida: {
     name: "consulta_perdida",

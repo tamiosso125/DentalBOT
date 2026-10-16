@@ -43,6 +43,17 @@ export type ToolContext = {
   state: AgentState;
   now: Date;
   effects: ToolEffects;
+  /** Insurance plan and card of the patient. Absent = the front desk collects them. */
+  insurance?: {
+    register(
+      patientId: string,
+      plan: string,
+      card: string,
+    ): Promise<
+      { plan: string } | { error: "plan"; plans: string[] } | { error: "card" | "patient" }
+    >;
+    requiresAuthorization(patientId: string, procedureId: string): Promise<boolean>;
+  };
   /** Waiting list of this clinic. Absent = the front desk manages it. */
   waitlist?: {
     join(
@@ -220,9 +231,20 @@ export const TOOLS = {
         ctx.state.appointments = [];
         const tz = ctx.agenda.timeZone;
         ctx.effects.allowedTimes.add(formatTimePtBr(new Date(offer.startsAt), tz));
+        const authorization = await ctx.insurance?.requiresAuthorization(
+          patient.id,
+          offer.procedureId,
+        );
         return {
           ok: true,
           consulta_id: appointmentId,
+          ...(authorization
+            ? {
+                autorizacao_previa:
+                  "O convênio do paciente pede autorização para este procedimento: diga que a " +
+                  "recepção pede a autorização e avisa o resultado por aqui antes da consulta.",
+              }
+            : {}),
           ...(patient.name ? { paciente: patient.name } : {}),
           procedimento: offer.procedureName,
           quando: formatWhenPtBr(new Date(offer.startsAt), tz),
@@ -330,6 +352,46 @@ export const TOOLS = {
         procedimento: appt.procedureName,
         quando: formatWhenPtBr(new Date(appt.startsAt), ctx.agenda.timeZone),
       };
+    },
+  }),
+
+  informar_convenio: tool({
+    description:
+      "Registra o convênio e o número da carteirinha do paciente. Chame quando o paciente disser " +
+      "que vai usar um dos convênios aceitos (info_clinica), antes de reservar. A recepção usa a " +
+      "carteirinha para pedir autorização ao convênio quando o procedimento exige.",
+    input: z.strictObject({
+      convenio: z.string().min(2).max(60).describe("Nome do convênio como em convenios_aceitos"),
+      carteirinha: z
+        .string()
+        .min(5)
+        .max(40)
+        .describe("Número da carteirinha, como o paciente informou"),
+      nome_completo: z
+        .string()
+        .min(3)
+        .max(120)
+        .optional()
+        .describe("Nome completo do paciente, obrigatório se ele ainda não tem cadastro"),
+    }),
+    async run(input, ctx) {
+      if (!ctx.insurance)
+        return { erro: "registro de convênio indisponível: a recepção confere na consulta" };
+      const patient = await resolvePatient(ctx, input.nome_completo);
+      if (!patient)
+        return { erro: "paciente sem cadastro: pergunte o nome completo e tente de novo" };
+      const out = await ctx.insurance.register(patient.id, input.convenio, input.carteirinha);
+      if ("plan" in out)
+        return {
+          ok: true,
+          convenio: out.plan,
+          observacao: "Não repita o número da carteirinha na resposta.",
+        };
+      if (out.error === "plan")
+        return { erro: "convênio não aceito pela clínica", convenios_aceitos: out.plans };
+      if (out.error === "card")
+        return { erro: "carteirinha inválida: peça o número de novo, só letras e números" };
+      return { erro: "não consegui registrar: transfira para a recepção" };
     },
   }),
 

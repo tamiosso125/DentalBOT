@@ -162,6 +162,10 @@ const step = z.union([
   z.object({ clinic_marks_attendance: z.boolean() }).strict(),
   /** The hourly job that sends "we missed you" (consulta_perdida) after a no-show runs now. */
   z.object({ run_no_show_follow_up: z.literal(true), expect: expectation.optional() }).strict(),
+  /** The front desk sets the case's patient's plan (Odontoprev) and card in the panel. */
+  z.object({ clinic_sets_insurance: z.object({ card: z.string() }).strict() }).strict(),
+  /** The front desk records the insurer's answer for the patient's last appointment. */
+  z.object({ clinic_decides_authorization: z.boolean(), expect: expectation.optional() }).strict(),
   /** The job that sends the satisfaction survey (pesquisa_satisfacao) runs now. */
   z.object({ run_survey: z.literal(true), expect: expectation.optional() }).strict(),
   /** The patient pays the last quote's installment N in Asaas (the webhook has not arrived). */
@@ -224,6 +228,8 @@ export async function runCase(
     waitlistRepo,
     survey,
     surveyRepo,
+    insurance,
+    insuranceRepo,
     staffAgenda,
     quotes,
     quoteRepo,
@@ -312,6 +318,23 @@ export async function runCase(
       if (!last) throw new Error("paciente sem consulta para marcar comparecimento");
       await staffAgenda.attendance(CLINIC_ID, last.id, { attended: s.clinic_marks_attendance });
       continue;
+    } else if ("clinic_sets_insurance" in s) {
+      const patient = await patientOfCase();
+      await insurance.setPatientInsurance(CLINIC_ID, patient.id, {
+        planId: "plan_odontoprev",
+        card: s.clinic_sets_insurance.card,
+      });
+      continue;
+    } else if ("clinic_decides_authorization" in s) {
+      const patient = await patientOfCase();
+      const last = agendaRepo.appointments.filter((a) => a.patientId === patient.id).at(-1);
+      if (!last) throw new Error("paciente sem consulta para autorizar");
+      await insurance.decide(
+        CLINIC_ID,
+        last.id,
+        { authorized: s.clinic_decides_authorization },
+        clock.now,
+      );
     } else if ("run_no_show_follow_up" in s) {
       await noShowFollowUps.run(clock.now);
     } else if ("run_survey" in s) {
@@ -397,11 +420,13 @@ export async function runCase(
   ) {
     /**
      * "{appointment}" in a button id is the last appointment in the agenda; "{offer}" the last
-     * waiting-list offer; "{survey}" the last satisfaction survey.
+     * waiting-list offer; "{survey}" the last satisfaction survey; "{authorization}" the
+     * last insurer answer.
      */
     const appointmentId = agendaRepo.appointments.at(-1)?.id ?? "";
     const offerId = waitlistRepo.offers.at(-1)?.id ?? "";
     const surveyId = surveyRepo.surveys.at(-1)?.id ?? "";
+    const authorizationId = insuranceRepo.decisions.at(-1)?.id ?? "";
     const payload =
       "patient" in s
         ? textPayload(s.patient)
@@ -411,7 +436,8 @@ export async function runCase(
                 .replace("{quote}", quoteId)
                 .replace("{appointment}", appointmentId)
                 .replace("{offer}", offerId)
-                .replace("{survey}", surveyId),
+                .replace("{survey}", surveyId)
+                .replace("{authorization}", authorizationId),
               s.title,
             )
           : "list" in s

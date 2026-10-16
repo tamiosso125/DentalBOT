@@ -4,6 +4,7 @@ import type { QuoteService } from "../quotes/quote-service.js";
 import type { RecallRepository } from "../recall/recall.js";
 import { AppointmentNotFoundError, type AgendaProvider } from "../scheduling/agenda-provider.js";
 import { formatWhenPtBr } from "../scheduling/time.js";
+import type { InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
 import type { WaitlistService } from "../waitlist/waitlist.js";
 import type { OutboundMessage, WhatsAppChannel, WhatsAppEvent } from "../whatsapp/index.js";
@@ -28,6 +29,8 @@ export type HandlerDeps = {
   recall?: Pick<RecallRepository, "recordConsent" | "consentOf">;
   /** Waiting-list offer buttons. Absent = the front desk handles them. */
   waitlist?: Pick<WaitlistService, "answer">;
+  /** "Seguir como particular" after a denied authorization. Absent = the front desk handles it. */
+  insurance?: Pick<InsuranceAuthorizations, "choosePrivate">;
   /** Satisfaction survey ratings. Absent = the front desk reads them in the chat. */
   survey?: Pick<SurveyService, "answer">;
 };
@@ -99,6 +102,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
     intent.kind === "recall_consent" ||
     intent.kind === "waitlist_answer" ||
     intent.kind === "survey_answer" ||
+    intent.kind === "insurance_private" ||
     (intent.kind === "appointment_action" && intent.action === "confirm");
   if (paused && intent.kind !== "emergency" && !answersClinic) {
     logger.debug({ conversationId: conv.id }, "bot paused, message left for the front desk");
@@ -169,6 +173,20 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       );
       await send({ kind: "text", to: conv.contact, body: out.text });
       if (out.handoff) await handoff(conv, out.handoff, deps, now());
+      return;
+    }
+    case "insurance_private": {
+      if (!deps.insurance) {
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.handoff });
+        return handoff(conv, "insurance:no_service", deps, now());
+      }
+      const out = await deps.insurance.choosePrivate(
+        clinic.id,
+        conv.contact,
+        intent.authorizationId,
+        now(),
+      );
+      await send({ kind: "text", to: conv.contact, body: out.text });
       return;
     }
     case "survey_answer": {

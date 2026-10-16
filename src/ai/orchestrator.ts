@@ -3,6 +3,7 @@ import type { ClinicInfo, ConversationRecord, ConversationStore } from "../conve
 import type { Logger } from "../lib/logger.js";
 import type { AgendaProvider } from "../scheduling/agenda-provider.js";
 import { formatShortPtBr, formatTimePtBr, formatWhenPtBr } from "../scheduling/time.js";
+import type { InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { WaitlistService } from "../waitlist/waitlist.js";
 import { checkReply } from "./guard.js";
 import { MODELS, textOf, type LlmClient } from "./llm.js";
@@ -26,6 +27,8 @@ export type OrchestratorDeps = {
   agendaFor(clinicId: string): Promise<AgendaProvider | null>;
   logger: Logger;
   effort?: AttendantEffort;
+  /** Insurance plan and card (informar_convenio). Absent = the front desk collects them. */
+  insurance?: Pick<InsuranceAuthorizations, "register" | "requiresAuthorization">;
   /** Waiting list (entrar_lista_espera). Absent = the tool hands off to the front desk. */
   waitlist?: Pick<WaitlistService, "join">;
 };
@@ -138,6 +141,16 @@ async function attend(
     linkPatient: (patientId) => deps.store.updateConversation(conv.id, { patientId }),
     state,
     now,
+    ...(deps.insurance
+      ? {
+          insurance: {
+            register: (patientId: string, plan: string, card: string) =>
+              deps.insurance!.register(input.clinic.id, patientId, plan, card),
+            requiresAuthorization: (patientId: string, procedureId: string) =>
+              deps.insurance!.requiresAuthorization(input.clinic.id, patientId, procedureId),
+          },
+        }
+      : {}),
     ...(deps.waitlist
       ? {
           waitlist: {

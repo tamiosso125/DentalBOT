@@ -38,6 +38,11 @@ export class InMemoryAgendaRepository implements AgendaRepository {
     return this.seed.timeZone;
   }
 
+  /** Synchronous view of the procedures (in-memory companions of this agenda). */
+  get procedureList() {
+    return this.seed.procedures;
+  }
+
   async procedures() {
     return this.seed.procedures;
   }

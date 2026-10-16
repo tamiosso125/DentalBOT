@@ -85,6 +85,17 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       });
       apptIds.push(appt.id);
     }
+    const plan = await db.insurancePlan.create({ data: { clinicId, name: "Odontoprev" } });
+    await db.insuranceAuthorization.create({
+      data: {
+        clinicId,
+        patientId,
+        appointmentId: apptIds[1]!,
+        insurancePlanId: plan.id,
+        status: "AUTHORIZED",
+        decidedAt: new Date("2026-10-19T15:00:00Z"),
+      },
+    });
     await db.satisfactionSurvey.create({
       data: {
         clinicId,
@@ -143,10 +154,12 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
       await db.satisfactionSurvey.deleteMany({ where: { clinicId: id } });
+      await db.insuranceAuthorization.deleteMany({ where: { clinicId: id } });
       await db.appointment.deleteMany({ where: { clinicId: id } });
       await db.consent.deleteMany({ where: { patient: { clinicId: id } } });
       await db.patient.deleteMany({ where: { clinicId: id } });
       await db.procedure.deleteMany({ where: { clinicId: id } });
+      await db.insurancePlan.deleteMany({ where: { clinicId: id } });
       await db.dentist.deleteMany({ where: { clinicId: id } });
       await db.clinic.delete({ where: { id } });
     }
@@ -180,6 +193,15 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
     expect(out.appointments).toHaveLength(2);
     expect(out.waitlist).toEqual([
       expect.objectContaining({ procedure: "Limpeza", status: "WAITING", closedAt: null }),
+    ]);
+    expect(out.authorizations).toEqual([
+      {
+        appointmentAt: "2026-10-21T13:00:00.000Z",
+        plan: "Odontoprev",
+        status: "AUTHORIZED",
+        decidedAt: "2026-10-19T15:00:00.000Z",
+        privateChosenAt: null,
+      },
     ]);
     expect(out.surveys).toEqual([
       {
