@@ -7,6 +7,7 @@ export function Nav() {
       <strong>DentalBOT</strong>
       <nav>
         <Link href="/">Agenda</Link>
+        <Link href="/resumo">Resumo</Link>
         <Link href="/orcamentos">Orçamentos</Link>
         <Link href="/cobrancas">Cobranças</Link>
         <Link href="/autorizacoes">Autorizações</Link>

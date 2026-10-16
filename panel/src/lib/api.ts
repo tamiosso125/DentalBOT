@@ -4,6 +4,7 @@ import type { AuthorizationList, PatientInsurance } from "./authorizations";
 import type { QuoteFollowUp } from "./quote-follow-up";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
+import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
 import type { WaitlistList } from "./waitlist";
 import type {
@@ -251,6 +252,8 @@ export const api = {
     await call(`/admin/waitlist/${encodeURIComponent(id)}/remove`, { method: "POST" });
   },
   surveys: () => json<SurveySummary>("/admin/surveys"),
+  report: (month?: string) =>
+    json<MonthlyReport>(`/admin/report${month ? `?mes=${encodeURIComponent(month)}` : ""}`),
   authorizations: () => json<AuthorizationList>("/admin/authorizations"),
   decideAuthorization: (appointmentId: string, authorized: boolean) =>
     json<{ notified: boolean }>(`/admin/authorizations/${encodeURIComponent(appointmentId)}`, {
