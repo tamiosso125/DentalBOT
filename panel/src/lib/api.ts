@@ -221,6 +221,8 @@ export const api = {
     json<QuoteRow[]>(`/admin/quotes${status ? `?status=${status}` : ""}`),
   quoteFollowUp: () => json<QuoteFollowUp>("/admin/quotes/follow-up"),
   quote: (id: string) => json<QuoteDetail>(`/admin/quotes/${encodeURIComponent(id)}`),
+  attendanceCertificate: (id: string) =>
+    call(`/admin/appointments/${encodeURIComponent(id)}/attendance-certificate`),
   quotePdf: (id: string) => call(`/admin/quotes/${encodeURIComponent(id)}/pdf`),
   createQuote: (body: unknown) =>
     json<{ id: string }>("/admin/quotes", { method: "POST", body: JSON.stringify(body) }),

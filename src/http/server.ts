@@ -26,6 +26,10 @@ import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
 import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
 import { StaffError, type StaffActor, type StaffService } from "../staff/staff.js";
+import {
+  AttendanceCertificateError,
+  type AttendanceCertificates,
+} from "../panel/attendance-certificate.js";
 import { ClinicalRecordError, type ClinicalRecords } from "../panel/clinical-record.js";
 import { MedicalHistoryError, type MedicalHistories } from "../panel/medical-history.js";
 import {
@@ -78,6 +82,8 @@ export type ServerDeps = {
     medicalHistory?: Pick<MedicalHistories, "view" | "save">;
     /** Clinical record entries signed by the dentist. Absent = routes not registered. */
     clinicalRecords?: Pick<ClinicalRecords, "list" | "add">;
+    /** Attendance certificate PDFs. Absent = route not registered. */
+    certificates?: Pick<AttendanceCertificates, "pdf">;
     /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
     accessLog?: Pick<AccessLog, "record" | "list">;
     /**
@@ -236,7 +242,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof AccessLogError ||
           err instanceof StaffError ||
           err instanceof MedicalHistoryError ||
-          err instanceof ClinicalRecordError
+          err instanceof ClinicalRecordError ||
+          err instanceof AttendanceCertificateError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -521,6 +528,20 @@ export function buildServer(deps: ServerDeps) {
                 req.staff?.id,
               ),
             ),
+        );
+      }
+
+      const certificates = admin.certificates;
+      if (certificates) {
+        scope.get<{ Params: { id: string } }>(
+          "/admin/appointments/:id/attendance-certificate",
+          async (req, reply) =>
+            reply
+              .type("application/pdf")
+              .header("content-disposition", `inline; filename="atestado-${req.params.id}.pdf"`)
+              .send(
+                await certificates.pdf(admin.clinicId, req.params.id, admin.now?.() ?? new Date()),
+              ),
         );
       }
 
