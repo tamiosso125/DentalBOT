@@ -38,6 +38,7 @@ model Clinic {
   clinicPayments ClinicPayment[]
   patientNotes   PatientNote[]
   accessLogs     AccessLog[]
+  staffUsers     StaffUser[]
 }
 
 model Dentist {
@@ -284,6 +285,35 @@ model SatisfactionSurvey {
   @@index([patientId, sentAt])
 }
 
+enum StaffRole {
+  RECEPTION
+  DENTIST
+}
+
+/// A person of the clinic's staff with a panel login. Never deleted, only deactivated, so the
+/// access log and notes keep pointing at them. The e-mail is personal data: hash + encrypted.
+model StaffUser {
+  id             String    @id @default(cuid())
+  clinicId       String
+  name           String
+  role           StaffRole
+  emailHash      String
+  emailEncrypted String
+  /// scrypt, see src/staff/password.ts.
+  passwordHash   String
+  active         Boolean   @default(true)
+  failedLogins   Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  clinic     Clinic        @relation(fields: [clinicId], references: [id])
+  accessLogs AccessLog[]
+  notes      PatientNote[]
+
+  @@unique([clinicId, emailHash])
+}
+
 /// What the staff did with patient data in the panel. Never holds content: only the action,
 /// when, and which patient or record. Old entries are purged (ACCESS_LOG_RETENTION_DAYS).
 enum AccessAction {
@@ -304,18 +334,23 @@ enum AccessAction {
   RECEIVE_INSTALLMENT
   REGISTER_CLINIC_PAYMENT
   VIEW_ACCESS_LOG
+  LOGIN
+  MANAGE_STAFF
 }
 
 model AccessLog {
-  id        String       @id @default(cuid())
-  clinicId  String
-  action    AccessAction
+  id          String       @id @default(cuid())
+  clinicId    String
+  action      AccessAction
   /// No foreign key: the entry outlives anything that happens to the patient row.
-  patientId String?
+  patientId   String?
   /// The appointment, quote, installment or data request the action was about.
-  targetId  String?
-  at        DateTime     @default(now())
-  clinic    Clinic       @relation(fields: [clinicId], references: [id])
+  targetId    String?
+  /// Who was signed in to the panel; null for calls made without a staff login.
+  staffUserId String?
+  at          DateTime     @default(now())
+  clinic      Clinic       @relation(fields: [clinicId], references: [id])
+  staffUser   StaffUser?   @relation(fields: [staffUserId], references: [id])
 
   @@index([clinicId, at])
   @@index([clinicId, patientId, at])
@@ -335,10 +370,13 @@ model PatientNote {
   patientId     String
   author        NoteAuthor
   textEncrypted String
+  /// Who wrote it, when signed in with a personal login.
+  staffUserId   String?
   createdAt     DateTime   @default(now())
 
-  clinic  Clinic  @relation(fields: [clinicId], references: [id])
-  patient Patient @relation(fields: [patientId], references: [id])
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
+  patient   Patient    @relation(fields: [patientId], references: [id])
+  staffUser StaffUser? @relation(fields: [staffUserId], references: [id])
 
   @@index([patientId, createdAt])
 }

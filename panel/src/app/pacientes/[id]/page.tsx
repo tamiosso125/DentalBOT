@@ -17,6 +17,7 @@ import {
   countsLabel,
   recallLabel,
 } from "@/lib/patient-record";
+import { currentUser } from "@/lib/current-user";
 import { Nav } from "../../nav";
 import { addNote, removeNote } from "./actions";
 
@@ -39,6 +40,7 @@ export default async function PatientRecordPage({
     throw err;
   });
   const p = r.patient;
+  const user = await currentUser();
   const now = new Date().toISOString();
   const pick = `paciente=${encodeURIComponent(p.id)}&nome=${encodeURIComponent(p.name)}`;
 
@@ -262,13 +264,6 @@ export default async function PatientRecordPage({
           {p.anonymizedAt ? null : (
             <form action={addNote.bind(null, p.id)}>
               <label>
-                Quem escreve
-                <select name="author" defaultValue="RECEPTION">
-                  <option value="RECEPTION">Recepção</option>
-                  <option value="DENTIST">Dentista</option>
-                </select>
-              </label>
-              <label>
                 Anotação
                 <textarea
                   name="text"
@@ -279,6 +274,11 @@ export default async function PatientRecordPage({
                 />
               </label>
               <button type="submit">Salvar anotação</button>
+              {user ? (
+                <span className="muted" style={{ marginLeft: 8 }}>
+                  Fica assinada por {user.name}.
+                </span>
+              ) : null}
             </form>
           )}
           {r.notes.length === 0 ? (
@@ -291,6 +291,7 @@ export default async function PatientRecordPage({
                 <li key={n.id} style={{ marginTop: 8 }}>
                   <div className="muted">
                     {formatDateTime(n.createdAt)} · {authorLabel(n.author)}
+                    {n.staffName ? ` · ${n.staffName}` : ""}
                   </div>
                   <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
                   <form action={removeNote.bind(null, p.id, n.id)}>

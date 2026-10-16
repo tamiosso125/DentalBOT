@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { PatientNoteError } from "../panel/patient-notes.js";
+import { StaffError, type StaffActor } from "../staff/staff.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
@@ -177,7 +178,7 @@ function stubNotes() {
       return [];
     },
     add: async (...a) => {
-      calls.push(["add", ...a]);
+      calls.push(["add", ...a.filter((x) => x !== undefined)]);
       if (a[1] === "outro") throw new PatientNoteError(404, "Paciente não encontrado.");
       if (!(a[2] as { text?: string }).text) throw new PatientNoteError(422, "Escreva a anotação.");
       return { id: "note_1" };
@@ -195,7 +196,14 @@ function stubAccessLog() {
   let failing = false;
   const accessLog: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["accessLog"] = {
     record: async (...a) => {
-      calls.push(["record", a[0], a[1].rule.action, a[1].id, a[2]]);
+      calls.push([
+        "record",
+        a[0],
+        a[1].rule.action,
+        a[1].id,
+        a[2],
+        ...(a[1].staffUserId ? [a[1].staffUserId] : []),
+      ]);
       if (failing) throw new Error("db down");
     },
     list: async (...a) => {
@@ -204,6 +212,40 @@ function stubAccessLog() {
     },
   };
   return { accessLog, calls, fail: () => (failing = true) };
+}
+
+function stubStaff() {
+  const calls: unknown[][] = [];
+  const people: Record<string, StaffActor> = {
+    u_dent: { id: "u_dent", name: "Dra. Ana", role: "DENTIST" },
+    u_rec: { id: "u_rec", name: "Bia", role: "RECEPTION" },
+  };
+  const staff: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["staff"] = {
+    hasUsers: async () => true,
+    bootstrap: async () => people.u_dent!,
+    login: async (_c, input) => {
+      if ((input as { password?: string }).password !== "senha-certa-123")
+        throw new StaffError(401, "E-mail ou senha incorretos.");
+      return people.u_rec!;
+    },
+    actor: async (_c, id) => people[id] ?? null,
+    list: async () => [],
+    create: async (...a) => {
+      calls.push(["create", a[1].id, a[2]]);
+      if (a[1].role !== "DENTIST") throw new StaffError(403, "Só a dentista cuida dos logins.");
+      return { id: "u_new" };
+    },
+    setActive: async (...a) => {
+      calls.push(["active", a[1].id, a[2], a[3]]);
+    },
+    resetPassword: async (...a) => {
+      calls.push(["reset", a[1].id, a[2]]);
+    },
+    changeOwnPassword: async (...a) => {
+      calls.push(["own", a[1].id]);
+    },
+  };
+  return { staff, calls };
 }
 
 function stubDesk() {
@@ -236,6 +278,7 @@ function setup() {
   const records = stubRecords();
   const notes = stubNotes();
   const access = stubAccessLog();
+  const staff = stubStaff();
   const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
@@ -278,6 +321,7 @@ function setup() {
       records: records.records,
       notes: notes.notes,
       accessLog: access.accessLog,
+      staff: staff.staff,
       clinicPayments: desk.desk,
       now: () => NOW,
     },
@@ -299,6 +343,7 @@ function setup() {
     records,
     noteCalls: notes.calls,
     access,
+    staffCalls: staff.calls,
   };
 }
 
@@ -994,6 +1039,85 @@ describe("admin access log", () => {
       ["list", CLINIC_ID, { patientId: "pat_1" }, NOW],
       ["record", CLINIC_ID, "VIEW_ACCESS_LOG", undefined, NOW],
     ]);
+  });
+});
+
+describe("admin staff logins", () => {
+  const as = (id?: string): Record<string, string> =>
+    id
+      ? { authorization: `Bearer ${ADMIN}`, "x-staff-user": id }
+      : { authorization: `Bearer ${ADMIN}` };
+
+  it("cuts off an unknown or deactivated person, even with the API token", async () => {
+    const { app } = setup();
+    const res = await app.inject({ method: "GET", url: "/admin/handoffs", headers: as("u_old") });
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual({ error: "session" });
+    const ok = await app.inject({ method: "GET", url: "/admin/handoffs", headers: as("u_rec") });
+    expect(ok.statusCode).toBe(200);
+  });
+
+  it("logs in and records who it was", async () => {
+    const { app, access } = setup();
+    const wrong = await app.inject({
+      method: "POST",
+      url: "/admin/auth/login",
+      headers: as(),
+      payload: { email: "bia@clinica.test", password: "errada" },
+    });
+    expect(wrong.statusCode).toBe(401);
+    expect(wrong.json()).toEqual({ error: "E-mail ou senha incorretos." });
+    const res = await app.inject({
+      method: "POST",
+      url: "/admin/auth/login",
+      headers: as(),
+      payload: { email: "bia@clinica.test", password: "senha-certa-123" },
+    });
+    expect(res.json()).toEqual({ id: "u_rec", name: "Bia", role: "RECEPTION" });
+    expect(access.calls).toEqual([["record", CLINIC_ID, "LOGIN", undefined, NOW, "u_rec"]]);
+  });
+
+  it("lets only the signed-in dentist manage logins", async () => {
+    const { app, staffCalls } = setup();
+    const get = (id?: string) =>
+      app.inject({ method: "GET", url: "/admin/staff", headers: as(id) });
+    expect((await get()).statusCode).toBe(401);
+    expect((await get("u_rec")).statusCode).toBe(403);
+    expect((await get("u_dent")).statusCode).toBe(200);
+    const body = { name: "Caio", email: "caio@clinica.test", role: "RECEPTION", password: "x" };
+    const post = (url: string, id: string, payload: Record<string, unknown>) =>
+      app.inject({ method: "POST", url, headers: as(id), payload });
+    expect((await post("/admin/staff", "u_rec", body)).statusCode).toBe(403);
+    expect((await post("/admin/staff", "u_dent", body)).statusCode).toBe(201);
+    expect((await post("/admin/staff/u_rec/active", "u_dent", { active: false })).statusCode).toBe(
+      204,
+    );
+    expect(
+      (await post("/admin/staff/u_rec/password", "u_dent", { password: "y" })).statusCode,
+    ).toBe(204);
+    expect((await post("/admin/me/password", "u_rec", { current: "a" })).statusCode).toBe(204);
+    expect(staffCalls).toEqual([
+      ["create", "u_rec", body],
+      ["create", "u_dent", body],
+      ["active", "u_dent", "u_rec", { active: false }],
+      ["reset", "u_dent", "u_rec"],
+      ["own", "u_rec"],
+    ]);
+  });
+
+  it("signs the note with whoever is logged in", async () => {
+    const { app, noteCalls, access } = setup();
+    const res = await app.inject({
+      method: "POST",
+      url: "/admin/patients/pat_1/notes",
+      headers: as("u_dent"),
+      payload: { author: "RECEPTION", text: "Tem medo de agulha" },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(noteCalls).toEqual([
+      ["add", CLINIC_ID, "pat_1", { author: "DENTIST", text: "Tem medo de agulha" }, NOW, "u_dent"],
+    ]);
+    expect(access.calls).toEqual([["record", CLINIC_ID, "ADD_NOTE", "pat_1", NOW, "u_dent"]]);
   });
 });
 

@@ -1,4 +1,8 @@
 import "server-only";
+import { redirect } from "next/navigation";
+import { currentUser } from "./current-user";
+import type { SessionUser } from "./session";
+import type { StaffRow } from "./staff";
 import type { Attendance } from "./attendance";
 import type { AuthorizationList, PatientInsurance } from "./authorizations";
 import type { QuoteFollowUp } from "./quote-follow-up";
@@ -120,11 +124,14 @@ export class ApiError extends Error {
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
   const { apiUrl, apiToken } = panelConfig();
+  const user = await currentUser();
   const res = await fetch(`${apiUrl}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
       authorization: `Bearer ${apiToken}`,
+      // Who is signed in: the API checks the login is still active and records it.
+      ...(user ? { "x-staff-user": user.id } : {}),
       ...(init.body ? { "content-type": "application/json" } : {}),
       ...init.headers,
     },
@@ -136,6 +143,8 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
     } catch {
       // Not JSON: keep the status text.
     }
+    // The login was deactivated (or the API no longer knows it): sign out.
+    if (res.status === 401 && detail === "session") redirect("/login/sair");
     throw new ApiError(res.status, detail);
   }
   return res;
@@ -144,13 +153,32 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
 const json = async <T>(path: string, init?: RequestInit) =>
   (await (await call(path, init)).json()) as T;
 
+const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
+
 export const api = {
+  staffStatus: () => json<{ hasUsers: boolean }>("/admin/staff/status"),
+  bootstrap: (body: { name: string; email: string; password: string }) =>
+    json<SessionUser>("/admin/staff/bootstrap", post(body)),
+  login: (body: { email: string; password: string }) =>
+    json<SessionUser>("/admin/auth/login", post(body)),
+  staff: () => json<StaffRow[]>("/admin/staff"),
+  createStaff: (body: { name: string; email: string; role: string; password: string }) =>
+    json<{ id: string }>("/admin/staff", post(body)),
+  setStaffActive: async (id: string, active: boolean) => {
+    await call(`/admin/staff/${encodeURIComponent(id)}/active`, post({ active }));
+  },
+  resetStaffPassword: async (id: string, password: string) => {
+    await call(`/admin/staff/${encodeURIComponent(id)}/password`, post({ password }));
+  },
+  changeOwnPassword: async (current: string, password: string) => {
+    await call("/admin/me/password", post({ current, password }));
+  },
   agenda: (from: string, days: number) =>
     json<AgendaRow[]>(`/admin/agenda?from=${from}&days=${days}`),
   patients: (q: string) => json<PatientRow[]>(`/admin/patients?q=${encodeURIComponent(q)}`),
   patientRecord: (id: string) =>
     json<PatientRecord>(`/admin/patients/${encodeURIComponent(id)}/record`),
-  addPatientNote: (patientId: string, body: { author: NoteAuthor; text: string }) =>
+  addPatientNote: (patientId: string, body: { author?: NoteAuthor; text: string }) =>
     json<{ id: string }>(`/admin/patients/${encodeURIComponent(patientId)}/notes`, {
       method: "POST",
       body: JSON.stringify(body),

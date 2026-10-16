@@ -88,6 +88,7 @@ describe.skipIf(!url)("AccessLog (Postgres)", () => {
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
       await db.accessLog.deleteMany({ where: { clinicId: id } });
+      await db.staffUser.deleteMany({ where: { clinicId: id } });
       await db.dataSubjectRequest.deleteMany({ where: { clinicId: id } });
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
@@ -150,6 +151,26 @@ describe.skipIf(!url)("AccessLog (Postgres)", () => {
     expect((await log.list(otherClinicId, {}, NOW)).entries).toEqual([]);
   });
 
+  it("names who was signed in", async () => {
+    const bia = await db.staffUser.create({
+      data: {
+        clinicId,
+        name: "Bia Recepção",
+        role: "RECEPTION",
+        emailHash: cipher.hash("bia@clinica.test"),
+        emailEncrypted: cipher.encrypt("bia@clinica.test"),
+        passwordHash: "x",
+      },
+    });
+    await log.record(
+      clinicId,
+      { rule: AUDITED["POST /admin/auth/login"]!, staffUserId: bia.id },
+      at("2026-10-19T12:10:00Z"),
+    );
+    const [last] = (await log.list(clinicId, {}, NOW)).entries;
+    expect(last).toMatchObject({ action: "LOGIN", staffName: "Bia Recepção", patientId: null });
+  });
+
   it("filters by day in the clinic's timezone and rejects a bad period", async () => {
     // 23:30 on 18/10 in São Paulo is already 19/10 in UTC.
     await log.record(
@@ -173,6 +194,6 @@ describe.skipIf(!url)("AccessLog (Postgres)", () => {
     });
     expect(await log.purge(365, NOW)).toBeGreaterThanOrEqual(1);
     expect(await db.accessLog.count({ where: { clinicId, at: { lt: at("2025-10-01") } } })).toBe(0);
-    expect(await db.accessLog.count({ where: { clinicId } })).toBe(9);
+    expect(await db.accessLog.count({ where: { clinicId } })).toBe(10);
   });
 });

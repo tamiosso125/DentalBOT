@@ -30,8 +30,9 @@ export default async function AccessLogPage({
         <h1>Acessos aos dados dos pacientes</h1>
         <p className="muted">
           O painel registra quando alguém da equipe abre, exporta ou muda dados de um paciente: o
-          que foi feito, quando e com qual paciente, nunca o conteúdo. Como a equipe entra com uma
-          senha só, o registro não diz quem foi. Os registros antigos são apagados sozinhos.
+          que foi feito, quando e com qual paciente, nunca o conteúdo. Como cada pessoa entra com
+          login próprio, o registro mostra quem foi (registros de antes dos logins individuais ficam
+          sem nome). Os registros antigos são apagados sozinhos.
         </p>
         <form className="row" method="get">
           {paciente ? <input type="hidden" name="paciente" value={paciente} /> : null}
@@ -70,6 +71,7 @@ export default async function AccessLogPage({
                   <thead>
                     <tr>
                       <th>Quando</th>
+                      <th>Quem</th>
                       <th>O que</th>
                       <th>Paciente</th>
                     </tr>
@@ -80,6 +82,7 @@ export default async function AccessLogPage({
                       return (
                         <tr key={e.id}>
                           <td>{formatDateTime(e.at)}</td>
+                          <td>{e.staffName ?? <span className="muted">-</span>}</td>
                           <td>
                             {href ? (
                               <Link href={href}>{actionLabel(e.action)}</Link>

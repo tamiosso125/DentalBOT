@@ -1,5 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "./api";
+import { createSession, SESSION_COOKIE } from "./session";
+
+const jar = vi.hoisted(() => ({ cookie: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "dentalbot_panel" && jar.cookie ? { value: jar.cookie } : undefined,
+  }),
+}));
+const redirect = vi.hoisted(() =>
+  vi.fn((to: string) => {
+    throw new Error(`NEXT_REDIRECT ${to}`);
+  }),
+);
+vi.mock("next/navigation", () => ({ redirect }));
 
 const TOKEN = "t".repeat(40);
 
@@ -18,6 +33,25 @@ describe("API client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     fetchMock.mockReset();
+    jar.cookie = undefined;
+  });
+
+  it("says who is signed in, and signs out a login the API no longer accepts", async () => {
+    expect(SESSION_COOKIE).toBe("dentalbot_panel");
+    jar.cookie = await createSession("s".repeat(32), { id: "u1", name: "Bia", role: "RECEPTION" });
+    fetchMock.mockResolvedValueOnce(Response.json([]));
+    await api.handoffs();
+    expect(fetchMock.mock.calls[0]![1]?.headers).toMatchObject({ "x-staff-user": "u1" });
+    fetchMock.mockResolvedValueOnce(Response.json({ error: "session" }, { status: 401 }));
+    await expect(api.handoffs()).rejects.toThrow("NEXT_REDIRECT /login/sair");
+    // A wrong password at login is an answer to show, not a lost session.
+    jar.cookie = undefined;
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ error: "E-mail ou senha incorretos." }, { status: 401 }),
+    );
+    const err = await api.login({ email: "a@b.c", password: "x" }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 401, detail: "E-mail ou senha incorretos." });
+    expect(fetchMock.mock.calls[2]![1]?.headers).not.toHaveProperty("x-staff-user");
   });
 
   it("calls the staff API with the bearer token and an encoded query", async () => {

@@ -18,7 +18,7 @@ export type AuditRule = {
   /** Where the patient comes from: the :id param, the body's patientId, or looked up from the target. */
   patient?: "param" | "body";
   /** The :id param names this kind of record; its patient is looked up when recording. */
-  target?: "appointment" | "quote" | "installment" | "dataRequest";
+  target?: "appointment" | "quote" | "installment" | "dataRequest" | "staffUser";
 };
 
 export const AUDITED: Record<string, AuditRule> = {
@@ -41,6 +41,11 @@ export const AUDITED: Record<string, AuditRule> = {
   "POST /admin/installments/:id/receive": { action: "RECEIVE_INSTALLMENT", target: "installment" },
   "POST /admin/clinic-payments": { action: "REGISTER_CLINIC_PAYMENT", patient: "body" },
   "GET /admin/access-log": { action: "VIEW_ACCESS_LOG" },
+  "POST /admin/auth/login": { action: "LOGIN" },
+  "POST /admin/staff/bootstrap": { action: "MANAGE_STAFF" },
+  "POST /admin/staff": { action: "MANAGE_STAFF" },
+  "POST /admin/staff/:id/active": { action: "MANAGE_STAFF", target: "staffUser" },
+  "POST /admin/staff/:id/password": { action: "MANAGE_STAFF", target: "staffUser" },
 };
 
 export type AccessEvent = {
@@ -49,6 +54,8 @@ export type AccessEvent = {
   id?: string;
   /** The request body, read only for `patient: "body"`. */
   body?: unknown;
+  /** Who was signed in to the panel. */
+  staffUserId?: string;
 };
 
 export type AccessEntry = {
@@ -58,6 +65,8 @@ export type AccessEntry = {
   patientId: string | null;
   /** Current name on the record ("Paciente anonimizado" after anonymization), null if none. */
   patientName: string | null;
+  /** The staff member signed in, null before personal logins existed. */
+  staffName: string | null;
   targetId: string | null;
 };
 
@@ -103,7 +112,14 @@ export class AccessLog {
     }
     if (rule.target && id) patientId = await this.patientOf(clinicId, rule.target, id);
     await this.deps.db.accessLog.create({
-      data: { clinicId, action: rule.action, patientId, targetId: rule.target ? id : null, at },
+      data: {
+        clinicId,
+        action: rule.action,
+        patientId,
+        targetId: rule.target ? id : null,
+        staffUserId: event.staffUserId ?? null,
+        at,
+      },
     });
   }
 
@@ -133,6 +149,8 @@ export class AccessLog {
             })
           )?.quote.patientId ?? null
         );
+      case "staffUser":
+        return null;
       case "dataRequest": {
         const r = await db.dataSubjectRequest.findFirst({
           where: { id, clinicId },
@@ -173,6 +191,7 @@ export class AccessLog {
       },
       orderBy: { at: "desc" },
       take: PAGE + 1,
+      include: { staffUser: { select: { name: true } } },
     });
     const page = rows.slice(0, PAGE);
     const ids = [...new Set(page.flatMap((r) => (r.patientId ? [r.patientId] : [])))];
@@ -193,6 +212,7 @@ export class AccessLog {
         action: r.action,
         patientId: r.patientId,
         patientName: r.patientId ? (names.get(r.patientId) ?? null) : null,
+        staffName: r.staffUser?.name ?? null,
         targetId: r.targetId,
       })),
     };

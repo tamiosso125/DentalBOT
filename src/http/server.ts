@@ -25,6 +25,7 @@ import type { JobQueue } from "../queue/queue.js";
 import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
 import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
+import { StaffError, type StaffActor, type StaffService } from "../staff/staff.js";
 import {
   isValidSignature,
   normalizeWebhook,
@@ -73,6 +74,22 @@ export type ServerDeps = {
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
     /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
     accessLog?: Pick<AccessLog, "record" | "list">;
+    /**
+     * Personal staff logins. The panel sends the signed-in person's id in `x-staff-user`;
+     * an unknown or deactivated id gets 401. Absent = no staff routes, no actor.
+     */
+    staff?: Pick<
+      StaffService,
+      | "hasUsers"
+      | "bootstrap"
+      | "login"
+      | "actor"
+      | "list"
+      | "create"
+      | "setActive"
+      | "resetPassword"
+      | "changeOwnPassword"
+    >;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
     /** Post-procedure follow-ups and help requests. Absent = route not registered. */
@@ -91,6 +108,8 @@ export type ServerDeps = {
 declare module "fastify" {
   interface FastifyRequest {
     rawBody?: Buffer;
+    /** The staff member signed in to the panel, on /admin/* routes. */
+    staff?: StaffActor;
   }
 }
 
@@ -188,6 +207,12 @@ export function buildServer(deps: ServerDeps) {
         const token =
           typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : undefined;
         if (!safeEqual(token, admin.token)) return reply.code(401).send();
+        const staffId = req.headers["x-staff-user"];
+        if (admin.staff && typeof staffId === "string" && staffId) {
+          const actor = await admin.staff.actor(admin.clinicId, staffId);
+          if (!actor) return reply.code(401).send({ error: "session" });
+          req.staff = actor;
+        }
       });
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)
@@ -202,7 +227,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof InsuranceError ||
           err instanceof ClinicPaymentError ||
           err instanceof PatientNoteError ||
-          err instanceof AccessLogError
+          err instanceof AccessLogError ||
+          err instanceof StaffError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -229,7 +255,7 @@ export function buildServer(deps: ServerDeps) {
           try {
             await accessLog.record(
               admin.clinicId,
-              { rule, id, body: req.body },
+              { rule, id, body: req.body, staffUserId: req.staff?.id },
               admin.now?.() ?? new Date(),
             );
           } catch (err) {
@@ -243,6 +269,47 @@ export function buildServer(deps: ServerDeps) {
         scope.get("/admin/access-log", async (req) =>
           accessLog.list(admin.clinicId, req.query, admin.now?.() ?? new Date()),
         );
+      }
+
+      const logins = admin.staff;
+      if (logins) {
+        const now = () => admin.now?.() ?? new Date();
+        const signedIn = (req: { staff?: StaffActor }) => {
+          if (!req.staff) throw new StaffError(401, "Entre com o seu login.");
+          return req.staff;
+        };
+        type Id = { Params: { id: string } };
+        scope.get("/admin/staff/status", async () => ({
+          hasUsers: await logins.hasUsers(admin.clinicId),
+        }));
+        scope.post("/admin/staff/bootstrap", async (req, reply) => {
+          req.staff = await logins.bootstrap(admin.clinicId, req.body, now());
+          return reply.code(201).send(req.staff);
+        });
+        scope.post("/admin/auth/login", async (req) => {
+          req.staff = await logins.login(admin.clinicId, req.body, now());
+          return req.staff;
+        });
+        scope.get("/admin/staff", async (req) => {
+          if (signedIn(req).role !== "DENTIST")
+            throw new StaffError(403, "Só a dentista cuida dos logins.");
+          return logins.list(admin.clinicId);
+        });
+        scope.post("/admin/staff", async (req, reply) =>
+          reply.code(201).send(await logins.create(admin.clinicId, signedIn(req), req.body, now())),
+        );
+        scope.post<Id>("/admin/staff/:id/active", async (req, reply) => {
+          await logins.setActive(admin.clinicId, signedIn(req), req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.post<Id>("/admin/staff/:id/password", async (req, reply) => {
+          await logins.resetPassword(admin.clinicId, signedIn(req), req.params.id, req.body);
+          return reply.code(204).send();
+        });
+        scope.post("/admin/me/password", async (req, reply) => {
+          await logins.changeOwnPassword(admin.clinicId, signedIn(req), req.body);
+          return reply.code(204).send();
+        });
       }
 
       // Read side for the staff panel. Query strings are validated; 400 on anything else.
@@ -436,11 +503,18 @@ export function buildServer(deps: ServerDeps) {
           notes.list(admin.clinicId, req.params.id),
         );
         scope.post<P>("/admin/patients/:id/notes", async (req, reply) =>
-          reply
-            .code(201)
-            .send(
-              await notes.add(admin.clinicId, req.params.id, req.body, admin.now?.() ?? new Date()),
+          reply.code(201).send(
+            await notes.add(
+              admin.clinicId,
+              req.params.id,
+              // Signed in: the author is whoever wrote it, not a choice in the form.
+              req.staff
+                ? { ...(isObject(req.body) ? req.body : {}), author: req.staff.role }
+                : req.body,
+              admin.now?.() ?? new Date(),
+              req.staff?.id,
             ),
+          ),
         );
         scope.post<N>("/admin/patients/:id/notes/:noteId/delete", async (req, reply) => {
           await notes.remove(admin.clinicId, req.params.id, req.params.noteId);
@@ -556,3 +630,6 @@ export function buildServer(deps: ServerDeps) {
 }
 
 class BadQueryError extends Error {}
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);

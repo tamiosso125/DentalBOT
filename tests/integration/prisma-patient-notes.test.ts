@@ -69,6 +69,7 @@ describe.skipIf(!url)("PatientNotes (Postgres)", () => {
         author: "RECEPTION",
         text: "Prefere horários de manhã",
         createdAt: "2026-10-16T12:00:00.000Z",
+        staffName: null,
       },
     ]);
     expect(await notes.list(otherClinicId, patientId)).toEqual([]);
