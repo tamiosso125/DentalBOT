@@ -166,6 +166,19 @@ describe.skipIf(!url)("PrismaPatientRecords (Postgres)", () => {
     await db.consent.create({
       data: { patientId, purpose: "MARKETING", granted: true, textVersion: "v1" },
     });
+    for (const [author, text, createdAt] of [
+      ["RECEPTION", "Prefere horários de manhã", "2026-10-01T12:00:00Z"],
+      ["DENTIST", "Tem medo de agulha", "2026-10-10T12:00:00Z"],
+    ] as const)
+      await db.patientNote.create({
+        data: {
+          clinicId,
+          patientId,
+          author,
+          textEncrypted: cipher.encrypt(text),
+          createdAt: at(createdAt),
+        },
+      });
     await db.conversation.create({
       data: {
         clinicId,
@@ -180,6 +193,7 @@ describe.skipIf(!url)("PrismaPatientRecords (Postgres)", () => {
 
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
+      await db.patientNote.deleteMany({ where: { clinicId: id } });
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.consent.deleteMany({ where: { patient: { clinicId: id } } });
       await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
@@ -255,6 +269,14 @@ describe.skipIf(!url)("PrismaPatientRecords (Postgres)", () => {
     ]);
   });
 
+  it("shows the staff notes decrypted, newest first", async () => {
+    const r = (await records.record(clinicId, patientId, NOW))!;
+    expect(r.notes).toEqual([
+      expect.objectContaining({ author: "DENTIST", text: "Tem medo de agulha" }),
+      expect.objectContaining({ author: "RECEPTION", text: "Prefere horários de manhã" }),
+    ]);
+  });
+
   it("shows an empty history and refuses another clinic's patient", async () => {
     const r = (await records.record(clinicId, plainPatientId, NOW))!;
     expect(r).toMatchObject({
@@ -266,6 +288,7 @@ describe.skipIf(!url)("PrismaPatientRecords (Postgres)", () => {
       appointments: [],
       quotes: [],
       balance: { openCents: 0, overdueCents: 0 },
+      notes: [],
       patient: { hasCpf: false, birthDate: null },
     });
     expect(await records.record(otherClinicId, patientId, NOW)).toBeNull();

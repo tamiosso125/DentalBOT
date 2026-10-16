@@ -103,23 +103,26 @@ ADMIN_API_TOKEN=...
 DEFAULT_CLINIC_ID=clinic_dev
 ```
 
-| Rota                                       | O que faz                                                             |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| `POST /admin/quotes`                       | Cria o orçamento (itens da tabela ou com preço da dentista, parcelas) |
-| `GET /admin/quotes/:id`                    | Mostra o orçamento e o status                                         |
-| `GET /admin/quotes/:id/pdf`                | Baixa o PDF                                                           |
-| `POST /admin/quotes/:id/send`              | Envia ao paciente pelo WhatsApp                                       |
-| `GET /admin/quotes?status=SENT`            | Lista os orçamentos (filtro opcional por status)                      |
-| `GET /admin/quotes/follow-up`              | Orçamentos esperando resposta e aprovados/recusados/vencidos do mês   |
-| `GET /admin/agenda?from=AAAA-MM-DD&days=7` | Consultas do período, por dia no fuso da clínica                      |
-| `GET /admin/patients?q=maria`              | Busca paciente por nome ou pelo celular completo                      |
-| `GET /admin/patients/:id/record`           | Ficha do paciente: consultas, orçamentos, saldo, convênio e retorno   |
-| `GET /admin/catalog`                       | Dentistas ativos e procedimentos (para montar o orçamento)            |
-| `GET /admin/handoffs`                      | Conversas com o bot pausado esperando a recepção                      |
-| `GET /admin/data-requests`                 | Pedidos MEUS DADOS em aberto                                          |
-| `GET /admin/patients/:id/export`           | Cópia dos dados do paciente em JSON (também por `/data-requests/:id`) |
-| `POST /admin/patients/:id/anonymize`       | Anonimiza o paciente (também por `/data-requests/:id`)                |
-| `POST /admin/data-requests/:id/resolve`    | Marca o pedido como respondido                                        |
+| Rota                                            | O que faz                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
+| `POST /admin/quotes`                            | Cria o orçamento (itens da tabela ou com preço da dentista, parcelas) |
+| `GET /admin/quotes/:id`                         | Mostra o orçamento e o status                                         |
+| `GET /admin/quotes/:id/pdf`                     | Baixa o PDF                                                           |
+| `POST /admin/quotes/:id/send`                   | Envia ao paciente pelo WhatsApp                                       |
+| `GET /admin/quotes?status=SENT`                 | Lista os orçamentos (filtro opcional por status)                      |
+| `GET /admin/quotes/follow-up`                   | Orçamentos esperando resposta e aprovados/recusados/vencidos do mês   |
+| `GET /admin/agenda?from=AAAA-MM-DD&days=7`      | Consultas do período, por dia no fuso da clínica                      |
+| `GET /admin/patients?q=maria`                   | Busca paciente por nome ou pelo celular completo                      |
+| `GET /admin/patients/:id/record`                | Ficha do paciente: consultas, orçamentos, saldo, convênio e retorno   |
+| `GET /admin/patients/:id/notes`                 | Anotações da equipe sobre o paciente, mais recentes primeiro          |
+| `POST /admin/patients/:id/notes`                | Nova anotação `{ author: RECEPTION\|DENTIST, text }` (até 1000 car.)  |
+| `POST /admin/patients/:id/notes/:noteId/delete` | Apaga uma anotação                                                    |
+| `GET /admin/catalog`                            | Dentistas ativos e procedimentos (para montar o orçamento)            |
+| `GET /admin/handoffs`                           | Conversas com o bot pausado esperando a recepção                      |
+| `GET /admin/data-requests`                      | Pedidos MEUS DADOS em aberto                                          |
+| `GET /admin/patients/:id/export`                | Cópia dos dados do paciente em JSON (também por `/data-requests/:id`) |
+| `POST /admin/patients/:id/anonymize`            | Anonimiza o paciente (também por `/data-requests/:id`)                |
+| `POST /admin/data-requests/:id/resolve`         | Marca o pedido como respondido                                        |
 
 As rotas de leitura alimentam o painel da equipe e mostram só os 4 últimos dígitos do celular.
 
@@ -133,7 +136,7 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 
 ## Painel da equipe
 
-O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Orçamentos" ela vê os que esperam resposta do paciente (há quantos dias e se o lembrete já saiu) e a taxa de aceite do mês. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas, para ligar e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês, além de quantos faltosos receberam o convite para remarcar e quantos marcaram de novo; falta não conta como visita para o retorno. Em "Lista de espera" ela põe ou tira pacientes da fila e vê a última vaga oferecida a cada um. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Em "Resumo", a dentista vê o mês num lugar só, com a diferença para o mês anterior: consultas atendidas (particular e convênio), faltas e cancelamentos, os procedimentos mais feitos, o que entrou (pelo Asaas e no balcão, por forma de pagamento) e o que ainda vence no mês, e os orçamentos enviados, aceitos e recusados. Repasses do convênio não entram nesse total. Em "Pacientes", a recepção busca pelo nome ou pelo celular completo e abre a ficha do paciente: celular (só o final), nascimento, se o CPF está cadastrado (o número não aparece), convênio com o final da carteirinha e a situação dos convites de retorno; as consultas com o que veio depois (autorização do convênio, resposta ao pós-procedimento, nota da pesquisa); os orçamentos com o pago e o em aberto, as parcelas vencidas e os pagamentos no balcão; e a lista de espera. Dali ela marca consulta, cria orçamento, põe na lista de espera ou abre os dados LGPD do paciente; o nome na agenda e o detalhe da consulta levam à ficha. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Orçamentos" ela vê os que esperam resposta do paciente (há quantos dias e se o lembrete já saiu) e a taxa de aceite do mês. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas, para ligar e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês, além de quantos faltosos receberam o convite para remarcar e quantos marcaram de novo; falta não conta como visita para o retorno. Em "Lista de espera" ela põe ou tira pacientes da fila e vê a última vaga oferecida a cada um. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Em "Resumo", a dentista vê o mês num lugar só, com a diferença para o mês anterior: consultas atendidas (particular e convênio), faltas e cancelamentos, os procedimentos mais feitos, o que entrou (pelo Asaas e no balcão, por forma de pagamento) e o que ainda vence no mês, e os orçamentos enviados, aceitos e recusados. Repasses do convênio não entram nesse total. Em "Pacientes", a recepção busca pelo nome ou pelo celular completo e abre a ficha do paciente: celular (só o final), nascimento, se o CPF está cadastrado (o número não aparece), convênio com o final da carteirinha e a situação dos convites de retorno; as consultas com o que veio depois (autorização do convênio, resposta ao pós-procedimento, nota da pesquisa); os orçamentos com o pago e o em aberto, as parcelas vencidas e os pagamentos no balcão; e a lista de espera. Na ficha, a recepção e a dentista deixam anotações curtas ("prefere horários de manhã", "combinou pagar a parcela dia 20"), com data e quem escreveu, e apagam uma anotação errada. O texto fica criptografado no banco, entra na exportação de dados (LGPD) e é apagado na anonimização; o bot e a IA nunca leem as anotações e nada delas vai para o paciente. Dali ela marca consulta, cria orçamento, põe na lista de espera ou abre os dados LGPD do paciente; o nome na agenda e o detalhe da consulta levam à ficha. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
 
 Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
 

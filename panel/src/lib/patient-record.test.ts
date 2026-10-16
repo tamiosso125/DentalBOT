@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { afterVisitLabel, birthLabel, countsLabel, recallLabel } from "./patient-record";
+import {
+  afterVisitLabel,
+  authorLabel,
+  birthLabel,
+  countsLabel,
+  recallLabel,
+} from "./patient-record";
 
 const visit = {
   id: "a1",
@@ -48,6 +54,11 @@ describe("patient record labels", () => {
     expect(countsLabel({ upcoming: 1, attended: 2, noShow: 1, cancelled: 0 })).toBe(
       "1 marcada · 2 atendidas · 1 falta · 0 canceladas",
     );
+  });
+
+  it("names who wrote a note", () => {
+    expect(authorLabel("RECEPTION")).toBe("Recepção");
+    expect(authorLabel("DENTIST")).toBe("Dentista");
   });
 
   it("counts the age in whole years", () => {

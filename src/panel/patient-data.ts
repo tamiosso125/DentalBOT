@@ -89,6 +89,8 @@ export type PatientExport = {
     answer: "OK" | "HELP" | null;
     answeredAt: string | null;
   }>;
+  /** Staff notes on the patient record. */
+  notes: Array<{ author: "RECEPTION" | "DENTIST"; text: string; createdAt: string }>;
   quotes: Array<{
     status: string;
     totalCents: number;
@@ -299,6 +301,7 @@ export class PrismaPatientData implements PatientData {
                 },
               },
             },
+            notes: { orderBy: { createdAt: "asc" } },
             clinicPayments: {
               where: { voidedAt: null },
               orderBy: { paidAt: "asc" },
@@ -369,6 +372,11 @@ export class PrismaPatientData implements PatientData {
         checkInSentAt: iso(f.checkInSentAt),
         answer: f.answer,
         answeredAt: iso(f.answeredAt),
+      })),
+      notes: (patient?.notes ?? []).map((n) => ({
+        author: n.author,
+        text: this.cipher.decrypt(n.textEncrypted),
+        createdAt: n.createdAt.toISOString(),
       })),
       quotes: (patient?.quotes ?? []).map((q) => ({
         status: q.status,
@@ -461,6 +469,8 @@ export class PrismaPatientData implements PatientData {
         });
         // Free text from the dentist may describe the treatment.
         await tx.quote.updateMany({ where: { patientId }, data: { notes: null } });
+        // Staff notes may hold health information too.
+        await tx.patientNote.deleteMany({ where: { patientId } });
       }
       const { count: messages } = await tx.message.updateMany({
         where: { conversationId: { in: subject.conversationIds }, bodyEncrypted: { not: null } },

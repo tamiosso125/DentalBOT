@@ -17,6 +17,7 @@ import { BillingError, type Billing } from "../panel/billing.js";
 import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
+import { PatientNoteError } from "../panel/patient-notes.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
@@ -168,6 +169,27 @@ function stubRecords() {
   return { records, calls };
 }
 
+function stubNotes() {
+  const calls: unknown[][] = [];
+  const notes: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["notes"] = {
+    list: async (...a) => {
+      calls.push(["list", ...a]);
+      return [];
+    },
+    add: async (...a) => {
+      calls.push(["add", ...a]);
+      if (a[1] === "outro") throw new PatientNoteError(404, "Paciente não encontrado.");
+      if (!(a[2] as { text?: string }).text) throw new PatientNoteError(422, "Escreva a anotação.");
+      return { id: "note_1" };
+    },
+    remove: async (...a) => {
+      calls.push(["remove", ...a]);
+      if (a[2] !== "note_1") throw new PatientNoteError(404, "Anotação não encontrada.");
+    },
+  };
+  return { notes, calls };
+}
+
 function stubDesk() {
   const calls: unknown[][] = [];
   const desk: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["clinicPayments"] = {
@@ -196,6 +218,7 @@ function setup() {
   const desk = stubDesk();
   const report = stubReport();
   const records = stubRecords();
+  const notes = stubNotes();
   const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
@@ -236,6 +259,7 @@ function setup() {
       insurance: ctx.insurance,
       report: report.report,
       records: records.records,
+      notes: notes.notes,
       clinicPayments: desk.desk,
       now: () => NOW,
     },
@@ -255,6 +279,7 @@ function setup() {
     reportCalls: report.calls,
     deskCalls: desk.calls,
     records,
+    noteCalls: notes.calls,
   };
 }
 
@@ -871,6 +896,41 @@ describe("admin patient record API", () => {
     expect(records.calls).toEqual([
       [CLINIC_ID, "pat_1", NOW],
       [CLINIC_ID, "outro", NOW],
+    ]);
+  });
+});
+
+describe("admin patient notes API", () => {
+  it("requires the bearer token and lists, adds and deletes within the clinic", async () => {
+    const { app, noteCalls } = setup();
+    const url = "/admin/patients/pat_1/notes";
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url, payload: {} })).statusCode).toBe(401);
+    const headers = { authorization: `Bearer ${ADMIN}` };
+    expect((await app.inject({ method: "GET", url, headers })).json()).toEqual([]);
+    const body = { author: "DENTIST", text: "Tem medo de agulha" };
+    const added = await app.inject({ method: "POST", url, headers, payload: body });
+    expect(added.statusCode).toBe(201);
+    expect(added.json()).toEqual({ id: "note_1" });
+    const empty = await app.inject({ method: "POST", url, headers, payload: { text: "" } });
+    expect(empty.statusCode).toBe(422);
+    const other = await app.inject({
+      method: "POST",
+      url: "/admin/patients/outro/notes",
+      headers,
+      payload: body,
+    });
+    expect(other.statusCode).toBe(404);
+    const del = (id: string) => app.inject({ method: "POST", url: `${url}/${id}/delete`, headers });
+    expect((await del("note_1")).statusCode).toBe(204);
+    expect((await del("nope")).statusCode).toBe(404);
+    expect(noteCalls).toEqual([
+      ["list", CLINIC_ID, "pat_1"],
+      ["add", CLINIC_ID, "pat_1", body, NOW],
+      ["add", CLINIC_ID, "pat_1", { text: "" }, NOW],
+      ["add", CLINIC_ID, "outro", body, NOW],
+      ["remove", CLINIC_ID, "pat_1", "note_1"],
+      ["remove", CLINIC_ID, "pat_1", "nope"],
     ]);
   });
 });

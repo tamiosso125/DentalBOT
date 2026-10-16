@@ -44,7 +44,16 @@ export type PatientRecord = {
     procedure: string | null;
   }>;
   waitlist: Array<{ id: string; procedure: string; until: string }>;
+  /** Staff notes, newest first. */
+  notes: Array<{ id: string; author: NoteAuthor; text: string; createdAt: string }>;
 };
+
+export type NoteAuthor = "RECEPTION" | "DENTIST";
+
+/** Who wrote a staff note. */
+export function authorLabel(a: NoteAuthor): string {
+  return a === "DENTIST" ? "Dentista" : "Recepção";
+}
 
 /** Recall invitations: what the front desk needs to know before talking about it. */
 export function recallLabel(r: Pick<PatientRecord, "recallConsent" | "marketingOptOutAt">): string {

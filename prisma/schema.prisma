@@ -36,6 +36,7 @@ model Clinic {
   aftercare      AftercareFollowUp[]
   authorizations InsuranceAuthorization[]
   clinicPayments ClinicPayment[]
+  patientNotes   PatientNote[]
 }
 
 model Dentist {
@@ -163,6 +164,7 @@ model Patient {
   aftercare      AftercareFollowUp[]
   authorizations InsuranceAuthorization[]
   clinicPayments ClinicPayment[]
+  notes          PatientNote[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -279,6 +281,28 @@ model SatisfactionSurvey {
 
   @@index([clinicId, sentAt])
   @@index([patientId, sentAt])
+}
+
+enum NoteAuthor {
+  RECEPTION
+  DENTIST
+}
+
+/// Internal note of the clinic staff about a patient ("Anotações" on the patient record).
+/// May hold health information, so the text is encrypted. Never shown to the patient or
+/// to the LLM.
+model PatientNote {
+  id            String     @id @default(cuid())
+  clinicId      String
+  patientId     String
+  author        NoteAuthor
+  textEncrypted String
+  createdAt     DateTime   @default(now())
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, createdAt])
 }
 
 enum AftercareAnswer {

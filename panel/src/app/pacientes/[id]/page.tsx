@@ -10,16 +10,30 @@ import {
   formatDateTime,
   QUOTE_STATUS,
 } from "@/lib/format";
-import { afterVisitLabel, birthLabel, countsLabel, recallLabel } from "@/lib/patient-record";
+import {
+  afterVisitLabel,
+  authorLabel,
+  birthLabel,
+  countsLabel,
+  recallLabel,
+} from "@/lib/patient-record";
 import { Nav } from "../../nav";
+import { addNote, removeNote } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const day = (iso: string) => formatDate(dateKey(iso));
 
 /** Everything the clinic has about one patient, read only, with links to act. */
-export default async function PatientRecordPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PatientRecordPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ aviso?: string }>;
+}) {
   const { id } = await params;
+  const { aviso } = await searchParams;
   const r = await api.patientRecord(id).catch((err: unknown) => {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
@@ -36,6 +50,7 @@ export default async function PatientRecordPage({ params }: { params: Promise<{ 
           <Link href="/pacientes">← Pacientes</Link>
         </p>
         <h1>{p.name}</h1>
+        {aviso ? <p className="notice">{aviso}</p> : null}
         {p.anonymizedAt ? (
           <p className="notice">
             Dados anonimizados em {day(p.anonymizedAt)} a pedido do paciente (LGPD). Ficam só os
@@ -233,6 +248,54 @@ export default async function PatientRecordPage({ params }: { params: Promise<{ 
               </ul>
             </>
           ) : null}
+        </section>
+
+        <section className="card" id="anotacoes">
+          <h2 style={{ marginTop: 0 }}>Anotações da equipe</h2>
+          <p className="muted">Só a equipe vê. O bot não lê e nada disso vai para o paciente.</p>
+          {p.anonymizedAt ? null : (
+            <form action={addNote.bind(null, p.id)}>
+              <label>
+                Quem escreve
+                <select name="author" defaultValue="RECEPTION">
+                  <option value="RECEPTION">Recepção</option>
+                  <option value="DENTIST">Dentista</option>
+                </select>
+              </label>
+              <label>
+                Anotação
+                <textarea
+                  name="text"
+                  rows={3}
+                  maxLength={1000}
+                  required
+                  placeholder="Ex.: prefere horários de manhã"
+                />
+              </label>
+              <button type="submit">Salvar anotação</button>
+            </form>
+          )}
+          {r.notes.length === 0 ? (
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Nenhuma anotação.
+            </p>
+          ) : (
+            <ul style={{ marginBottom: 0 }}>
+              {r.notes.map((n) => (
+                <li key={n.id} style={{ marginTop: 8 }}>
+                  <div className="muted">
+                    {formatDateTime(n.createdAt)} · {authorLabel(n.author)}
+                  </div>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
+                  <form action={removeNote.bind(null, p.id, n.id)}>
+                    <button type="submit" className="secondary">
+                      Apagar
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </main>
     </>
