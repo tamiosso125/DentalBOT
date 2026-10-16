@@ -20,7 +20,7 @@ Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5
 - `src/http/server.ts`: rotas (webhooks WhatsApp e Asaas, health, outbox do sandbox, API da equipe `/admin/*` com token Bearer).
 - `src/whatsapp/`: assinatura, schema do webhook, canal (Cloud API ou sandbox), templates.
 - `src/conversation/`: handler da fila, detecção de intenção, textos ao paciente, stores.
-- `src/payments/`: gateway Asaas (http e mock) e eventos de pagamento.
+- `src/payments/`: gateway Asaas (http e mock), eventos de pagamento, lembrete das parcelas antes do vencimento (`installment-reminders.ts`) e aviso de parcela vencida (`overdue-notices.ts`, template `parcela_vencida`).
 - `panel/`: painel Next.js (App Router). Chama a API `/admin/*` só pelo servidor (`panel/src/lib/api.ts`, `server-only`); login por senha da equipe com cookie HMAC; `middleware.ts` protege tudo menos `/login`.
 - `src/panel/`: consultas de leitura do painel da equipe (agenda, pacientes, catálogo, orçamentos, conversas pausadas), sempre por clínica e com telefone mascarado, as parcelas e o link de pagamento (`billing.ts`), os pedidos do titular da LGPD (`patient-data.ts`: exportar e anonimizar) e o cadastro da clínica (`clinic-setup.ts`: dados, dentistas, horários, procedimentos e preços, convênios e cobertura, bloqueios de agenda).
 - `src/quotes/`: `QuoteService` (criar, PDF, enviar, aceite ou recusa pelos botões), lembrete de orçamento sem resposta e vencimento pela validade (`quote-follow-up.ts`, template `lembrete_orcamento`), PDF com pdfkit e repositórios Prisma/memória.

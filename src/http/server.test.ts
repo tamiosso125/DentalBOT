@@ -115,7 +115,7 @@ function stubBilling() {
     installments: async (...a) => (calls.push(["installments", ...a]), []),
     summary: async (...a) => (
       calls.push(["summary", ...a]),
-      { openCents: 0, lateCents: 0, lateCount: 0, paidThisMonthCents: 0 }
+      { openCents: 0, lateCents: 0, lateCount: 0, toCallCount: 0, paidThisMonthCents: 0 }
     ),
     paymentLink: async (...a) => {
       calls.push(["paymentLink", ...a]);

@@ -2,7 +2,7 @@ import type { InstallmentStatus, Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import type { PaymentsGateway } from "../payments/asaas.js";
 import { maskPhone, type FieldCipher } from "../privacy/index.js";
-import { dateInZone, zonedToUtc } from "../scheduling/time.js";
+import { addDays, dateInZone, zonedToUtc } from "../scheduling/time.js";
 
 /**
  * Installments for the staff panel ("Cobranças"): what is open, late or paid, per clinic.
@@ -27,17 +27,24 @@ export type InstallmentRow = {
   charged: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  /** When the bot sent the "past due" notice (null = not sent). */
+  overdueNoticeAt: string | null;
 };
 
 export type BillingSummary = {
   openCents: number;
   lateCents: number;
   lateCount: number;
+  /** Open installments late by TO_CALL_AFTER_DAYS or more: the front desk should call. */
+  toCallCount: number;
   /** Paid in the current month, by paidAt. */
   paidThisMonthCents: number;
 };
 
-export const INSTALLMENT_FILTERS = ["abertas", "vencidas", "pagas", "todas"] as const;
+export const INSTALLMENT_FILTERS = ["abertas", "vencidas", "ligar", "pagas", "todas"] as const;
+
+/** Past this many days late, the bot's notice was not enough: the front desk calls. */
+export const TO_CALL_AFTER_DAYS = 7;
 
 export const installmentQuerySchema = z.strictObject({
   filtro: z.enum(INSTALLMENT_FILTERS).default("abertas"),
@@ -70,6 +77,12 @@ export interface Billing {
 /** Due dates are calendar dates (stored at UTC midnight); compare them with the clinic's today. */
 const day = (date: string) => new Date(`${date}T00:00:00Z`);
 
+/** Open installments due TO_CALL_AFTER_DAYS or more days before `today`. */
+const toCall = (today: string): Prisma.InstallmentWhereInput => ({
+  status: { in: OPEN },
+  dueDate: { lte: day(addDays(today, -TO_CALL_AFTER_DAYS)) },
+});
+
 export class PrismaBilling implements Billing {
   constructor(
     private readonly db: PrismaClient,
@@ -90,6 +103,7 @@ export class PrismaBilling implements Billing {
     if (q.filtro === "pagas") where.status = "PAID";
     if (q.filtro === "vencidas")
       where.OR = [{ status: "OVERDUE" }, { status: { in: OPEN }, dueDate: { lt: day(today) } }];
+    if (q.filtro === "ligar") Object.assign(where, toCall(today));
     const rows = await this.db.installment.findMany({
       where,
       orderBy:
@@ -120,6 +134,7 @@ export class PrismaBilling implements Billing {
       charged: i.asaasPaymentId !== null,
       paidAt: i.paidAt?.toISOString() ?? null,
       paymentMethod: i.paymentMethod,
+      overdueNoticeAt: i.overdueNoticeAt?.toISOString() ?? null,
     }));
   }
 
@@ -127,7 +142,7 @@ export class PrismaBilling implements Billing {
     const { today, timeZone } = await this.clinicDay(clinicId, now);
     const monthStart = zonedToUtc(`${today.slice(0, 7)}-01`, 0, timeZone);
     const scope = { quote: { clinicId } };
-    const [open, late, paid] = await Promise.all([
+    const [open, late, paid, call] = await Promise.all([
       this.db.installment.aggregate({
         where: { ...scope, status: { in: OPEN } },
         _sum: { amountCents: true },
@@ -144,11 +159,13 @@ export class PrismaBilling implements Billing {
         where: { ...scope, status: "PAID", paidAt: { gte: monthStart } },
         _sum: { amountCents: true },
       }),
+      this.db.installment.count({ where: { ...scope, ...toCall(today) } }),
     ]);
     return {
       openCents: open._sum.amountCents ?? 0,
       lateCents: late._sum.amountCents ?? 0,
       lateCount: late._count,
+      toCallCount: call,
       paidThisMonthCents: paid._sum.amountCents ?? 0,
     };
   }

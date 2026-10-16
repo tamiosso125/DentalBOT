@@ -3,6 +3,7 @@ import type { HandlerDeps } from "../../src/conversation/handler.js";
 import { InMemoryConversationStore } from "../../src/conversation/store.js";
 import { silentLogger } from "../../src/lib/logger.js";
 import { MockPaymentsGateway } from "../../src/payments/asaas.js";
+import { OverdueNotices } from "../../src/payments/overdue-notices.js";
 import { QuoteBillingService } from "../../src/quotes/quote-billing.js";
 import { InMemoryQuoteRepository } from "../../src/quotes/quote-repository.js";
 import { QuoteFollowUps } from "../../src/quotes/quote-follow-up.js";
@@ -98,6 +99,13 @@ export function makeDeps(
     store,
     logger: silentLogger,
   });
+  const overdueNotices = new OverdueNotices({
+    repo: quoteRepo,
+    gateway: payments,
+    channel,
+    store,
+    logger: silentLogger,
+  });
   const agendaFor = async (clinicId: string) => (clinicId === CLINIC_ID ? agenda : null);
   const appointmentReminders = new AppointmentReminders({
     repo: new InMemoryAppointmentReminderRepository(agendaRepo, "Clínica Sorriso"),
@@ -171,6 +179,7 @@ export function makeDeps(
     quotes,
     quoteRepo,
     quoteFollowUps,
+    overdueNotices,
     payments,
   };
 }

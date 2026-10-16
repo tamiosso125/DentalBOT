@@ -1,0 +1,32 @@
+name: Parcela vencida recebe um aviso com o link e o paciente chama a recepção
+description: >
+  O paciente aprova o orçamento em 3 parcelas e não paga a primeira, que vence em 22/10. No
+  dia seguinte o bot manda uma vez o template parcela_vencida com o link do Asaas. O botão
+  "Falar com a recepção" pausa o bot e chama a equipe.
+steps:
+  - clinic_sends_quote:
+      items:
+        - { procedureId: proc_limpeza }
+        - { procedureId: proc_resina, quantity: 2 }
+      installmentCount: 3
+  - button: "quote:{quote}:accept"
+    title: "Aprovar"
+    expect:
+      quote_status: ACCEPTED
+      charges: 3
+  - advance_minutes: 4320
+  - run_overdue_notices: true
+    expect:
+      silent: true
+  - advance_minutes: 1440
+  - run_overdue_notices: true
+    expect:
+      contains: ["parcela 1/3", "venceu em 22/10/2026", "sandbox.asaas.com", "desconsiderar"]
+  - advance_minutes: 60
+  - run_overdue_notices: true
+    expect:
+      silent: true
+  - button: "handoff"
+    title: "Falar com a recepção"
+    expect:
+      handoff: true

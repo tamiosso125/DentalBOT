@@ -107,7 +107,8 @@ describe.skipIf(!url)("PrismaAgendaRepository (Postgres)", () => {
     const { appointmentId } = await agenda.reservar({ patientId: p.id, slot });
     const repo = new PrismaAppointmentReminderRepository(db, cipher);
 
-    const found = await repo.candidates(now, new Date(now.getTime() + 2 * 86_400_000));
+    // Scoped to this clinic: other test files write appointments with another key in parallel.
+    const found = await repo.candidates(now, new Date(now.getTime() + 2 * 86_400_000), clinicId);
     expect(found.find((c) => c.appointmentId === appointmentId)).toEqual({
       appointmentId,
       clinicId,

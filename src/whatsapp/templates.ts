@@ -58,6 +58,15 @@ export const TEMPLATES = {
     body: "Olá, {{1}}. A parcela {{2}} do seu tratamento, no valor de {{3}}, vence em {{4}}. Para pagar, acesse: {{5}}",
     params: ["primeiro_nome", "parcela", "valor", "vencimento", "link_pagamento"],
   },
+  /** Once per installment, a day after the due date, while it is still open. */
+  parcela_vencida: {
+    name: "parcela_vencida",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}. A parcela {{2}} do seu tratamento na {{3}}, no valor de {{4}}, venceu em {{5}}. Se você já pagou, pode desconsiderar esta mensagem. Para pagar, acesse: {{6}}",
+    params: ["primeiro_nome", "parcela", "clinica", "valor", "vencimento", "link_pagamento"],
+    buttons: ["Falar com a recepção"],
+  },
   /** Asked for by the patient (waiting list), so utility. One slot, first to accept takes it. */
   vaga_disponivel: {
     name: "vaga_disponivel",

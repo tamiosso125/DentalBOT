@@ -38,6 +38,11 @@ export function InstallmentsTable(props: { rows: InstallmentRow[]; showPatient?:
                 <td>
                   <span className={`badge ${status.tone}`}>{status.label}</span>
                   {r.paidAt ? <span className="muted"> em {formatDateTime(r.paidAt)}</span> : null}
+                  {r.late && r.overdueNoticeAt ? (
+                    <div className="muted">
+                      Aviso enviado em {formatDateTime(r.overdueNoticeAt)}
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   {hasPaymentLink(r) ? (

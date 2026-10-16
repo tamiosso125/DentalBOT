@@ -19,8 +19,11 @@ export type AppointmentReminderCandidate = {
 };
 
 export interface AppointmentReminderRepository {
-  /** Pending or confirmed appointments, not reminded yet, starting in [from, to). */
-  candidates(from: Date, to: Date): Promise<AppointmentReminderCandidate[]>;
+  /**
+   * Pending or confirmed appointments, not reminded yet, starting in [from, to). Every
+   * clinic unless `clinicId` narrows it (tests sharing a database).
+   */
+  candidates(from: Date, to: Date, clinicId?: string): Promise<AppointmentReminderCandidate[]>;
   /** Marks the reminder as taken. False if another run already took it. */
   claim(appointmentId: string, at: Date): Promise<boolean>;
   /** Gives the reminder back after a failed send, so the next run retries. */
@@ -131,9 +134,14 @@ export class PrismaAppointmentReminderRepository implements AppointmentReminderR
     private readonly cipher: FieldCipher,
   ) {}
 
-  async candidates(from: Date, to: Date) {
+  async candidates(from: Date, to: Date, clinicId?: string) {
     const rows = await this.db.appointment.findMany({
-      where: { status: ACTIVE, reminderSentAt: null, startsAt: { gte: from, lt: to } },
+      where: {
+        ...(clinicId ? { clinicId } : {}),
+        status: ACTIVE,
+        reminderSentAt: null,
+        startsAt: { gte: from, lt: to },
+      },
       orderBy: { startsAt: "asc" },
       take: 500,
       select: {
