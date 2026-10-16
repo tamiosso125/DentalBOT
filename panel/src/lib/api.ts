@@ -14,6 +14,7 @@ import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
 import type { AftercareSummary } from "./aftercare";
 import type { NoteAuthor, PatientRecord } from "./patient-record";
+import type { AccessLogPage } from "./access-log";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -159,6 +160,12 @@ export const api = {
       `/admin/patients/${encodeURIComponent(patientId)}/notes/${encodeURIComponent(noteId)}/delete`,
       { method: "POST" },
     );
+  },
+  accessLog: (q: { patientId?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams(
+      Object.entries(q).filter((e): e is [string, string] => Boolean(e[1])),
+    );
+    return json<AccessLogPage>(`/admin/access-log?${params}`);
   },
   catalog: () => json<Catalog>("/admin/catalog"),
   quotes: (status?: string) =>

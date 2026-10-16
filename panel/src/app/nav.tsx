@@ -15,6 +15,7 @@ export function Nav() {
         <Link href="/espera">Lista de espera</Link>
         <Link href="/retorno">Retorno</Link>
         <Link href="/dados">Dados (LGPD)</Link>
+        <Link href="/acessos">Acessos</Link>
         <Link href="/clinica">Clínica</Link>
       </nav>
       <form action={logout}>

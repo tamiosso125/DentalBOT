@@ -37,6 +37,7 @@ model Clinic {
   authorizations InsuranceAuthorization[]
   clinicPayments ClinicPayment[]
   patientNotes   PatientNote[]
+  accessLogs     AccessLog[]
 }
 
 model Dentist {
@@ -281,6 +282,43 @@ model SatisfactionSurvey {
 
   @@index([clinicId, sentAt])
   @@index([patientId, sentAt])
+}
+
+/// What the staff did with patient data in the panel. Never holds content: only the action,
+/// when, and which patient or record. Old entries are purged (ACCESS_LOG_RETENTION_DAYS).
+enum AccessAction {
+  SEARCH_PATIENTS
+  VIEW_RECORD
+  VIEW_DATA
+  EXPORT_DATA
+  ANONYMIZE
+  VIEW_NOTES
+  ADD_NOTE
+  DELETE_NOTE
+  VIEW_INSURANCE
+  SET_INSURANCE
+  SET_CONSENT
+  VIEW_APPOINTMENT
+  VIEW_QUOTE
+  VIEW_QUOTE_PDF
+  RECEIVE_INSTALLMENT
+  REGISTER_CLINIC_PAYMENT
+  VIEW_ACCESS_LOG
+}
+
+model AccessLog {
+  id        String       @id @default(cuid())
+  clinicId  String
+  action    AccessAction
+  /// No foreign key: the entry outlives anything that happens to the patient row.
+  patientId String?
+  /// The appointment, quote, installment or data request the action was about.
+  targetId  String?
+  at        DateTime     @default(now())
+  clinic    Clinic       @relation(fields: [clinicId], references: [id])
+
+  @@index([clinicId, at])
+  @@index([clinicId, patientId, at])
 }
 
 enum NoteAuthor {

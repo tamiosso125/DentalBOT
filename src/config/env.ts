@@ -53,6 +53,9 @@ export const envSchema = z
     /// How often the post-procedure job (care instructions and next-day check-in) runs, in
     /// minutes. 0 turns it off.
     AFTERCARE_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
+    /// Days the record of staff access to patient data is kept before it is purged (checked
+    /// once a day). At least 180: the Marco Civil asks for 6 months of access logs.
+    ACCESS_LOG_RETENTION_DAYS: z.coerce.number().int().min(180).max(3650).default(365),
     /// Days after sending a quote with no answer before the one reminder (lembrete_orcamento).
     QUOTE_REMINDER_DAYS: z.coerce.number().int().min(1).max(30).default(3),
     /// How often the quote follow-up job (reminder and expiry) runs, in minutes. 0 turns it off.

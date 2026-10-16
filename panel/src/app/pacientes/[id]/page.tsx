@@ -110,6 +110,12 @@ export default async function PatientRecordPage({
               >
                 Dados (LGPD)
               </Link>
+              <Link
+                className="button secondary"
+                href={`/acessos?paciente=${encodeURIComponent(p.id)}`}
+              >
+                Acessos
+              </Link>
             </div>
           )}
         </section>

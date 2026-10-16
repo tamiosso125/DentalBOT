@@ -190,6 +190,22 @@ function stubNotes() {
   return { notes, calls };
 }
 
+function stubAccessLog() {
+  const calls: unknown[][] = [];
+  let failing = false;
+  const accessLog: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["accessLog"] = {
+    record: async (...a) => {
+      calls.push(["record", a[0], a[1].rule.action, a[1].id, a[2]]);
+      if (failing) throw new Error("db down");
+    },
+    list: async (...a) => {
+      calls.push(["list", ...a]);
+      return { from: "2026-09-20", to: "2026-10-19", entries: [], truncated: false };
+    },
+  };
+  return { accessLog, calls, fail: () => (failing = true) };
+}
+
 function stubDesk() {
   const calls: unknown[][] = [];
   const desk: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["clinicPayments"] = {
@@ -219,6 +235,7 @@ function setup() {
   const report = stubReport();
   const records = stubRecords();
   const notes = stubNotes();
+  const access = stubAccessLog();
   const recall = stubRecall();
   const billing = stubBilling();
   const clinicSetup = stubSetup();
@@ -260,6 +277,7 @@ function setup() {
       report: report.report,
       records: records.records,
       notes: notes.notes,
+      accessLog: access.accessLog,
       clinicPayments: desk.desk,
       now: () => NOW,
     },
@@ -280,6 +298,7 @@ function setup() {
     deskCalls: desk.calls,
     records,
     noteCalls: notes.calls,
+    access,
   };
 }
 
@@ -931,6 +950,49 @@ describe("admin patient notes API", () => {
       ["add", CLINIC_ID, "outro", body, NOW],
       ["remove", CLINIC_ID, "pat_1", "note_1"],
       ["remove", CLINIC_ID, "pat_1", "nope"],
+    ]);
+  });
+});
+
+describe("admin access log", () => {
+  const headers = { authorization: `Bearer ${ADMIN}` };
+
+  it("records successful access to patient data, and nothing else", async () => {
+    const { app, access } = setup();
+    await app.inject({ method: "GET", url: "/admin/patients/pat_1/record" });
+    expect(access.calls).toEqual([]); // 401
+    await app.inject({ method: "GET", url: "/admin/patients/pat_1/record", headers });
+    await app.inject({ method: "GET", url: "/admin/patients/outro/record", headers }); // 404
+    await app.inject({ method: "GET", url: "/admin/patients?q=maria", headers });
+    await app.inject({ method: "POST", url: "/admin/patients/pat_1/notes/note_1/delete", headers });
+    await app.inject({ method: "GET", url: "/admin/agenda?from=2026-10-19&days=7", headers });
+    expect(access.calls).toEqual([
+      ["record", CLINIC_ID, "VIEW_RECORD", "pat_1", NOW],
+      ["record", CLINIC_ID, "SEARCH_PATIENTS", undefined, NOW],
+      ["record", CLINIC_ID, "DELETE_NOTE", "pat_1", NOW],
+    ]);
+  });
+
+  it("still answers when the log cannot be written", async () => {
+    const { app, access } = setup();
+    access.fail();
+    const res = await app.inject({ method: "GET", url: "/admin/patients/pat_1/record", headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ patient: { id: "pat_1" } });
+  });
+
+  it("lists the log for the clinic and records that it was viewed", async () => {
+    const { app, access } = setup();
+    expect((await app.inject({ method: "GET", url: "/admin/access-log" })).statusCode).toBe(401);
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/access-log?patientId=pat_1",
+      headers,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(access.calls).toEqual([
+      ["list", CLINIC_ID, { patientId: "pat_1" }, NOW],
+      ["record", CLINIC_ID, "VIEW_ACCESS_LOG", undefined, NOW],
     ]);
   });
 });

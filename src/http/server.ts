@@ -24,6 +24,7 @@ import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.j
 import type { JobQueue } from "../queue/queue.js";
 import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
+import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
 import {
   isValidSignature,
   normalizeWebhook,
@@ -70,6 +71,8 @@ export type ServerDeps = {
     records?: PatientRecords;
     /** Staff notes on the patient record. Absent = routes not registered. */
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
+    /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
+    accessLog?: Pick<AccessLog, "record" | "list">;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
     /** Post-procedure follow-ups and help requests. Absent = route not registered. */
@@ -198,7 +201,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof WaitlistError ||
           err instanceof InsuranceError ||
           err instanceof ClinicPaymentError ||
-          err instanceof PatientNoteError
+          err instanceof PatientNoteError ||
+          err instanceof AccessLogError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -212,6 +216,34 @@ export function buildServer(deps: ServerDeps) {
         );
         return reply.code(500).send({ error: "internal error" });
       });
+
+      const accessLog = admin.accessLog;
+      if (accessLog) {
+        // Recorded before the response leaves, so whoever got patient data left a trace.
+        // A failure to record is logged and does not block the clinic's work.
+        scope.addHook("onSend", async (req, reply, payload) => {
+          if (reply.statusCode >= 300) return payload;
+          const rule = AUDITED[`${req.method} ${req.routeOptions.url}`];
+          if (!rule) return payload;
+          const id = (req.params as { id?: string } | undefined)?.id;
+          try {
+            await accessLog.record(
+              admin.clinicId,
+              { rule, id, body: req.body },
+              admin.now?.() ?? new Date(),
+            );
+          } catch (err) {
+            deps.logger.error(
+              { err: err instanceof Error ? err.name : "unknown", action: rule.action },
+              "access log write failed",
+            );
+          }
+          return payload;
+        });
+        scope.get("/admin/access-log", async (req) =>
+          accessLog.list(admin.clinicId, req.query, admin.now?.() ?? new Date()),
+        );
+      }
 
       // Read side for the staff panel. Query strings are validated; 400 on anything else.
       const parse = <T>(schema: z.ZodType<T>, value: unknown) => {

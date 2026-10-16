@@ -117,6 +117,7 @@ DEFAULT_CLINIC_ID=clinic_dev
 | `GET /admin/patients/:id/notes`                 | Anotações da equipe sobre o paciente, mais recentes primeiro          |
 | `POST /admin/patients/:id/notes`                | Nova anotação `{ author: RECEPTION\|DENTIST, text }` (até 1000 car.)  |
 | `POST /admin/patients/:id/notes/:noteId/delete` | Apaga uma anotação                                                    |
+| `GET /admin/access-log?patientId=&from=&to=`    | Acessos aos dados dos pacientes (padrão: últimos 30 dias)             |
 | `GET /admin/catalog`                            | Dentistas ativos e procedimentos (para montar o orçamento)            |
 | `GET /admin/handoffs`                           | Conversas com o bot pausado esperando a recepção                      |
 | `GET /admin/data-requests`                      | Pedidos MEUS DADOS em aberto                                          |
@@ -165,10 +166,18 @@ O topo da página lista o que ainda falta para o bot conseguir marcar consultas.
 
 O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:
 
-- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, autorizações de convênio, notas da pesquisa de satisfação, orçamentos, parcelas, pagamentos feitos na clínica e conversas, com CPF e celular completos) para entregar ao próprio paciente;
-- anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras e a lista de espera. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
+- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, autorizações de convênio, notas da pesquisa de satisfação, anotações da equipe, orçamentos, parcelas, pagamentos feitos na clínica e conversas, com CPF e celular completos) para entregar ao próprio paciente;
+- anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos, anotações da equipe e o texto das mensagens, e cancela as consultas futuras e a lista de espera. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
 
 A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.
+
+### Acessos
+
+O painel registra cada vez que a equipe mexe em dados de um paciente: busca de pacientes, abrir a ficha, os dados LGPD, uma consulta ou um orçamento (e o PDF), ver ou mudar o convênio, ver, escrever ou apagar anotações, mudar o consentimento de retorno, receber parcela ou registrar pagamento no balcão, exportar e anonimizar. Cada registro guarda só a ação, a data e hora e qual paciente ou registro foi tocado: nunca o texto buscado, o conteúdo da anotação ou qualquer outro dado. Abrir a própria página "Acessos" também fica registrado. Em "Acessos" a equipe filtra por período, e a ficha do paciente tem o botão "Acessos" com o histórico só daquele paciente, para responder se ele ou a ANPD perguntar quem mexeu nos dados. Como a equipe entra com uma senha só, o registro não diz qual pessoa fez cada ação. Se o registro não puder ser gravado, o painel continua funcionando e o erro vai para o log. Os registros mais antigos que o prazo são apagados uma vez por dia:
+
+```bash
+ACCESS_LOG_RETENTION_DAYS=365   # mínimo 180 (Marco Civil: 6 meses de registros de acesso)
+```
 
 ## Produção (VPS)
 

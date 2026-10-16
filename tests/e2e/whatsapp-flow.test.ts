@@ -94,6 +94,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
 
   afterAll(async () => {
     const { db } = app;
+    await db.accessLog.deleteMany({ where: { clinicId } });
     await db.quoteItem.deleteMany({ where: { quote: { clinicId } } });
     await db.quote.deleteMany({ where: { clinicId } });
     await db.dataSubjectRequest.deleteMany({ where: { clinicId } });
@@ -432,5 +433,12 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     expect(await (await admin("/admin/data-requests")).json()).toEqual([]);
     // Nothing left under that number: a new message starts from scratch.
     expect(await conversationOf(REQUESTER)).toBeNull();
+
+    // Both actions left a trace in "Acessos", with the request id and no content.
+    const log = (await (await admin("/admin/access-log")).json()) as {
+      entries: Array<{ action: string; targetId: string | null }>;
+    };
+    const actions = log.entries.filter((e) => e.targetId === request!.id).map((e) => e.action);
+    expect(actions.sort()).toEqual(["ANONYMIZE", "EXPORT_DATA"]);
   });
 });

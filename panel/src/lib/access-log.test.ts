@@ -1,0 +1,16 @@
+import { describe, expect, it } from "vitest";
+import { actionLabel, targetHref } from "./access-log";
+
+describe("access log helpers", () => {
+  it("says what was done in pt-BR", () => {
+    expect(actionLabel("VIEW_RECORD")).toBe("Abriu a ficha");
+    expect(actionLabel("EXPORT_DATA")).toBe("Exportou os dados (LGPD)");
+  });
+
+  it("links to the appointment or quote, and nothing else", () => {
+    expect(targetHref({ action: "VIEW_APPOINTMENT", targetId: "a 1" })).toBe("/consultas/a%201");
+    expect(targetHref({ action: "VIEW_QUOTE_PDF", targetId: "q1" })).toBe("/orcamentos/q1");
+    expect(targetHref({ action: "RECEIVE_INSTALLMENT", targetId: "i1" })).toBeNull();
+    expect(targetHref({ action: "VIEW_RECORD", targetId: null })).toBeNull();
+  });
+});
