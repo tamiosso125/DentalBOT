@@ -1,19 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { canWriteClinical } from "@/lib/clinical-record";
+import { currentUser } from "@/lib/current-user";
 import { canMarkAttendance } from "@/lib/attendance";
 import {
   APPOINTMENT_STATUS,
   dateKey,
   formatDate,
+  formatDateTime,
   formatDayHeading,
   formatTime,
 } from "@/lib/format";
+import { ClinicalEntryForm } from "../../clinical-entry-form";
 import { Nav } from "../../nav";
 import {
   cancelAppointment,
   markAttendance,
   rescheduleAppointment,
+  saveClinicalEntry,
   savePatientInsurance,
 } from "../actions";
 import { CancelForm } from "../cancel-form";
@@ -37,14 +42,22 @@ export default async function AppointmentPage({
   });
   const editable = a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED";
   const date = data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : undefined;
-  const [catalog, slots, insurance] = await Promise.all([
+  const [catalog, slots, insurance, entries, user] = await Promise.all([
     api.catalog(),
     editable && date ? api.slots(a.procedureId, date) : Promise.resolve(null),
     api.patientInsurance(a.patientId).catch((err: unknown) => {
       if (err instanceof ApiError && err.status === 404) return null;
       throw err;
     }),
+    a.status === "COMPLETED"
+      ? api.clinicalRecord(a.patientId).catch((err: unknown) => {
+          if (err instanceof ApiError && err.status === 404) return [];
+          throw err;
+        })
+      : Promise.resolve([]),
+    currentUser(),
   ]);
+  const visitEntries = entries.filter((e) => e.appointmentId === a.id);
   const dentists = Object.fromEntries(catalog.dentists.map((d) => [d.id, d.name]));
   const back = `/consultas/${encodeURIComponent(a.id)}`;
   const notice =
@@ -145,6 +158,50 @@ export default async function AppointmentPage({
                 </button>
               </form>
             </div>
+          </section>
+        ) : null}
+
+        {a.status === "COMPLETED" ? (
+          <section className="card" id="evolucao">
+            <h2 style={{ marginTop: 0 }}>Evolução clínica</h2>
+            <p className="muted">
+              O que foi feito nesta consulta. Depois de assinado, o registro não é editado nem
+              apagado: um erro se corrige com um adendo no{" "}
+              <Link href={`/pacientes/${encodeURIComponent(a.patientId)}/prontuario`}>
+                prontuário
+              </Link>
+              .
+            </p>
+            {visitEntries.map((e) => (
+              <div key={e.id} style={{ marginBottom: 12 }}>
+                <div className="muted">
+                  {formatDateTime(e.at)} ·{" "}
+                  {e.signedBy ? `assinado por ${e.signedBy}` : "assinatura removida"}
+                  {e.amendsId ? " · adendo" : ""}
+                </div>
+                <div style={{ whiteSpace: "pre-wrap" }}>{e.data.performed}</div>
+                {e.data.teeth.length > 0 ? <div>Dentes: {e.data.teeth.join(", ")}</div> : null}
+                {e.data.notes ? (
+                  <div className="muted" style={{ whiteSpace: "pre-wrap" }}>
+                    {e.data.notes}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            {visitEntries.length === 0 ? <p className="muted">Nada registrado ainda.</p> : null}
+            {canWriteClinical(user) && visitEntries.length === 0 ? (
+              <ClinicalEntryForm
+                action={saveClinicalEntry.bind(null, a.id, a.patientId, back)}
+                label="Assinar evolução"
+                performedLabel="O que foi feito"
+                signedBy={user?.name}
+              />
+            ) : null}
+            {!canWriteClinical(user) && visitEntries.length === 0 ? (
+              <p className="muted" style={{ marginBottom: 0 }}>
+                Só a dentista registra a evolução.
+              </p>
+            ) : null}
           </section>
         ) : null}
 

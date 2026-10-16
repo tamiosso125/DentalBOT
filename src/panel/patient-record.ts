@@ -73,6 +73,8 @@ export type PatientRecord = {
   medicalAlerts: string[];
   /** When the medical history was last filled in; null = never. */
   medicalHistoryAt: string | null;
+  /** Clinical record entries signed so far (addenda included). */
+  clinicalEntries: number;
 };
 
 const OPEN = ["PENDING", "BILLED", "OVERDUE"] as const;
@@ -116,6 +118,7 @@ export class PrismaPatientRecords implements PatientRecords {
       waitlist,
       notes,
       history,
+      clinicalEntries,
     ] = await Promise.all([
       this.db.consent.findFirst({
         where: { patientId, purpose: "MARKETING" },
@@ -192,6 +195,7 @@ export class PrismaPatientRecords implements PatientRecords {
         orderBy: { createdAt: "desc" },
         select: { dataEncrypted: true, createdAt: true },
       }),
+      this.db.clinicalEntry.count({ where: { clinicId, patientId } }),
     ]);
 
     const count = (s: string) => statusCounts.find((c) => c.status === s)?._count._all ?? 0;
@@ -286,6 +290,7 @@ export class PrismaPatientRecords implements PatientRecords {
         ? medicalAlerts(openMedicalHistory(this.cipher, history.dataEncrypted))
         : [],
       medicalHistoryAt: iso(history?.createdAt ?? null),
+      clinicalEntries,
     };
   }
 }

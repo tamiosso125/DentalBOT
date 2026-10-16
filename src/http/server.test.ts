@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { PatientNoteError } from "../panel/patient-notes.js";
+import { ClinicalRecordError } from "../panel/clinical-record.js";
 import { MedicalHistoryError } from "../panel/medical-history.js";
 import { StaffError, type StaffActor } from "../staff/staff.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
@@ -212,6 +213,28 @@ function stubMedicalHistory() {
   return { medicalHistory, calls };
 }
 
+function stubClinicalRecords() {
+  const calls: unknown[][] = [];
+  const clinicalRecords: NonNullable<
+    Parameters<typeof buildServer>[0]["admin"]
+  >["clinicalRecords"] = {
+    list: async (...a) => {
+      calls.push(["list", ...a]);
+      return [];
+    },
+    add: async (...a) => {
+      calls.push(["add", a[0], a[1], a[2].id, a[3], a[4]]);
+      if (a[2].role !== "DENTIST")
+        throw new ClinicalRecordError(403, "Só a dentista registra a evolução clínica.");
+      if (a[1] === "outro") throw new ClinicalRecordError(404, "Paciente não encontrado.");
+      if (!(a[3] as { performed?: string }).performed)
+        throw new ClinicalRecordError(422, "Escreva o que foi feito.");
+      return { id: "ce_1" };
+    },
+  };
+  return { clinicalRecords, calls };
+}
+
 function stubAccessLog() {
   const calls: unknown[][] = [];
   let failing = false;
@@ -299,6 +322,7 @@ function setup() {
   const records = stubRecords();
   const notes = stubNotes();
   const history = stubMedicalHistory();
+  const clinical = stubClinicalRecords();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -343,6 +367,7 @@ function setup() {
       records: records.records,
       notes: notes.notes,
       medicalHistory: history.medicalHistory,
+      clinicalRecords: clinical.clinicalRecords,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -366,6 +391,7 @@ function setup() {
     records,
     noteCalls: notes.calls,
     historyCalls: history.calls,
+    clinicalCalls: clinical.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -1052,6 +1078,56 @@ describe("admin medical history API", () => {
       ["record", CLINIC_ID, "VIEW_MEDICAL_HISTORY", "pat_1", NOW],
       ["record", CLINIC_ID, "SET_MEDICAL_HISTORY", "pat_1", NOW],
     ]);
+  });
+});
+
+describe("admin clinical record API", () => {
+  const url = "/admin/patients/pat_1/clinical-records";
+  const body = { appointmentId: "apt_1", performed: "Restauração", teeth: ["36"] };
+  const as = (id: string): Record<string, string> => ({
+    authorization: `Bearer ${ADMIN}`,
+    "x-staff-user": id,
+  });
+
+  it("requires the bearer token and lists within the clinic", async () => {
+    const { app, clinicalCalls } = setup();
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url, payload: body })).statusCode).toBe(401);
+    const res = await app.inject({ method: "GET", url, headers: as("u_rec") });
+    expect(res.json()).toEqual([]);
+    expect(clinicalCalls).toEqual([["list", CLINIC_ID, "pat_1"]]);
+  });
+
+  it("is signed by the logged-in dentist, and the access is recorded", async () => {
+    const { app, clinicalCalls, access } = setup();
+    const res = await app.inject({ method: "POST", url, headers: as("u_dent"), payload: body });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ id: "ce_1" });
+    expect(clinicalCalls).toEqual([["add", CLINIC_ID, "pat_1", "u_dent", body, NOW]]);
+    expect(access.calls).toEqual([
+      ["record", CLINIC_ID, "ADD_CLINICAL_ENTRY", "pat_1", NOW, "u_dent"],
+    ]);
+  });
+
+  it("refuses without a personal login or for the front desk, and logs nothing", async () => {
+    const { app, clinicalCalls, access } = setup();
+    const noLogin = { authorization: `Bearer ${ADMIN}` };
+    expect(
+      (await app.inject({ method: "POST", url, headers: noLogin, payload: body })).statusCode,
+    ).toBe(403);
+    expect(
+      (await app.inject({ method: "POST", url, headers: as("u_rec"), payload: body })).statusCode,
+    ).toBe(403);
+    expect(clinicalCalls).toEqual([["add", CLINIC_ID, "pat_1", "u_rec", body, NOW]]);
+    expect(access.calls).toEqual([]);
+  });
+
+  it("passes the 404 and the 422 through", async () => {
+    const { app } = setup();
+    const post = (u: string, payload: object) =>
+      app.inject({ method: "POST", url: u, headers: as("u_dent"), payload });
+    expect((await post(url, { appointmentId: "apt_1" })).statusCode).toBe(422);
+    expect((await post("/admin/patients/outro/clinical-records", body)).statusCode).toBe(404);
   });
 });
 

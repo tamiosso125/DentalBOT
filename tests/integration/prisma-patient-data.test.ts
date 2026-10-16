@@ -128,6 +128,15 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         createdAt: new Date("2026-10-01T15:00:00Z"),
       },
     });
+    await db.clinicalEntry.create({
+      data: {
+        clinicId,
+        patientId,
+        appointmentId: apptIds[0]!,
+        dataEncrypted: cipher.encrypt(JSON.stringify({ performed: "Limpeza", teeth: ["11"] })),
+        createdAt: new Date("2026-10-01T16:00:00Z"),
+      },
+    });
     await db.patientNote.create({
       data: {
         clinicId,
@@ -189,6 +198,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
 
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
+      await db.clinicalEntry.deleteMany({ where: { clinicId: id } });
       await db.patientNote.deleteMany({ where: { clinicId: id } });
       await db.medicalHistory.deleteMany({ where: { clinicId: id } });
       await db.dataSubjectRequest.deleteMany({ where: { clinicId: id } });
@@ -280,6 +290,16 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         data: expect.objectContaining({ allergies: "Dipirona", anticoagulant: false }),
       },
     ]);
+    expect(out.clinicalRecord).toEqual([
+      {
+        at: "2026-10-01T16:00:00.000Z",
+        procedure: expect.any(String),
+        appointmentAt: "2026-10-01T13:00:00.000Z",
+        signedBy: null,
+        addendum: false,
+        data: { performed: "Limpeza", teeth: ["11"], notes: null },
+      },
+    ]);
     expect(out.notes).toEqual([
       { author: "DENTIST", text: "Tem medo de agulha", createdAt: "2026-10-01T15:00:00.000Z" },
     ]);
@@ -336,6 +356,8 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
     expect(quote).toMatchObject({ notes: null, totalCents: 300_00 });
     expect(await db.patientNote.count({ where: { patientId } })).toBe(0);
     expect(await db.medicalHistory.count({ where: { patientId } })).toBe(0);
+    // The clinical record is kept, now attached to an anonymized patient.
+    expect(await db.clinicalEntry.count({ where: { patientId } })).toBe(1);
     expect(quote.installments).toMatchObject([{ status: "PAID", amountCents: 300_00 }]);
     const convs = await db.conversation.findMany({
       where: { id: { in: patientConversationIds } },

@@ -8,6 +8,8 @@ export type AccessAction =
   | "ANONYMIZE"
   | "VIEW_MEDICAL_HISTORY"
   | "SET_MEDICAL_HISTORY"
+  | "VIEW_CLINICAL_RECORD"
+  | "ADD_CLINICAL_ENTRY"
   | "VIEW_NOTES"
   | "ADD_NOTE"
   | "DELETE_NOTE"
@@ -48,6 +50,8 @@ const LABEL: Record<AccessAction, string> = {
   ANONYMIZE: "Anonimizou os dados (LGPD)",
   VIEW_MEDICAL_HISTORY: "Viu a anamnese",
   SET_MEDICAL_HISTORY: "Atualizou a anamnese",
+  VIEW_CLINICAL_RECORD: "Viu o prontuário",
+  ADD_CLINICAL_ENTRY: "Assinou uma evolução clínica",
   VIEW_NOTES: "Viu as anotações",
   ADD_NOTE: "Escreveu uma anotação",
   DELETE_NOTE: "Apagou uma anotação",

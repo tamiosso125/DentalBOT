@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { parseBookingForm, parseRescheduleForm } from "@/lib/appointment-form";
+import { entryFromForm } from "@/lib/clinical-record";
 import { dateKey } from "@/lib/format";
 
 export type FormState = { errors?: string[] };
@@ -71,6 +72,24 @@ export async function markAttendance(id: string, attended: boolean, back: string
 }
 
 /** Sets or clears the patient's insurance plan and card from the appointment page. */
+/** The dentist signs what was done in the visit. The API checks the login and the attendance. */
+export async function saveClinicalEntry(
+  appointmentId: string,
+  patientId: string,
+  back: string,
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  try {
+    await api.addClinicalEntry(patientId, entryFromForm(form, { appointmentId }));
+  } catch (err) {
+    if (err instanceof ApiError && [403, 404, 422].includes(err.status))
+      return { errors: [err.detail] };
+    throw err;
+  }
+  redirect(`${back}?aviso=${encodeURIComponent("Evolução assinada.")}`);
+}
+
 export async function savePatientInsurance(patientId: string, back: string, form: FormData) {
   const planId = String(form.get("planId") ?? "") || null;
   const card = String(form.get("card") ?? "").trim();
