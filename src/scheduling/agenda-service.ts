@@ -35,9 +35,13 @@ export interface AgendaRepository {
   insertAppointment(input: { patientId: string; slot: Slot }): Promise<string | null>;
   /** Same atomic overlap check, ignoring the appointment being moved. */
   moveAppointment(appointmentId: string, slot: Slot): Promise<boolean>;
-  appointmentOwner(
-    appointmentId: string,
-  ): Promise<{ patientId: string; procedureId: string; status: string; startsAt: Date } | null>;
+  appointmentOwner(appointmentId: string): Promise<{
+    patientId: string;
+    procedureId: string;
+    status: string;
+    startsAt: Date;
+    confirmationResentAt: Date | null;
+  } | null>;
   cancelAppointment(appointmentId: string): Promise<void>;
   /** PENDING_CONFIRMATION -> CONFIRMED; any other status is left as is. */
   confirmAppointment(appointmentId: string): Promise<void>;
@@ -49,6 +53,8 @@ export interface AgendaRepository {
   patientById(patientId: string): Promise<(PatientRef & { phone: string }) | null>;
   /** Records that the patient was already told about this date (no day-before reminder). */
   markReminderSent(appointmentId: string, at: Date): Promise<void>;
+  /** Records a confirmation the front desk resent by hand. */
+  markConfirmationResent(appointmentId: string, at: Date): Promise<void>;
   createPatient(name: string, phone: string): Promise<PatientRef>;
 }
 

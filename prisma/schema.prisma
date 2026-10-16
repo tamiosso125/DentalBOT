@@ -214,20 +214,22 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id             String            @id @default(cuid())
-  clinicId       String
-  patientId      String
-  dentistId      String
-  procedureId    String
-  startsAt       DateTime
-  endsAt         DateTime
-  status         AppointmentStatus @default(PENDING_CONFIRMATION)
+  id                   String            @id @default(cuid())
+  clinicId             String
+  patientId            String
+  dentistId            String
+  procedureId          String
+  startsAt             DateTime
+  endsAt               DateTime
+  status               AppointmentStatus @default(PENDING_CONFIRMATION)
   /// When the day-before reminder went out (cleared when the appointment moves).
-  reminderSentAt DateTime?
+  reminderSentAt       DateTime?
+  /// When the front desk last resent the confirmation by hand (cleared when the appointment moves).
+  confirmationResentAt DateTime?
   /// When the "we missed you" message (consulta_perdida) went out after a no-show.
-  noShowNoticeAt DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  noShowNoticeAt       DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   clinic          Clinic                  @relation(fields: [clinicId], references: [id])
   patient         Patient                 @relation(fields: [patientId], references: [id])

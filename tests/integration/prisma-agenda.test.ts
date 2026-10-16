@@ -128,10 +128,19 @@ describe.skipIf(!url)("PrismaAgendaRepository (Postgres)", () => {
     expect(row.status).toBe("CONFIRMED");
     expect(row.reminderSentAt).not.toBeNull();
 
+    // A hand-resent confirmation is recorded on the appointment.
+    const agendaRepo = new PrismaAgendaRepository(db, cipher, clinicId, "America/Sao_Paulo");
+    await agendaRepo.markConfirmationResent(appointmentId, now);
+    expect((await agendaRepo.appointmentOwner(appointmentId))?.confirmationResentAt).toEqual(now);
+
     // Moving it needs a new reminder and a new confirmation.
     const earlier = slots.find((s) => s.endsAt <= slot.startsAt)!;
     await agenda.remarcar({ appointmentId, patientId: p.id, slot: earlier });
     const moved = await db.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
-    expect(moved).toMatchObject({ status: "PENDING_CONFIRMATION", reminderSentAt: null });
+    expect(moved).toMatchObject({
+      status: "PENDING_CONFIRMATION",
+      reminderSentAt: null,
+      confirmationResentAt: null,
+    });
   });
 });

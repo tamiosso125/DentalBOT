@@ -400,6 +400,13 @@ export function buildServer(deps: ServerDeps) {
           },
         );
         scope.post<{ Params: { id: string } }>(
+          "/admin/appointments/:id/resend-confirmation",
+          async (req, reply) => {
+            await staff.resendConfirmation(admin.clinicId, req.params.id);
+            return reply.code(204).send();
+          },
+        );
+        scope.post<{ Params: { id: string } }>(
           "/admin/appointments/:id/cancel",
           async (req, reply) => {
             await staff.cancel(admin.clinicId, req.params.id);

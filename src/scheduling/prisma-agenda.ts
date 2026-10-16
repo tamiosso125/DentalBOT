@@ -74,6 +74,7 @@ export class PrismaAgendaRepository implements AgendaRepository {
           status: "PENDING_CONFIRMATION",
           // New date, new reminder.
           reminderSentAt: null,
+          confirmationResentAt: null,
         },
       });
       return count === 1;
@@ -83,7 +84,13 @@ export class PrismaAgendaRepository implements AgendaRepository {
   async appointmentOwner(appointmentId: string) {
     const a = await this.db.appointment.findFirst({
       where: { id: appointmentId, clinicId: this.clinicId },
-      select: { patientId: true, procedureId: true, status: true, startsAt: true },
+      select: {
+        patientId: true,
+        procedureId: true,
+        status: true,
+        startsAt: true,
+        confirmationResentAt: true,
+      },
     });
     return a;
   }
@@ -147,6 +154,13 @@ export class PrismaAgendaRepository implements AgendaRepository {
     await this.db.appointment.updateMany({
       where: { id: appointmentId, clinicId: this.clinicId },
       data: { reminderSentAt: at },
+    });
+  }
+
+  async markConfirmationResent(appointmentId: string, at: Date) {
+    await this.db.appointment.updateMany({
+      where: { id: appointmentId, clinicId: this.clinicId },
+      data: { confirmationResentAt: at },
     });
   }
 
