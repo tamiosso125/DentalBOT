@@ -1,5 +1,6 @@
 import "server-only";
 import type { Attendance } from "./attendance";
+import type { QuoteFollowUp } from "./quote-follow-up";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
 import type { WaitlistList } from "./waitlist";
@@ -138,6 +139,7 @@ export const api = {
   catalog: () => json<Catalog>("/admin/catalog"),
   quotes: (status?: string) =>
     json<QuoteRow[]>(`/admin/quotes${status ? `?status=${status}` : ""}`),
+  quoteFollowUp: () => json<QuoteFollowUp>("/admin/quotes/follow-up"),
   quote: (id: string) => json<QuoteDetail>(`/admin/quotes/${encodeURIComponent(id)}`),
   quotePdf: (id: string) => call(`/admin/quotes/${encodeURIComponent(id)}/pdf`),
   createQuote: (body: unknown) =>

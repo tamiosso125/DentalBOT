@@ -40,6 +40,10 @@ function stubPanel() {
       calls.push(["attendance", ...a]),
       { pending: [], month: { attended: 0, noShow: 0 } }
     ),
+    quoteFollowUp: async (...a) => (
+      calls.push(["quoteFollowUp", ...a]),
+      { waiting: [], month: { accepted: 1, rejected: 0, expired: 0 } }
+    ),
   };
   return { panel, calls };
 }
@@ -495,6 +499,15 @@ describe("admin agenda API", () => {
     const res = await app.inject({ method: "GET", url: "/admin/attendance", headers: auth });
     expect(res.json()).toEqual({ pending: [], month: { attended: 0, noShow: 0 } });
     expect(panelCalls).toContainEqual(["attendance", CLINIC_ID, NOW]);
+  });
+
+  it("reads the quotes waiting for an answer, not as a quote id", async () => {
+    const { app, panelCalls } = setup();
+    const res = await app.inject({ method: "GET", url: "/admin/quotes/follow-up", headers: auth });
+    expect(res.json()).toEqual({ waiting: [], month: { accepted: 1, rejected: 0, expired: 0 } });
+    expect(panelCalls).toContainEqual(["quoteFollowUp", CLINIC_ID, NOW]);
+    const anon = await app.inject({ method: "GET", url: "/admin/quotes/follow-up" });
+    expect(anon.statusCode).toBe(401);
   });
 
   it("returns 404 for an appointment the panel query does not find", async () => {

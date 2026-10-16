@@ -25,6 +25,7 @@ import { PrismaPatientData } from "./panel/patient-data.js";
 import { FieldCipher } from "./privacy/index.js";
 import { PrismaQuoteRepository } from "./quotes/prisma-quotes.js";
 import { QuoteBillingService } from "./quotes/quote-billing.js";
+import { QuoteFollowUps } from "./quotes/quote-follow-up.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { PrismaRecallRepository } from "./recall/prisma-recall.js";
 import { RecallService } from "./recall/recall.js";
@@ -74,6 +75,28 @@ export function createApp(env: Env, logger: Logger) {
     logger,
     billing: new QuoteBillingService({ repo: quoteRepo, gateway: payments, logger }),
   });
+
+  const quoteFollowUps = new QuoteFollowUps({
+    repo: quoteRepo,
+    channel,
+    store: conversationStore,
+    logger,
+    config: { remindAfterDays: env.QUOTE_REMINDER_DAYS },
+  });
+  const runQuoteFollowUps = () =>
+    quoteFollowUps
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error(
+          { err: err instanceof Error ? err.message : "unknown" },
+          "quote follow-ups run failed",
+        ),
+      );
+  const quoteFollowUpTimer =
+    env.QUOTE_FOLLOW_UP_INTERVAL_MINUTES > 0
+      ? setInterval(runQuoteFollowUps, env.QUOTE_FOLLOW_UP_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  quoteFollowUpTimer?.unref();
 
   const reminders = new InstallmentReminders({
     repo: new PrismaReminderRepository(db, cipher),
@@ -236,6 +259,7 @@ export function createApp(env: Env, logger: Logger) {
     if (appointmentReminderTimer) clearInterval(appointmentReminderTimer);
     if (recallTimer) clearInterval(recallTimer);
     if (waitlistTimer) clearInterval(waitlistTimer);
+    if (quoteFollowUpTimer) clearInterval(quoteFollowUpTimer);
     await server.close();
     await whatsappQueue.close();
     await asaasQueue.close();

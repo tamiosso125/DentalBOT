@@ -62,6 +62,13 @@ INSTALLMENT_REMINDER_DAYS=3                # dias antes do vencimento
 INSTALLMENT_REMINDER_INTERVAL_MINUTES=60   # de quanto em quanto tempo verifica; 0 desliga
 ```
 
+Orçamento enviado sem resposta recebe um lembrete, uma vez só, 3 dias depois do envio, pelo template `lembrete_orcamento` (com a validade e o mesmo botão "Ver orçamento"), entre 9h e 19h no fuso da clínica. Se a recepção estiver conversando com o paciente (bot pausado), o lembrete espera. Quando a validade acaba, o orçamento passa a vencido sozinho, sem lembrete. Ajustes opcionais no `.env`:
+
+```bash
+QUOTE_REMINDER_DAYS=3                  # dias depois do envio
+QUOTE_FOLLOW_UP_INTERVAL_MINUTES=60    # de quanto em quanto tempo verifica; 0 desliga
+```
+
 Ligue a API da equipe acrescentando ao `.env` um token (`openssl rand -hex 32`) e o id da clínica:
 
 ```bash
@@ -76,6 +83,7 @@ DEFAULT_CLINIC_ID=clinic_dev
 | `GET /admin/quotes/:id/pdf`                | Baixa o PDF                                                           |
 | `POST /admin/quotes/:id/send`              | Envia ao paciente pelo WhatsApp                                       |
 | `GET /admin/quotes?status=SENT`            | Lista os orçamentos (filtro opcional por status)                      |
+| `GET /admin/quotes/follow-up`              | Orçamentos esperando resposta e aprovados/recusados/vencidos do mês   |
 | `GET /admin/agenda?from=AAAA-MM-DD&days=7` | Consultas do período, por dia no fuso da clínica                      |
 | `GET /admin/patients?q=maria`              | Busca paciente por nome ou pelo celular completo                      |
 | `GET /admin/catalog`                       | Dentistas ativos e procedimentos (para montar o orçamento)            |
@@ -97,7 +105,7 @@ curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TO
 
 ## Painel da equipe
 
-O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês; falta não conta como visita para o retorno. Em "Lista de espera" ela põe ou tira pacientes da fila e vê a última vaga oferecida a cada um. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
+O painel (`panel/`, Next.js) mostra a agenda da semana, as conversas com o bot pausado esperando a recepção e os orçamentos. Nele a recepção marca, remarca e cancela consultas (com as mesmas regras de horário do bot; ao marcar ou remarcar, o paciente pode receber o template `confirmacao_consulta` com Confirmar e Remarcar) e cria um orçamento, vê o PDF e envia pelo WhatsApp. Em "Orçamentos" ela vê os que esperam resposta do paciente (há quantos dias e se o lembrete já saiu) e a taxa de aceite do mês. Em "Cobranças" ela acompanha as parcelas (em aberto, vencidas e pagas, com os totais do mês) e abre o link de pagamento do Asaas de uma parcela para mandar ao paciente; o orçamento aprovado mostra as próprias parcelas. Depois do horário de uma consulta, ela marca "Compareceu" ou "Faltou" na agenda (que lista as consultas passadas ainda sem marcação) ou no detalhe da consulta, e a página inicial mostra as atendidas, as faltas e a taxa de falta do mês; falta não conta como visita para o retorno. Em "Lista de espera" ela põe ou tira pacientes da fila e vê a última vaga oferecida a cada um. Em "Retorno" ela vê quem está há meses sem consulta e registra (ou retira) o consentimento para os convites de retorno. Ele só fala com a API do DentalBOT pelo servidor: o token nunca chega ao navegador. O acesso é por uma senha da equipe, com sessão de 12 h num cookie assinado.
 
 Com a API rodando (`pnpm dev`), crie `panel/.env.local`:
 

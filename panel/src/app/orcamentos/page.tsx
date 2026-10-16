@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatCents, formatDate, formatDateTime, QUOTE_STATUS } from "@/lib/format";
+import { acceptanceRate, waitingLabel } from "@/lib/quote-follow-up";
 import { Nav } from "../nav";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export default async function QuotesPage({
 }) {
   const { status } = await searchParams;
   const filter = status && status in QUOTE_STATUS ? status : undefined;
-  const quotes = await api.quotes(filter);
+  const [quotes, followUp] = await Promise.all([api.quotes(filter), api.quoteFollowUp()]);
+  const rate = acceptanceRate(followUp.month);
   return (
     <>
       <Nav />
@@ -24,6 +26,53 @@ export default async function QuotesPage({
               Novo orçamento
             </Link>
           </div>
+        </div>
+        <div className="card">
+          <h2>Neste mês</h2>
+          <p>
+            {followUp.month.accepted} aprovado(s), {followUp.month.rejected} não aprovado(s) e{" "}
+            {followUp.month.expired} vencido(s).{" "}
+            {rate === null ? (
+              <span className="muted">Nenhum orçamento respondido ainda.</span>
+            ) : (
+              <strong>Taxa de aceite: {rate}%</strong>
+            )}
+          </p>
+        </div>
+        <div className="card table-wrap">
+          <h2>Aguardando resposta do paciente</h2>
+          <p className="muted">
+            O bot manda um lembrete 3 dias depois do envio. Quando a validade acaba, o orçamento
+            vence sozinho.
+          </p>
+          {followUp.waiting.length === 0 ? (
+            <p className="muted">Nenhum orçamento esperando resposta.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Paciente</th>
+                  <th className="num">Total particular</th>
+                  <th>Enviado</th>
+                  <th>Lembrete</th>
+                  <th>Validade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {followUp.waiting.map((q) => (
+                  <tr key={q.id}>
+                    <td>
+                      <Link href={`/orcamentos/${q.id}`}>{q.patientName}</Link>
+                    </td>
+                    <td className="num">{formatCents(q.totalCents)}</td>
+                    <td>{waitingLabel(q.sentAt)}</td>
+                    <td>{q.reminderSentAt ? formatDateTime(q.reminderSentAt) : "Ainda não"}</td>
+                    <td>{q.validUntil ? formatDate(q.validUntil) : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <p>
           <Link href="/orcamentos">Todos</Link>

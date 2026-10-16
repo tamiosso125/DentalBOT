@@ -14,7 +14,7 @@ O código da Fase 1 roda inteiro sem nenhuma conta externa. Cada conta abaixo tr
 1. **VPS**: precisa existir antes da Meta, porque o webhook exige uma URL pública com HTTPS.
 2. **Asaas**: abrir com o CNPJ e já gerar a chave do sandbox; dá para testar cobranças antes da Meta.
 3. **Anthropic**: criar a chave da API (console.anthropic.com) e rodar `pnpm eval --live` antes de ligar `AI_MODE=anthropic`. Pode ser feita a qualquer momento.
-4. **Meta Business**: verificar o CNPJ, conectar o número atual em coexistência e submeter os 6 templates de `src/whatsapp/templates.ts` (confirmação, lembrete, orçamento, cobrança e vaga da lista de espera como utilidade; convite de retorno como marketing).
+4. **Meta Business**: verificar o CNPJ, conectar o número atual em coexistência e submeter os 7 templates de `src/whatsapp/templates.ts` (confirmação, lembrete, orçamento, lembrete de orçamento, cobrança e vaga da lista de espera como utilidade; convite de retorno como marketing).
 
 ## Cuidados de LGPD ao contratar
 

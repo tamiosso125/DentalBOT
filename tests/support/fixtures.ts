@@ -5,6 +5,7 @@ import { silentLogger } from "../../src/lib/logger.js";
 import { MockPaymentsGateway } from "../../src/payments/asaas.js";
 import { QuoteBillingService } from "../../src/quotes/quote-billing.js";
 import { InMemoryQuoteRepository } from "../../src/quotes/quote-repository.js";
+import { QuoteFollowUps } from "../../src/quotes/quote-follow-up.js";
 import { QuoteService } from "../../src/quotes/quote-service.js";
 import { AgendaService } from "../../src/scheduling/agenda-service.js";
 import { StaffAgenda } from "../../src/scheduling/staff-agenda.js";
@@ -91,6 +92,12 @@ export function makeDeps(
     billing: new QuoteBillingService({ repo: quoteRepo, gateway: payments, logger: silentLogger }),
     now: () => clock.now,
   });
+  const quoteFollowUps = new QuoteFollowUps({
+    repo: quoteRepo,
+    channel,
+    store,
+    logger: silentLogger,
+  });
   const agendaFor = async (clinicId: string) => (clinicId === CLINIC_ID ? agenda : null);
   const appointmentReminders = new AppointmentReminders({
     repo: new InMemoryAppointmentReminderRepository(agendaRepo, "Clínica Sorriso"),
@@ -163,6 +170,7 @@ export function makeDeps(
     staffAgenda,
     quotes,
     quoteRepo,
+    quoteFollowUps,
     payments,
   };
 }
