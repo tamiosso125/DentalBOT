@@ -4,7 +4,7 @@ import { Nav } from "../nav";
 
 export const dynamic = "force-dynamic";
 
-/** Patient search: by name, or by the full mobile number with area code. */
+/** Patient search: by name (accents ignored), birth date, or the full mobile number. */
 export default async function PatientsPage({
   searchParams,
 }: {
@@ -22,7 +22,7 @@ export default async function PatientsPage({
         <section className="card">
           <form className="row" method="get">
             <label>
-              Nome ou celular com DDD
+              Nome, nascimento (dd/mm/aaaa) ou celular com DDD
               <input name="q" defaultValue={query} minLength={2} required autoFocus />
             </label>
             <div style={{ flex: "0 0 auto" }}>
@@ -32,7 +32,8 @@ export default async function PatientsPage({
           {query.length >= 2 ? (
             results.length === 0 ? (
               <p className="muted" style={{ marginBottom: 0 }}>
-                Nenhum paciente encontrado. O celular precisa estar completo, com DDD.
+                Nenhum paciente encontrado. O celular precisa estar completo, com DDD, e o
+                nascimento no formato dd/mm/aaaa.
               </p>
             ) : (
               <div className="table-wrap">

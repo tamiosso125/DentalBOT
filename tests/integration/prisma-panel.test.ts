@@ -37,6 +37,25 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
         },
       })
     ).id;
+    await db.patient.create({
+      data: {
+        clinicId,
+        name: "José da Conceição",
+        phoneHash: cipher.hash("5511900000022"),
+        phoneEncrypted: cipher.encrypt("5511900000022"),
+        birthDate: new Date("1985-03-15T00:00:00Z"),
+      },
+    });
+    await db.patient.create({
+      data: {
+        clinicId,
+        name: "Paciente anonimizado",
+        phoneHash: "anon-hash-painel",
+        phoneEncrypted: "x",
+        birthDate: new Date("1985-03-15T00:00:00Z"),
+        anonymizedAt: new Date("2026-10-01T00:00:00Z"),
+      },
+    });
     const at = (iso: string, minutes: number) => ({
       startsAt: new Date(iso),
       endsAt: new Date(new Date(iso).getTime() + minutes * 60_000),
@@ -108,6 +127,20 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
     expect(await panel.patients(clinicId, "(11) 90000-0021")).toHaveLength(1);
     expect(await panel.patients(clinicId, "0021")).toEqual([]);
     expect(await panel.patients(otherClinicId, "maria")).toEqual([]);
+  });
+
+  it("finds a name without accents, in any word order, and by birth date", async () => {
+    const jose = { name: "José da Conceição", phone: "***0022" };
+    expect(await panel.patients(clinicId, "jose")).toMatchObject([jose]);
+    expect(await panel.patients(clinicId, "CONCEICAO jose")).toMatchObject([jose]);
+    expect(await panel.patients(clinicId, "conceição")).toMatchObject([jose]);
+    expect(await panel.patients(clinicId, "xyz")).toEqual([]);
+    expect(await panel.patients(clinicId, "15/03/1985")).toMatchObject([jose]);
+    expect(await panel.patients(clinicId, "1985-03-15")).toMatchObject([jose]);
+    expect(await panel.patients(clinicId, "16/03/1985")).toEqual([]);
+    expect(await panel.patients(clinicId, "31/02/1985")).toEqual([]);
+    expect(await panel.patients(otherClinicId, "15/03/1985")).toEqual([]);
+    expect(await panel.patients(clinicId, "anonimizado")).toEqual([]);
   });
 
   it("returns the catalog with active dentists only", async () => {

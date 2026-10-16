@@ -1,5 +1,6 @@
 import type { PrismaClient, QuoteStatus } from "@prisma/client";
 import { z } from "zod";
+import { nameMatches, parseBirthDate } from "../lib/search-text.js";
 import { maskPhone, normalizePhone, type FieldCipher } from "../privacy/index.js";
 import { addDays, dateInZone, zonedToUtc } from "../scheduling/time.js";
 import { medicalAlerts, openMedicalHistory } from "./medical-history.js";
@@ -108,6 +109,9 @@ export interface PanelQueries {
   attendance(clinicId: string, now: Date): Promise<Attendance>;
   quoteFollowUp(clinicId: string, now: Date): Promise<QuoteFollowUp>;
 }
+
+/** Names read per search; one clinic stays far below this. */
+const NAME_SEARCH_SCAN = 5000;
 
 /** Unmarked appointments older than this stop showing up as pending. */
 const PENDING_DAYS = 30;
@@ -303,24 +307,48 @@ export class PrismaPanelQueries implements PanelQueries {
   }
 
   async patients(clinicId: string, q: string) {
-    // A phone is matched exactly through its hash; anything else searches the name.
-    let phoneHash: string | undefined;
+    const select = { id: true, name: true, phoneEncrypted: true } as const;
+    const out = (rows: Array<{ id: string; name: string; phoneEncrypted: string }>) =>
+      rows.map((p) => ({ id: p.id, name: p.name, phone: this.phone(p.phoneEncrypted) }));
+
+    // A birth date (15/03/1990 or 1990-03-15) finds everyone born that day.
+    const birth = parseBirthDate(q);
+    if (birth) {
+      return out(
+        await this.db.patient.findMany({
+          where: { clinicId, birthDate: new Date(`${birth}T00:00:00Z`), anonymizedAt: null },
+          orderBy: { name: "asc" },
+          take: 20,
+          select,
+        }),
+      );
+    }
+    // A phone is matched exactly through its hash.
     if (/^[\d\s()+-]+$/.test(q)) {
+      let phoneHash: string;
       try {
         phoneHash = this.cipher.hash(normalizePhone(q));
       } catch {
         return [];
       }
+      return out(
+        await this.db.patient.findMany({
+          where: { clinicId, phoneHash },
+          orderBy: { name: "asc" },
+          take: 20,
+          select,
+        }),
+      );
     }
+    // Anything else searches the name, ignoring accents ("jose" finds "José"). One clinic has
+    // a few thousand patients at most, so the names are filtered here, not with an extension.
     const rows = await this.db.patient.findMany({
-      where: phoneHash
-        ? { clinicId, phoneHash }
-        : { clinicId, name: { contains: q, mode: "insensitive" } },
+      where: { clinicId, anonymizedAt: null },
       orderBy: { name: "asc" },
-      take: 20,
-      select: { id: true, name: true, phoneEncrypted: true },
+      take: NAME_SEARCH_SCAN,
+      select,
     });
-    return rows.map((p) => ({ id: p.id, name: p.name, phone: this.phone(p.phoneEncrypted) }));
+    return out(rows.filter((p) => nameMatches(p.name, q)).slice(0, 20));
   }
 
   async catalog(clinicId: string) {
