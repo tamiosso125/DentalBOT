@@ -196,6 +196,12 @@ button.secondary,
   background: var(--surface);
   margin-bottom: 16px;
 }
+.alert {
+  border-left: 3px solid var(--danger);
+  padding: 8px 12px;
+  background: var(--surface);
+  margin-bottom: 16px;
+}
 .table-wrap {
   overflow-x: auto;
 }

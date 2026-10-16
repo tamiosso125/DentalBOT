@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { PatientNoteError } from "../panel/patient-notes.js";
+import { MedicalHistoryError } from "../panel/medical-history.js";
 import { StaffError, type StaffActor } from "../staff/staff.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
@@ -191,6 +192,26 @@ function stubNotes() {
   return { notes, calls };
 }
 
+function stubMedicalHistory() {
+  const calls: unknown[][] = [];
+  const medicalHistory: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["medicalHistory"] =
+    {
+      view: async (...a) => {
+        calls.push(["view", ...a]);
+        if (a[1] === "outro") throw new MedicalHistoryError(404, "Paciente não encontrado.");
+        return { versions: [], alerts: [] };
+      },
+      save: async (...a) => {
+        calls.push(["save", ...a.filter((x) => x !== undefined)]);
+        if (a[1] === "outro") throw new MedicalHistoryError(404, "Paciente não encontrado.");
+        if ((a[2] as { conditions?: unknown }).conditions === "x")
+          throw new MedicalHistoryError(422, "Anamnese inválida.");
+        return { id: "mh_1" };
+      },
+    };
+  return { medicalHistory, calls };
+}
+
 function stubAccessLog() {
   const calls: unknown[][] = [];
   let failing = false;
@@ -277,6 +298,7 @@ function setup() {
   const report = stubReport();
   const records = stubRecords();
   const notes = stubNotes();
+  const history = stubMedicalHistory();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -320,6 +342,7 @@ function setup() {
       report: report.report,
       records: records.records,
       notes: notes.notes,
+      medicalHistory: history.medicalHistory,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -342,6 +365,7 @@ function setup() {
     deskCalls: desk.calls,
     records,
     noteCalls: notes.calls,
+    historyCalls: history.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -999,6 +1023,38 @@ describe("admin patient notes API", () => {
   });
 });
 
+describe("admin medical history API", () => {
+  it("requires the bearer token, reads and saves within the clinic, and logs the access", async () => {
+    const { app, historyCalls, access } = setup();
+    const url = "/admin/patients/pat_1/medical-history";
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url, payload: {} })).statusCode).toBe(401);
+    const headers = { authorization: `Bearer ${ADMIN}` };
+    expect((await app.inject({ method: "GET", url, headers })).json()).toEqual({
+      versions: [],
+      alerts: [],
+    });
+    const body = { allergies: "Dipirona", anticoagulant: true };
+    const saved = await app.inject({ method: "POST", url, headers, payload: body });
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json()).toEqual({ id: "mh_1" });
+    const bad = await app.inject({ method: "POST", url, headers, payload: { conditions: "x" } });
+    expect(bad.statusCode).toBe(422);
+    const other = "/admin/patients/outro/medical-history";
+    expect((await app.inject({ method: "GET", url: other, headers })).statusCode).toBe(404);
+    expect(historyCalls).toEqual([
+      ["view", CLINIC_ID, "pat_1"],
+      ["save", CLINIC_ID, "pat_1", body, NOW],
+      ["save", CLINIC_ID, "pat_1", { conditions: "x" }, NOW],
+      ["view", CLINIC_ID, "outro"],
+    ]);
+    expect(access.calls).toEqual([
+      ["record", CLINIC_ID, "VIEW_MEDICAL_HISTORY", "pat_1", NOW],
+      ["record", CLINIC_ID, "SET_MEDICAL_HISTORY", "pat_1", NOW],
+    ]);
+  });
+});
+
 describe("admin access log", () => {
   const headers = { authorization: `Bearer ${ADMIN}` };
 
@@ -1103,6 +1159,18 @@ describe("admin staff logins", () => {
       ["reset", "u_dent", "u_rec"],
       ["own", "u_rec"],
     ]);
+  });
+
+  it("records who filled in the medical history", async () => {
+    const { app, historyCalls } = setup();
+    const res = await app.inject({
+      method: "POST",
+      url: "/admin/patients/pat_1/medical-history",
+      headers: as("u_rec"),
+      payload: { pregnant: true },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(historyCalls).toEqual([["save", CLINIC_ID, "pat_1", { pregnant: true }, NOW, "u_rec"]]);
   });
 
   it("signs the note with whoever is logged in", async () => {

@@ -26,6 +26,7 @@ import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
 import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
 import { StaffError, type StaffActor, type StaffService } from "../staff/staff.js";
+import { MedicalHistoryError, type MedicalHistories } from "../panel/medical-history.js";
 import {
   isValidSignature,
   normalizeWebhook,
@@ -72,6 +73,8 @@ export type ServerDeps = {
     records?: PatientRecords;
     /** Staff notes on the patient record. Absent = routes not registered. */
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
+    /** Medical history (anamnese) on the patient record. Absent = routes not registered. */
+    medicalHistory?: Pick<MedicalHistories, "view" | "save">;
     /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
     accessLog?: Pick<AccessLog, "record" | "list">;
     /**
@@ -228,7 +231,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof ClinicPaymentError ||
           err instanceof PatientNoteError ||
           err instanceof AccessLogError ||
-          err instanceof StaffError
+          err instanceof StaffError ||
+          err instanceof MedicalHistoryError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -493,6 +497,27 @@ export function buildServer(deps: ServerDeps) {
           );
           return r ? r : reply.code(404).send();
         });
+      }
+
+      const history = admin.medicalHistory;
+      if (history) {
+        type P = { Params: { id: string } };
+        scope.get<P>("/admin/patients/:id/medical-history", async (req) =>
+          history.view(admin.clinicId, req.params.id),
+        );
+        scope.post<P>("/admin/patients/:id/medical-history", async (req, reply) =>
+          reply
+            .code(201)
+            .send(
+              await history.save(
+                admin.clinicId,
+                req.params.id,
+                req.body,
+                admin.now?.() ?? new Date(),
+                req.staff?.id,
+              ),
+            ),
+        );
       }
 
       const notes = admin.notes;
