@@ -8,6 +8,7 @@ type StoredAppointment = Slot & {
   patientId: string;
   status: AppointmentInfo["status"];
   reminderSentAt: Date | null;
+  confirmationResentAt?: Date | null;
   noShowNoticeAt?: Date | null;
   createdAt?: Date;
 };
@@ -82,7 +83,11 @@ export class InMemoryAgendaRepository implements AgendaRepository {
   async moveAppointment(appointmentId: string, slot: Slot) {
     const appt = this.appointments.find((a) => a.id === appointmentId);
     if (!appt || this.overlaps(slot, appointmentId)) return false;
-    Object.assign(appt, slot, { status: "PENDING_CONFIRMATION", reminderSentAt: null });
+    Object.assign(appt, slot, {
+      status: "PENDING_CONFIRMATION",
+      reminderSentAt: null,
+      confirmationResentAt: null,
+    });
     return true;
   }
 
@@ -94,6 +99,7 @@ export class InMemoryAgendaRepository implements AgendaRepository {
           procedureId: a.procedureId,
           status: a.status,
           startsAt: a.startsAt,
+          confirmationResentAt: a.confirmationResentAt ?? null,
         }
       : null;
   }
@@ -140,6 +146,11 @@ export class InMemoryAgendaRepository implements AgendaRepository {
   async markReminderSent(appointmentId: string, at: Date) {
     const a = this.appointments.find((x) => x.id === appointmentId);
     if (a) a.reminderSentAt = at;
+  }
+
+  async markConfirmationResent(appointmentId: string, at: Date) {
+    const a = this.appointments.find((x) => x.id === appointmentId);
+    if (a) a.confirmationResentAt = at;
   }
 
   async createPatient(name: string, phone: string) {

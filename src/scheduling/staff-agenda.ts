@@ -57,6 +57,8 @@ export type StaffAgendaContext = {
   clinicName: string;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 /**
@@ -143,6 +145,31 @@ export class StaffAgenda {
     this.deps.logger.info({ appointmentId, attended }, "attendance recorded by staff");
   }
 
+  /**
+   * Sends the confirmation again (confirmacao_consulta, with Confirmar and Remarcar) to a
+   * patient who has not answered. Once a day per appointment, and only while it is still
+   * waiting and in the future.
+   */
+  async resendConfirmation(clinicId: string, appointmentId: string): Promise<void> {
+    const ctx = await this.ctx(clinicId);
+    const owner = await ctx.repo.appointmentOwner(appointmentId);
+    if (!owner || owner.status === "CANCELLED")
+      throw new StaffAgendaError(404, "Consulta não encontrada.");
+    const now = this.deps.now?.() ?? new Date();
+    if (owner.status !== "PENDING_CONFIRMATION")
+      throw new StaffAgendaError(409, "Esta consulta não está mais esperando confirmação.");
+    if (owner.startsAt <= now) throw new StaffAgendaError(409, "Esta consulta já passou.");
+    if (owner.confirmationResentAt && now.getTime() - owner.confirmationResentAt.getTime() < DAY_MS)
+      throw new StaffAgendaError(409, "A confirmação já foi reenviada hoje. Tente de novo amanhã.");
+    const patient = await ctx.repo.patientById(owner.patientId);
+    if (!patient) throw new StaffAgendaError(404, "Paciente não encontrado.");
+    const sent = await this.notify(ctx, clinicId, patient, appointmentId, owner);
+    if (!sent)
+      throw new StaffAgendaError(409, "Não deu para enviar agora. Tente de novo em instantes.");
+    await ctx.repo.markConfirmationResent(appointmentId, now);
+    this.deps.logger.info({ appointmentId }, "confirmation resent by staff");
+  }
+
   private async ctx(clinicId: string) {
     const ctx = await this.deps.open(clinicId);
     if (!ctx) throw new StaffAgendaError(404, "Clínica não encontrada.");
@@ -198,7 +225,7 @@ export class StaffAgenda {
     clinicId: string,
     patient: { name: string; phone: string },
     appointmentId: string,
-    slot: Slot,
+    slot: Pick<Slot, "startsAt">,
   ): Promise<boolean> {
     const { channel, store, logger } = this.deps;
     const now = this.deps.now?.() ?? new Date();

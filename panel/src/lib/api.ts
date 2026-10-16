@@ -251,6 +251,11 @@ export const api = {
   cancelAppointment: async (id: string) => {
     await call(`/admin/appointments/${encodeURIComponent(id)}/cancel`, { method: "POST" });
   },
+  resendConfirmation: async (id: string) => {
+    await call(`/admin/appointments/${encodeURIComponent(id)}/resend-confirmation`, {
+      method: "POST",
+    });
+  },
   attendance: () => json<Attendance>("/admin/attendance"),
   setAttendance: async (id: string, attended: boolean) => {
     await call(`/admin/appointments/${encodeURIComponent(id)}/attendance`, {

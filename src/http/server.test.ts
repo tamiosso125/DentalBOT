@@ -679,6 +679,7 @@ describe("admin agenda API", () => {
       ["POST", "/admin/appointments/a1/reschedule"],
       ["POST", "/admin/appointments/a1/cancel"],
       ["POST", "/admin/appointments/a1/attendance"],
+      ["POST", "/admin/appointments/a1/resend-confirmation"],
       ["GET", "/admin/attendance"],
     ] as const) {
       expect((await app.inject({ method, url, payload: {} })).statusCode).toBe(401);
@@ -722,6 +723,13 @@ describe("admin agenda API", () => {
     const early = await post(`/admin/appointments/${id}/attendance`, { attended: true });
     expect(early.statusCode).toBe(409);
     expect(early.json().error).toContain("depois do horário");
+
+    const resend = `/admin/appointments/${id}/resend-confirmation`;
+    expect((await post(resend, {})).statusCode).toBe(204);
+    const twice = await post(resend, {});
+    expect(twice.statusCode).toBe(409);
+    expect(twice.json().error).toContain("já foi reenviada hoje");
+    expect((await post("/admin/appointments/nope/resend-confirmation", {})).statusCode).toBe(404);
 
     expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(204);
     expect((await post(`/admin/appointments/${id}/cancel`, {})).statusCode).toBe(404);

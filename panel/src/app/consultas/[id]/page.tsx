@@ -18,6 +18,7 @@ import {
   cancelAppointment,
   markAttendance,
   rescheduleAppointment,
+  resendConfirmation,
   saveClinicalEntry,
   savePatientInsurance,
 } from "../actions";
@@ -221,6 +222,21 @@ export default async function AppointmentPage({
                 Só a dentista registra a evolução.
               </p>
             ) : null}
+          </section>
+        ) : null}
+
+        {a.status === "PENDING_CONFIRMATION" && new Date(a.startsAt) > new Date() ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Confirmação</h2>
+            <p className="muted">
+              O paciente ainda não confirmou. Reenvie o aviso com os botões Confirmar e Remarcar, no
+              máximo uma vez por dia.
+            </p>
+            <form action={resendConfirmation.bind(null, a.id)}>
+              <button type="submit" className="secondary">
+                Reenviar confirmação
+              </button>
+            </form>
           </section>
         ) : null}
 

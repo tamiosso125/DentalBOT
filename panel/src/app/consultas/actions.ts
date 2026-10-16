@@ -71,6 +71,21 @@ export async function markAttendance(id: string, attended: boolean, back: string
   redirect(`${to}${sep}presenca=${attended ? "compareceu" : "faltou"}`);
 }
 
+/** Sends the confirmation to the patient again; the API allows it once a day. */
+export async function resendConfirmation(id: string) {
+  const back = `/consultas/${encodeURIComponent(id)}`;
+  try {
+    await api.resendConfirmation(id);
+  } catch (err) {
+    if (err instanceof ApiError && [404, 409, 422].includes(err.status))
+      redirect(`${back}?aviso=${encodeURIComponent(err.detail)}`);
+    throw err;
+  }
+  redirect(
+    `${back}?aviso=${encodeURIComponent("Confirmação reenviada ao paciente pelo WhatsApp.")}`,
+  );
+}
+
 /** Sets or clears the patient's insurance plan and card from the appointment page. */
 /** The dentist signs what was done in the visit. The API checks the login and the attendance. */
 export async function saveClinicalEntry(

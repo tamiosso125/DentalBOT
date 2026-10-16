@@ -197,6 +197,96 @@ describe("StaffAgenda", () => {
     expect(agendaRepo.appointments[0]!.status).toBe("CONFIRMED");
   });
 
+  it("resends the confirmation once a day, only while it waits and is still ahead", async () => {
+    const { staffAgenda, agendaRepo, channel, clock, maria } = await setup();
+    const { id } = await staffAgenda.book(CLINIC_ID, {
+      ...bookBody({ id: maria.id }),
+      notify: false,
+    });
+    await staffAgenda.resendConfirmation(CLINIC_ID, id);
+    expect(channel.outbox).toMatchObject([
+      {
+        template: "confirmacao_consulta",
+        params: ["Maria", "Clínica Sorriso", "quarta-feira, 21/10 às 10:00"],
+        buttonPayloads: [`appt:${id}:confirm`, `appt:${id}:reschedule`],
+      },
+    ]);
+    expect(agendaRepo.appointments[0]!.confirmationResentAt).toEqual(clock.now);
+
+    const again = await rejection(staffAgenda.resendConfirmation(CLINIC_ID, id));
+    expect(again).toMatchObject({ status: 409 });
+    expect(again.message).toContain("já foi reenviada hoje");
+    expect(channel.outbox).toHaveLength(1);
+
+    clock.now = new Date(clock.now.getTime() + 25 * 3_600_000);
+    await staffAgenda.resendConfirmation(CLINIC_ID, id);
+    expect(channel.outbox).toHaveLength(2);
+
+    // Moving the appointment starts over.
+    await staffAgenda.reschedule(CLINIC_ID, id, {
+      dentistId: "dentist_dev",
+      startsAt: TUESDAY_14H,
+      notify: false,
+    });
+    expect(agendaRepo.appointments[0]!.confirmationResentAt).toBeNull();
+  });
+
+  it("does not resend for a confirmed, past, cancelled or unknown appointment", async () => {
+    const { staffAgenda, agendaRepo, channel, clock, maria } = await setup();
+    const { id } = await staffAgenda.book(CLINIC_ID, {
+      ...bookBody({ id: maria.id }),
+      notify: false,
+    });
+    agendaRepo.appointments[0]!.status = "CONFIRMED";
+    expect(await rejection(staffAgenda.resendConfirmation(CLINIC_ID, id))).toMatchObject({
+      status: 409,
+    });
+    agendaRepo.appointments[0]!.status = "PENDING_CONFIRMATION";
+    clock.now = new Date("2026-10-21T14:00:00Z");
+    expect((await rejection(staffAgenda.resendConfirmation(CLINIC_ID, id))).message).toContain(
+      "já passou",
+    );
+    agendaRepo.appointments[0]!.status = "CANCELLED";
+    expect(await rejection(staffAgenda.resendConfirmation(CLINIC_ID, id))).toMatchObject({
+      status: 404,
+    });
+    expect(await rejection(staffAgenda.resendConfirmation(CLINIC_ID, "appt_x"))).toMatchObject({
+      status: 404,
+    });
+    expect(await rejection(staffAgenda.resendConfirmation("other_clinic", id))).toMatchObject({
+      status: 404,
+    });
+    expect(channel.outbox).toHaveLength(0);
+  });
+
+  it("keeps the resend open for another try when the WhatsApp send fails", async () => {
+    const ctx = await setup();
+    const staff = new StaffAgenda({
+      open: async () => ({
+        agenda: new AgendaService(ctx.agendaRepo, {
+          now: () => ctx.clock.now,
+          minNoticeMinutes: 0,
+        }),
+        repo: ctx.agendaRepo,
+        clinicName: "Clínica Sorriso",
+      }),
+      channel: {
+        send: async () => {
+          throw new Error("WhatsApp unavailable");
+        },
+      },
+      store: ctx.store,
+      logger: silentLogger,
+      now: () => ctx.clock.now,
+    });
+    const { id } = await staff.book(CLINIC_ID, {
+      ...bookBody({ id: ctx.maria.id }),
+      notify: false,
+    });
+    expect(await rejection(staff.resendConfirmation(CLINIC_ID, id))).toMatchObject({ status: 409 });
+    expect(ctx.agendaRepo.appointments[0]!.confirmationResentAt ?? null).toBeNull();
+  });
+
   it("records attendance only after the start, and lets the front desk correct it", async () => {
     const { staffAgenda, agendaRepo, clock, maria } = await setup();
     const { id } = await staffAgenda.book(CLINIC_ID, bookBody({ id: maria.id }, TUESDAY_14H));
