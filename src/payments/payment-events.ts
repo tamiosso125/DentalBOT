@@ -75,10 +75,15 @@ export class PrismaPaymentEventStore implements PaymentEventStore {
   }
 
   async markInstallmentPaid(asaasPaymentId: string, paidAt: Date, installmentId?: string | null) {
+    // Already paid (e.g. received at the front desk, then Asaas confirms the cash receipt):
+    // keep the first record of who received it and when.
     const res = await this.db.installment.updateMany({
-      where: installmentId
-        ? { OR: [{ asaasPaymentId }, { id: installmentId, asaasPaymentId: null }] }
-        : { asaasPaymentId },
+      where: {
+        status: { not: "PAID" },
+        ...(installmentId
+          ? { OR: [{ asaasPaymentId }, { id: installmentId, asaasPaymentId: null }] }
+          : { asaasPaymentId }),
+      },
       data: { status: "PAID", paidAt, asaasPaymentId },
     });
     return res.count > 0;

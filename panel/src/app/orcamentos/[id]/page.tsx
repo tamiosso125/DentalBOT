@@ -13,10 +13,10 @@ export default async function QuotePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ criado?: string; enviado?: string }>;
+  searchParams: Promise<{ criado?: string; enviado?: string; aviso?: string }>;
 }) {
   const { id } = await params;
-  const { criado, enviado } = await searchParams;
+  const { criado, enviado, aviso } = await searchParams;
   const q = await api.quote(id).catch((err: unknown) => {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
@@ -31,6 +31,7 @@ export default async function QuotePage({
         <p>
           <Link href="/orcamentos">← Orçamentos</Link>
         </p>
+        {aviso ? <p className="notice">{aviso}</p> : null}
         {criado ? <p className="notice">Orçamento criado. Confira e envie ao paciente.</p> : null}
         {enviado ? (
           <p className="notice">
@@ -101,7 +102,10 @@ export default async function QuotePage({
         {installments.length ? (
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Parcelas</h2>
-            <InstallmentsTable rows={installments} />
+            <InstallmentsTable
+              rows={installments}
+              back={`/orcamentos/${encodeURIComponent(q.id)}`}
+            />
           </section>
         ) : null}
       </main>

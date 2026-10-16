@@ -95,8 +95,12 @@ export default async function ReportPage({
             ) : null}
           </p>
           <p className="muted" style={{ marginBottom: 0 }}>
-            Só conta o que é cobrado pelo Asaas (parcelas de orçamentos aceitos). Pagamentos feitos
-            direto na clínica e repasses do convênio não aparecem aqui.
+            {n.receivedAtClinicCents > 0
+              ? `${formatCents(n.receivedAtClinicCents)} foram recebidos no balcão. `
+              : ""}
+            Conta as parcelas pagas pelo Asaas e o que a recepção registrou como pago na clínica (em{" "}
+            <Link href="/cobrancas/clinica">Pagamentos na clínica</Link> ou na parcela). Repasses do
+            convênio não aparecem aqui.
           </p>
         </section>
 

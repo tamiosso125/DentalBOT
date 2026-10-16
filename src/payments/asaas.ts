@@ -43,6 +43,11 @@ export interface PaymentsGateway {
   /** Charge created earlier for this installment (retry after a crash), if any. */
   findCharge(externalReference: string): Promise<Charge | null>;
   getPixQrCode(chargeId: string): Promise<{ payload: string; encodedImage: string }>;
+  /**
+   * The charge was paid at the clinic: Asaas marks it RECEIVED_IN_CASH and stops its own
+   * reminders. `paymentDate` is YYYY-MM-DD.
+   */
+  receiveInCash(chargeId: string, paymentDate: string, amountCents: number): Promise<void>;
 }
 
 export const ASAAS_BASE_URL = {
@@ -129,6 +134,14 @@ export class AsaasHttpGateway implements PaymentsGateway {
       `/payments/${encodeURIComponent(chargeId)}/pixQrCode`,
     );
   }
+
+  async receiveInCash(chargeId: string, paymentDate: string, amountCents: number) {
+    await this.request("POST", `/payments/${encodeURIComponent(chargeId)}/receiveInCash`, {
+      paymentDate,
+      value: centsToReais(amountCents),
+      notifyCustomer: false,
+    });
+  }
 }
 
 /** No account needed. Records calls so tests and the sandbox can inspect them. */
@@ -166,6 +179,13 @@ export class MockPaymentsGateway implements PaymentsGateway {
 
   async getPixQrCode(chargeId: string) {
     return { payload: `00020126MOCKPIX${chargeId}`, encodedImage: "" };
+  }
+
+  async receiveInCash(chargeId: string, paymentDate: string, amountCents: number) {
+    const charge = this.charges.find((c) => c.id === chargeId);
+    if (!charge) throw new Error(`Asaas mock: charge ${chargeId} not found`);
+    centsToReais(amountCents);
+    Object.assign(charge, { status: "RECEIVED_IN_CASH", receivedInCashOn: paymentDate });
   }
 }
 

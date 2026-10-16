@@ -1,9 +1,24 @@
 import Link from "next/link";
-import { hasPaymentLink, installmentStatus, type InstallmentRow } from "@/lib/billing";
-import { formatCents, formatDate, formatDateTime } from "@/lib/format";
+import {
+  canReceiveAtClinic,
+  CLINIC_METHODS,
+  hasPaymentLink,
+  installmentStatus,
+  type InstallmentRow,
+} from "@/lib/billing";
+import { dateKey, formatCents, formatDate, formatDateTime } from "@/lib/format";
+import { receiveInstallment } from "./actions";
 
-/** Installments table, shared by "Cobranças" and the quote page (without the patient column). */
-export function InstallmentsTable(props: { rows: InstallmentRow[]; showPatient?: boolean }) {
+/**
+ * Installments table, shared by "Cobranças" and the quote page (without the patient column).
+ * `back` is the page the "paid at the clinic" form returns to.
+ */
+export function InstallmentsTable(props: {
+  rows: InstallmentRow[];
+  back: string;
+  showPatient?: boolean;
+}) {
+  const today = dateKey(new Date());
   return (
     <div className="table-wrap">
       <table>
@@ -53,6 +68,37 @@ export function InstallmentsTable(props: { rows: InstallmentRow[]; showPatient?:
                     >
                       Link de pagamento
                     </a>
+                  ) : null}
+                  {canReceiveAtClinic(r) ? (
+                    <details>
+                      <summary>Pago na clínica</summary>
+                      <form action={receiveInstallment.bind(null, r.id, props.back)}>
+                        <label>
+                          Forma
+                          <select name="method" required defaultValue="">
+                            <option value="" disabled>
+                              Escolha
+                            </option>
+                            {Object.entries(CLINIC_METHODS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Dia
+                          <input
+                            type="date"
+                            name="date"
+                            required
+                            max={today}
+                            defaultValue={today}
+                          />
+                        </label>
+                        <button type="submit">Registrar pagamento</button>
+                      </form>
+                    </details>
                   ) : null}
                 </td>
               </tr>

@@ -27,6 +27,8 @@ export type InstallmentRow = {
   charged: boolean;
   paidAt: string | null;
   paymentMethod: string | null;
+  /** Paid at the front desk (recorded in the panel). */
+  receivedAtClinic: boolean;
   /** When the bot sent the "past due" notice (null = not sent). */
   overdueNoticeAt: string | null;
 };
@@ -134,6 +136,7 @@ export class PrismaBilling implements Billing {
       charged: i.asaasPaymentId !== null,
       paidAt: i.paidAt?.toISOString() ?? null,
       paymentMethod: i.paymentMethod,
+      receivedAtClinic: i.receivedAtClinic,
       overdueNoticeAt: i.overdueNoticeAt?.toISOString() ?? null,
     }));
   }

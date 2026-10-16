@@ -125,6 +125,19 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       include: { installments: true },
     });
     installmentId = quote.installments[0]!.id;
+    // Paid at the front desk: one kept, one undone (not exported).
+    for (const voidedAt of [null, NOW])
+      await db.clinicPayment.create({
+        data: {
+          clinicId,
+          patientId,
+          procedureId,
+          amountCents: 120_00,
+          method: "CASH",
+          paidAt: new Date("2026-10-05T15:00:00Z"),
+          voidedAt,
+        },
+      });
     // Linked conversation, plus a second one under the same number not linked yet.
     const linked = await conversation(PHONE, patientId, "Quero marcar uma limpeza");
     await db.conversation.update({
@@ -153,6 +166,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
+      await db.clinicPayment.deleteMany({ where: { clinicId: id } });
       await db.satisfactionSurvey.deleteMany({ where: { clinicId: id } });
       await db.insuranceAuthorization.deleteMany({ where: { clinicId: id } });
       await db.appointment.deleteMany({ where: { clinicId: id } });
@@ -201,6 +215,14 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         status: "AUTHORIZED",
         decidedAt: "2026-10-19T15:00:00.000Z",
         privateChosenAt: null,
+      },
+    ]);
+    expect(out.clinicPayments).toEqual([
+      {
+        paidAt: "2026-10-05T15:00:00.000Z",
+        amountCents: 120_00,
+        method: "CASH",
+        procedure: "Limpeza",
       },
     ]);
     expect(out.surveys).toEqual([

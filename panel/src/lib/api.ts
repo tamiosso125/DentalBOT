@@ -2,7 +2,13 @@ import "server-only";
 import type { Attendance } from "./attendance";
 import type { AuthorizationList, PatientInsurance } from "./authorizations";
 import type { QuoteFollowUp } from "./quote-follow-up";
-import type { BillingSummary, Filter, InstallmentRow } from "./billing";
+import type {
+  BillingSummary,
+  ClinicMethod,
+  ClinicPaymentRow,
+  Filter,
+  InstallmentRow,
+} from "./billing";
 import type { RecallList } from "./recall";
 import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
@@ -270,6 +276,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     });
+  },
+  receiveInstallment: async (id: string, body: { method: ClinicMethod; date: string }) => {
+    await call(`/admin/installments/${encodeURIComponent(id)}/receive`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  clinicPayments: () => json<ClinicPaymentRow[]>("/admin/clinic-payments"),
+  createClinicPayment: (body: {
+    patientId: string;
+    procedureId: string | null;
+    amountCents: number;
+    method: ClinicMethod;
+    date: string;
+  }) =>
+    json<{ id: string }>("/admin/clinic-payments", { method: "POST", body: JSON.stringify(body) }),
+  voidClinicPayment: async (id: string) => {
+    await call(`/admin/clinic-payments/${encodeURIComponent(id)}/void`, { method: "POST" });
   },
   billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
   paymentLink: (id: string) =>

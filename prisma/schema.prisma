@@ -34,6 +34,7 @@ model Clinic {
   waitlist       WaitlistEntry[]
   surveys        SatisfactionSurvey[]
   authorizations InsuranceAuthorization[]
+  clinicPayments ClinicPayment[]
 }
 
 model Dentist {
@@ -63,11 +64,12 @@ model Procedure {
   priceCents      Int?
   active          Boolean @default(true)
 
-  clinic       Clinic              @relation(fields: [clinicId], references: [id])
-  coverages    InsuranceCoverage[]
-  appointments Appointment[]
-  quoteItems   QuoteItem[]
-  waitlist     WaitlistEntry[]
+  clinic         Clinic              @relation(fields: [clinicId], references: [id])
+  coverages      InsuranceCoverage[]
+  appointments   Appointment[]
+  quoteItems     QuoteItem[]
+  waitlist       WaitlistEntry[]
+  clinicPayments ClinicPayment[]
 
   @@unique([clinicId, name])
 }
@@ -155,6 +157,7 @@ model Patient {
   waitlist       WaitlistEntry[]
   surveys        SatisfactionSurvey[]
   authorizations InsuranceAuthorization[]
+  clinicPayments ClinicPayment[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -225,7 +228,6 @@ model Appointment {
   @@index([status, startsAt])
 }
 
-/// One satisfaction question per attended appointment, sent the day after (pesquisa_satisfacao).
 enum AuthorizationStatus {
   AUTHORIZED
   DENIED
@@ -254,6 +256,7 @@ model InsuranceAuthorization {
   @@index([clinicId, decidedAt])
 }
 
+/// One satisfaction question per attended appointment, sent the day after (pesquisa_satisfacao).
 model SatisfactionSurvey {
   id            String    @id @default(cuid())
   clinicId      String
@@ -400,23 +403,28 @@ enum PaymentMethod {
   PIX
   BOLETO
   CREDIT_CARD
+  /// Received at the front desk.
+  CASH
+  DEBIT_CARD
 }
 
 model Installment {
-  id              String            @id @default(cuid())
-  quoteId         String
-  number          Int
-  amountCents     Int
-  dueDate         DateTime          @db.Date
-  status          InstallmentStatus @default(PENDING)
-  paymentMethod   PaymentMethod?
+  id               String            @id @default(cuid())
+  quoteId          String
+  number           Int
+  amountCents      Int
+  dueDate          DateTime          @db.Date
+  status           InstallmentStatus @default(PENDING)
+  paymentMethod    PaymentMethod?
   /// Asaas payment id (pay_...).
-  asaasPaymentId  String?           @unique
-  paidAt          DateTime?
+  asaasPaymentId   String?           @unique
+  paidAt           DateTime?
   /// When the WhatsApp reminder with the payment link went out (one per installment).
-  reminderSentAt  DateTime?
+  reminderSentAt   DateTime?
   /// When the "your installment is past due" notice went out (one per installment).
-  overdueNoticeAt DateTime?
+  overdueNoticeAt  DateTime?
+  /// Paid at the front desk (recorded in the panel), not through the Asaas invoice.
+  receivedAtClinic Boolean           @default(false)
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
@@ -425,6 +433,28 @@ model Installment {
 }
 
 /// Asaas webhook events already processed (Asaas may deliver the same event twice).
+/// Money received at the front desk outside any quote installment (e.g. a visit paid in cash).
+model ClinicPayment {
+  id          String        @id @default(cuid())
+  clinicId    String
+  patientId   String
+  procedureId String?
+  amountCents Int
+  method      PaymentMethod
+  /// Noon of the day it was received, in the clinic's timezone.
+  paidAt      DateTime
+  createdAt   DateTime      @default(now())
+  /// Undone by the front desk (typed by mistake). Kept for the record.
+  voidedAt    DateTime?
+
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
+  patient   Patient    @relation(fields: [patientId], references: [id])
+  procedure Procedure? @relation(fields: [procedureId], references: [id])
+
+  @@index([clinicId, paidAt])
+  @@index([patientId])
+}
+
 model PaymentEvent {
   id         String   @id
   event      String

@@ -7,7 +7,16 @@ export type MonthNumbers = {
   noShow: number;
   cancelled: number;
   receivedCents: number;
-  receivedByMethod: { PIX: number; BOLETO: number; CREDIT_CARD: number; OTHER: number };
+  receivedByMethod: {
+    PIX: number;
+    BOLETO: number;
+    CREDIT_CARD: number;
+    DEBIT_CARD: number;
+    CASH: number;
+    OTHER: number;
+  };
+  /** Of `receivedCents`, what the front desk recorded as received at the clinic. */
+  receivedAtClinicCents: number;
   dueOpenCents: number;
   lateCents: number;
   quotesSent: number;
@@ -42,7 +51,9 @@ const MONTHS = [
 export const METHOD_LABEL = {
   PIX: "Pix",
   BOLETO: "Boleto",
-  CREDIT_CARD: "Cartão",
+  CREDIT_CARD: "Crédito",
+  DEBIT_CARD: "Débito",
+  CASH: "Dinheiro",
   OTHER: "Outro",
 } as const;
 

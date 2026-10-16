@@ -49,7 +49,13 @@ export default async function BillingPage({
           vai pelo WhatsApp alguns dias antes do vencimento. Um dia depois do vencimento, o bot
           manda um aviso com o link de pagamento. O pagamento cai aqui quando o Asaas confirma. Se a
           parcela continuar em aberto uma semana depois do vencimento, ela aparece em &quot;Para
-          ligar&quot;: ligue para o paciente.
+          ligar&quot;: ligue para o paciente. Se o paciente pagar uma parcela no balcão, use
+          &quot;Pago na clínica&quot; na linha dela: a cobrança é baixada no Asaas e o bot para de
+          cobrar.
+        </p>
+        <p>
+          <Link href="/cobrancas/clinica">Pagamentos na clínica fora de orçamento</Link> (consulta
+          paga em dinheiro, cartão na maquininha ou Pix direto)
         </p>
         <p>
           {(Object.entries(FILTERS) as Array<[Filter, string]>).map(([key, label], i) => (
@@ -69,7 +75,7 @@ export default async function BillingPage({
               Nenhuma parcela {filtro === "todas" ? "" : FILTERS[filtro].toLowerCase()}.
             </p>
           ) : (
-            <InstallmentsTable rows={rows} showPatient />
+            <InstallmentsTable rows={rows} back={`/cobrancas?filtro=${filtro}`} showPatient />
           )}
         </div>
       </main>
