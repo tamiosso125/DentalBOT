@@ -119,10 +119,24 @@ describe.skipIf(!url)("PrismaMonthlyReports (Postgres)", () => {
         },
       ],
     });
+    // Paid at the front desk: one kept, one undone.
+    for (const voidedAt of [null, new Date("2026-10-10T16:00:00Z")])
+      await db.clinicPayment.create({
+        data: {
+          clinicId,
+          patientId: ana,
+          procedureId: extracao,
+          amountCents: 50_00,
+          method: "CASH",
+          paidAt: new Date("2026-10-10T15:00:00Z"),
+          voidedAt,
+        },
+      });
   });
 
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
+      await db.clinicPayment.deleteMany({ where: { clinicId: id } });
       await db.installment.deleteMany({ where: { quote: { clinicId: id } } });
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.insuranceAuthorization.deleteMany({ where: { clinicId: id } });
@@ -147,8 +161,16 @@ describe.skipIf(!url)("PrismaMonthlyReports (Postgres)", () => {
       attendedPrivate: 1,
       noShow: 1,
       cancelled: 1,
-      receivedCents: 200_00,
-      receivedByMethod: { PIX: 200_00, BOLETO: 0, CREDIT_CARD: 0, OTHER: 0 },
+      receivedCents: 250_00,
+      receivedByMethod: {
+        PIX: 200_00,
+        BOLETO: 0,
+        CREDIT_CARD: 0,
+        DEBIT_CARD: 0,
+        CASH: 50_00,
+        OTHER: 0,
+      },
+      receivedAtClinicCents: 50_00,
       dueOpenCents: 200_00,
       lateCents: 200_00,
       quotesSent: 2,

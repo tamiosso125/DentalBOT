@@ -99,7 +99,15 @@ export type PatientExport = {
       dueDate: string;
       status: string;
       paidAt: string | null;
+      paymentMethod: string | null;
     }>;
+  }>;
+  /** Payments received at the front desk outside any quote (voided ones excluded). */
+  clinicPayments: Array<{
+    paidAt: string;
+    amountCents: number;
+    method: string;
+    procedure: string | null;
   }>;
   conversations: Array<{
     contact: string;
@@ -274,6 +282,11 @@ export class PrismaPatientData implements PatientData {
               orderBy: { sentAt: "asc" },
               include: { appointment: { select: { startsAt: true } } },
             },
+            clinicPayments: {
+              where: { voidedAt: null },
+              orderBy: { paidAt: "asc" },
+              include: { procedure: { select: { name: true } } },
+            },
           },
         })
       : null;
@@ -351,7 +364,14 @@ export class PrismaPatientData implements PatientData {
           dueDate: dateOnly(i.dueDate),
           status: i.status,
           paidAt: iso(i.paidAt),
+          paymentMethod: i.paymentMethod,
         })),
+      })),
+      clinicPayments: (patient?.clinicPayments ?? []).map((p) => ({
+        paidAt: p.paidAt.toISOString(),
+        amountCents: p.amountCents,
+        method: p.method,
+        procedure: p.procedure?.name ?? null,
       })),
       conversations: conversations.map((c) => ({
         contact: this.cipher.decrypt(c.contactEncrypted),

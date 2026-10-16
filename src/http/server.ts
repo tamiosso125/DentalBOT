@@ -16,6 +16,7 @@ import { RecallError, type RecallService } from "../recall/recall.js";
 import { InsuranceError, type InsuranceAuthorizations } from "../insurance/authorizations.js";
 import type { SurveyService } from "../survey/survey.js";
 import { reportQuerySchema, type MonthlyReports } from "../panel/monthly-report.js";
+import { ClinicPaymentError, type ClinicPayments } from "../payments/clinic-payments.js";
 import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
@@ -58,6 +59,8 @@ export type ServerDeps = {
     recall?: Pick<RecallService, "list" | "setConsent">;
     /** Waiting list ("Lista de espera"). Absent = routes not registered. */
     waitlist?: Pick<WaitlistService, "list" | "add" | "remove">;
+    /** Payments received at the front desk. Absent = routes not registered. */
+    clinicPayments?: Pick<ClinicPayments, "receiveInstallment" | "register" | "list" | "void">;
     /** Month at a glance for the dentist. Absent = route not registered. */
     report?: MonthlyReports;
     /** Satisfaction survey summary. Absent = route not registered. */
@@ -184,7 +187,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof BillingError ||
           err instanceof RecallError ||
           err instanceof WaitlistError ||
-          err instanceof InsuranceError
+          err instanceof InsuranceError ||
+          err instanceof ClinicPaymentError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -327,6 +331,24 @@ export function buildServer(deps: ServerDeps) {
             .header("cache-control", "no-store")
             .send(await billing.paymentLink(admin.clinicId, req.params.id)),
         );
+      }
+
+      const desk = admin.clinicPayments;
+      if (desk) {
+        const now = () => admin.now?.() ?? new Date();
+        type Id = { Params: { id: string } };
+        scope.post<Id>("/admin/installments/:id/receive", async (req, reply) => {
+          await desk.receiveInstallment(admin.clinicId, req.params.id, req.body, now());
+          return reply.code(204).send();
+        });
+        scope.get("/admin/clinic-payments", async () => desk.list(admin.clinicId, now()));
+        scope.post("/admin/clinic-payments", async (req, reply) =>
+          reply.code(201).send(await desk.register(admin.clinicId, req.body, now())),
+        );
+        scope.post<Id>("/admin/clinic-payments/:id/void", async (req, reply) => {
+          await desk.void(admin.clinicId, req.params.id, now());
+          return reply.code(204).send();
+        });
       }
 
       const recall = admin.recall;

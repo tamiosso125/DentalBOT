@@ -15,6 +15,7 @@ import type { WhatsAppEvent } from "../whatsapp/index.js";
 import type { PanelQueries } from "../panel/panel-queries.js";
 import { BillingError, type Billing } from "../panel/billing.js";
 import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
+import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData } from "../panel/patient-data.js";
@@ -155,8 +156,32 @@ function stubReport() {
   return { report, calls };
 }
 
+function stubDesk() {
+  const calls: unknown[][] = [];
+  const desk: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["clinicPayments"] = {
+    receiveInstallment: async (...a) => {
+      calls.push(["receive", ...a]);
+      if (a[1] === "missing") throw new ClinicPaymentError(404, "Parcela não encontrada.");
+      if (a[1] === "asaas") throw new ClinicPaymentError(502, "Asaas fora do ar.");
+    },
+    register: async (...a) => {
+      calls.push(["register", ...a]);
+      return { id: "cp1" };
+    },
+    list: async (...a) => {
+      calls.push(["list", ...a]);
+      return [];
+    },
+    void: async (...a) => {
+      calls.push(["void", ...a]);
+    },
+  };
+  return { desk, calls };
+}
+
 function setup() {
   const { panel, calls } = stubPanel();
+  const desk = stubDesk();
   const report = stubReport();
   const recall = stubRecall();
   const billing = stubBilling();
@@ -196,6 +221,7 @@ function setup() {
       survey: ctx.survey,
       insurance: ctx.insurance,
       report: report.report,
+      clinicPayments: desk.desk,
       now: () => NOW,
     },
   });
@@ -212,6 +238,7 @@ function setup() {
     billingCalls: billing.calls,
     recallCalls: recall.calls,
     reportCalls: report.calls,
+    deskCalls: desk.calls,
   };
 }
 
@@ -807,6 +834,50 @@ describe("admin surveys API", () => {
       month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
       low: [],
     });
+  });
+});
+
+describe("admin clinic payments API", () => {
+  const auth = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token", async () => {
+    const { app, deskCalls } = setup();
+    for (const [method, url] of [
+      ["POST", "/admin/installments/i1/receive"],
+      ["GET", "/admin/clinic-payments"],
+      ["POST", "/admin/clinic-payments"],
+      ["POST", "/admin/clinic-payments/cp1/void"],
+    ] as const)
+      expect((await app.inject({ method, url, payload: {} })).statusCode, url).toBe(401);
+    expect(deskCalls).toEqual([]);
+  });
+
+  it("passes the clinic, the body and now, and maps the errors", async () => {
+    const { app, deskCalls } = setup();
+    const body = { method: "CASH", date: "2026-10-19" };
+    const post = (url: string, payload: Record<string, unknown> = body) =>
+      app.inject({ method: "POST", url, headers: auth, payload });
+    expect((await post("/admin/installments/i1/receive")).statusCode).toBe(204);
+    const missing = await post("/admin/installments/missing/receive");
+    expect([missing.statusCode, missing.json()]).toEqual([
+      404,
+      { error: "Parcela não encontrada." },
+    ]);
+    expect((await post("/admin/installments/asaas/receive")).statusCode).toBe(502);
+    const created = await post("/admin/clinic-payments", { patientId: "p1" });
+    expect([created.statusCode, created.json()]).toEqual([201, { id: "cp1" }]);
+    expect(
+      (await app.inject({ method: "GET", url: "/admin/clinic-payments", headers: auth })).json(),
+    ).toEqual([]);
+    expect((await post("/admin/clinic-payments/cp1/void", {})).statusCode).toBe(204);
+    expect(deskCalls).toEqual([
+      ["receive", CLINIC_ID, "i1", body, NOW],
+      ["receive", CLINIC_ID, "missing", body, NOW],
+      ["receive", CLINIC_ID, "asaas", body, NOW],
+      ["register", CLINIC_ID, { patientId: "p1" }, NOW],
+      ["list", CLINIC_ID, NOW],
+      ["void", CLINIC_ID, "cp1", NOW],
+    ]);
   });
 });
 

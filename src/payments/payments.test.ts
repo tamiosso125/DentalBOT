@@ -44,6 +44,22 @@ describe("Asaas gateway", () => {
     ]);
   });
 
+  it("settles a charge received at the clinic without notifying the patient", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ id: "pay_1", status: "RECEIVED_IN_CASH" }));
+    const gw = new AsaasHttpGateway("key_test", "https://api-sandbox.asaas.com/v3", fetchImpl);
+    await gw.receiveInCash("pay_1", "2026-10-20", 15050);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect([url, init.method]).toEqual([
+      "https://api-sandbox.asaas.com/v3/payments/pay_1/receiveInCash",
+      "POST",
+    ]);
+    expect(JSON.parse(init.body as string)).toEqual({
+      paymentDate: "2026-10-20",
+      value: 150.5,
+      notifyCustomer: false,
+    });
+  });
+
   it("mock gateway works without an account", async () => {
     const gw = new MockPaymentsGateway();
     const { id } = await gw.createCustomer({
