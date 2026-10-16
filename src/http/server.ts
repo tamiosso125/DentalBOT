@@ -23,6 +23,7 @@ import { QuoteValidationError, type QuoteService } from "../quotes/quote-service
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
 import type { PatientRecords } from "../panel/patient-record.js";
+import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
 import {
   isValidSignature,
   normalizeWebhook,
@@ -67,6 +68,8 @@ export type ServerDeps = {
     report?: MonthlyReports;
     /** Patient record ("Ficha do paciente"). Absent = route not registered. */
     records?: PatientRecords;
+    /** Staff notes on the patient record. Absent = routes not registered. */
+    notes?: Pick<PatientNotes, "list" | "add" | "remove">;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
     /** Post-procedure follow-ups and help requests. Absent = route not registered. */
@@ -194,7 +197,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof RecallError ||
           err instanceof WaitlistError ||
           err instanceof InsuranceError ||
-          err instanceof ClinicPaymentError
+          err instanceof ClinicPaymentError ||
+          err instanceof PatientNoteError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -389,6 +393,26 @@ export function buildServer(deps: ServerDeps) {
             admin.now?.() ?? new Date(),
           );
           return r ? r : reply.code(404).send();
+        });
+      }
+
+      const notes = admin.notes;
+      if (notes) {
+        type P = { Params: { id: string } };
+        type N = { Params: { id: string; noteId: string } };
+        scope.get<P>("/admin/patients/:id/notes", async (req) =>
+          notes.list(admin.clinicId, req.params.id),
+        );
+        scope.post<P>("/admin/patients/:id/notes", async (req, reply) =>
+          reply
+            .code(201)
+            .send(
+              await notes.add(admin.clinicId, req.params.id, req.body, admin.now?.() ?? new Date()),
+            ),
+        );
+        scope.post<N>("/admin/patients/:id/notes/:noteId/delete", async (req, reply) => {
+          await notes.remove(admin.clinicId, req.params.id, req.params.noteId);
+          return reply.code(204).send();
         });
       }
 

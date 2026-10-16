@@ -120,6 +120,15 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
     await db.waitlistEntry.create({
       data: { clinicId, patientId, procedureId, until: new Date("2026-10-31T03:00:00Z") },
     });
+    await db.patientNote.create({
+      data: {
+        clinicId,
+        patientId,
+        author: "DENTIST",
+        textEncrypted: cipher.encrypt("Tem medo de agulha"),
+        createdAt: new Date("2026-10-01T15:00:00Z"),
+      },
+    });
     const quote = await db.quote.create({
       data: {
         clinicId,
@@ -172,6 +181,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
 
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
+      await db.patientNote.deleteMany({ where: { clinicId: id } });
       await db.dataSubjectRequest.deleteMany({ where: { clinicId: id } });
       await db.message.deleteMany({ where: { conversation: { clinicId: id } } });
       await db.conversation.deleteMany({ where: { clinicId: id } });
@@ -255,6 +265,9 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         answeredAt: "2026-10-02T14:30:00.000Z",
       },
     ]);
+    expect(out.notes).toEqual([
+      { author: "DENTIST", text: "Tem medo de agulha", createdAt: "2026-10-01T15:00:00.000Z" },
+    ]);
     expect(out.quotes).toMatchObject([
       { notes: "Tratamento em duas sessões", installments: [{ number: 1, status: "PENDING" }] },
     ]);
@@ -306,6 +319,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       include: { installments: true },
     });
     expect(quote).toMatchObject({ notes: null, totalCents: 300_00 });
+    expect(await db.patientNote.count({ where: { patientId } })).toBe(0);
     expect(quote.installments).toMatchObject([{ status: "PAID", amountCents: 300_00 }]);
     const convs = await db.conversation.findMany({
       where: { id: { in: patientConversationIds } },

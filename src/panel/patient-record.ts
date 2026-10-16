@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { maskPhone, type FieldCipher } from "../privacy/index.js";
+import type { PatientNote } from "./patient-notes.js";
 
 /**
  * Patient record for the staff panel: everything the clinic has about one patient on one
@@ -65,6 +66,8 @@ export type PatientRecord = {
   }>;
   /** Entries still waiting for a slot. */
   waitlist: Array<{ id: string; procedure: string; until: string }>;
+  /** Staff notes, newest first, at most 200. Panel only: the bot never reads them. */
+  notes: PatientNote[];
 };
 
 const OPEN = ["PENDING", "BILLED", "OVERDUE"] as const;
@@ -98,7 +101,7 @@ export class PrismaPatientRecords implements PatientRecords {
     });
     if (!p) return null;
 
-    const [consent, conversation, statusCounts, appointments, quotes, payments, waitlist] =
+    const [consent, conversation, statusCounts, appointments, quotes, payments, waitlist, notes] =
       await Promise.all([
         this.db.consent.findFirst({
           where: { patientId, purpose: "MARKETING" },
@@ -157,6 +160,12 @@ export class PrismaPatientRecords implements PatientRecords {
           where: { clinicId, patientId, status: "WAITING", until: { gt: now } },
           orderBy: { createdAt: "asc" },
           select: { id: true, until: true, procedure: { select: { name: true } } },
+        }),
+        this.db.patientNote.findMany({
+          where: { clinicId, patientId },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+          select: { id: true, author: true, textEncrypted: true, createdAt: true },
         }),
       ]);
 
@@ -240,6 +249,12 @@ export class PrismaPatientRecords implements PatientRecords {
         id: w.id,
         procedure: w.procedure.name,
         until: w.until.toISOString(),
+      })),
+      notes: notes.map((n) => ({
+        id: n.id,
+        author: n.author,
+        text: this.cipher.decrypt(n.textEncrypted),
+        createdAt: n.createdAt.toISOString(),
       })),
     };
   }

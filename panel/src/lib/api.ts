@@ -13,7 +13,7 @@ import type { RecallList } from "./recall";
 import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
 import type { AftercareSummary } from "./aftercare";
-import type { PatientRecord } from "./patient-record";
+import type { NoteAuthor, PatientRecord } from "./patient-record";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -149,6 +149,17 @@ export const api = {
   patients: (q: string) => json<PatientRow[]>(`/admin/patients?q=${encodeURIComponent(q)}`),
   patientRecord: (id: string) =>
     json<PatientRecord>(`/admin/patients/${encodeURIComponent(id)}/record`),
+  addPatientNote: (patientId: string, body: { author: NoteAuthor; text: string }) =>
+    json<{ id: string }>(`/admin/patients/${encodeURIComponent(patientId)}/notes`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removePatientNote: async (patientId: string, noteId: string) => {
+    await call(
+      `/admin/patients/${encodeURIComponent(patientId)}/notes/${encodeURIComponent(noteId)}/delete`,
+      { method: "POST" },
+    );
+  },
   catalog: () => json<Catalog>("/admin/catalog"),
   quotes: (status?: string) =>
     json<QuoteRow[]>(`/admin/quotes${status ? `?status=${status}` : ""}`),
