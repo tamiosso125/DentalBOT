@@ -30,6 +30,8 @@ import { QuoteFollowUps } from "./quotes/quote-follow-up.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { PrismaRecallRepository } from "./recall/prisma-recall.js";
 import { RecallService } from "./recall/recall.js";
+import { PrismaSurveyRepository } from "./survey/prisma-survey.js";
+import { SurveyService } from "./survey/survey.js";
 import { PrismaWaitlistRepository } from "./waitlist/prisma-waitlist.js";
 import { WaitlistService } from "./waitlist/waitlist.js";
 import { BullQueue, InMemoryQueue, type JobHandler, type JobQueue } from "./queue/queue.js";
@@ -195,6 +197,24 @@ export function createApp(env: Env, logger: Logger) {
       : undefined;
   waitlistTimer?.unref();
 
+  const survey = new SurveyService({
+    repo: new PrismaSurveyRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+  const runSurvey = () =>
+    survey
+      .run(new Date())
+      .catch((err: unknown) =>
+        logger.error({ err: err instanceof Error ? err.message : "unknown" }, "survey run failed"),
+      );
+  const surveyTimer =
+    env.SURVEY_INTERVAL_MINUTES > 0
+      ? setInterval(runSurvey, env.SURVEY_INTERVAL_MINUTES * 60_000)
+      : undefined;
+  surveyTimer?.unref();
+
   const ai: OrchestratorDeps | undefined =
     env.AI_MODE === "anthropic"
       ? {
@@ -222,6 +242,7 @@ export function createApp(env: Env, logger: Logger) {
       agendaFor: (clinicId) => prismaAgendaFor(db, cipher, clinicId),
       recall: recallRepo,
       waitlist,
+      survey,
       config: {
         handoffPauseMinutes: env.HANDOFF_PAUSE_MINUTES,
         privacyPolicyUrl: env.PRIVACY_POLICY_URL,
@@ -260,6 +281,7 @@ export function createApp(env: Env, logger: Logger) {
             billing: new PrismaBilling(db, cipher, payments),
             recall,
             waitlist,
+            survey,
           }
         : undefined,
   });
@@ -269,6 +291,7 @@ export function createApp(env: Env, logger: Logger) {
     if (appointmentReminderTimer) clearInterval(appointmentReminderTimer);
     if (recallTimer) clearInterval(recallTimer);
     if (waitlistTimer) clearInterval(waitlistTimer);
+    if (surveyTimer) clearInterval(surveyTimer);
     if (quoteFollowUpTimer) clearInterval(quoteFollowUpTimer);
     await server.close();
     await whatsappQueue.close();
@@ -285,6 +308,7 @@ export function createApp(env: Env, logger: Logger) {
     appointmentReminders,
     recall,
     waitlist,
+    survey,
     close,
   };
 }

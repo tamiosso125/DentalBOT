@@ -38,6 +38,7 @@ export const MESSAGES = {
     "com as informações de acesso, correção ou exclusão.",
   schedulingSoon:
     "Vou passar seu pedido de agendamento para a recepção, que confirma o melhor horário com você por aqui.",
+  surveyThanks: "Obrigado pela sua avaliação! A recepção vai ver a sua nota.",
   rescheduleSoon:
     "Vou passar seu pedido de remarcação para a recepção, que combina o novo horário com você por aqui.",
   appointmentConfirmed: (when: string) =>

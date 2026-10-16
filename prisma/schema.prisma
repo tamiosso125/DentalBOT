@@ -32,6 +32,7 @@ model Clinic {
   conversations  Conversation[]
   dataRequests   DataSubjectRequest[]
   waitlist       WaitlistEntry[]
+  surveys        SatisfactionSurvey[]
 }
 
 model Dentist {
@@ -143,13 +144,14 @@ model Patient {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  clinic        Clinic          @relation(fields: [clinicId], references: [id])
-  insurancePlan InsurancePlan?  @relation(fields: [insurancePlanId], references: [id])
+  clinic        Clinic               @relation(fields: [clinicId], references: [id])
+  insurancePlan InsurancePlan?       @relation(fields: [insurancePlanId], references: [id])
   consents      Consent[]
   appointments  Appointment[]
   quotes        Quote[]
   conversations Conversation[]
   waitlist      WaitlistEntry[]
+  surveys       SatisfactionSurvey[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -206,14 +208,34 @@ model Appointment {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  clinic    Clinic    @relation(fields: [clinicId], references: [id])
-  patient   Patient   @relation(fields: [patientId], references: [id])
-  dentist   Dentist   @relation(fields: [dentistId], references: [id])
-  procedure Procedure @relation(fields: [procedureId], references: [id])
+  clinic    Clinic              @relation(fields: [clinicId], references: [id])
+  patient   Patient             @relation(fields: [patientId], references: [id])
+  dentist   Dentist             @relation(fields: [dentistId], references: [id])
+  procedure Procedure           @relation(fields: [procedureId], references: [id])
+  survey    SatisfactionSurvey?
 
   @@index([dentistId, startsAt])
   @@index([patientId])
   @@index([status, startsAt])
+}
+
+/// One satisfaction question per attended appointment, sent the day after (pesquisa_satisfacao).
+model SatisfactionSurvey {
+  id            String    @id @default(cuid())
+  clinicId      String
+  appointmentId String    @unique
+  patientId     String
+  sentAt        DateTime
+  /// 1 (worst) to 5 (best); null until the patient taps a button.
+  rating        Int?
+  answeredAt    DateTime?
+
+  clinic      Clinic      @relation(fields: [clinicId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient     Patient     @relation(fields: [patientId], references: [id])
+
+  @@index([clinicId, sentAt])
+  @@index([patientId, sentAt])
 }
 
 enum WaitlistStatus {
@@ -347,18 +369,18 @@ enum PaymentMethod {
 }
 
 model Installment {
-  id             String            @id @default(cuid())
-  quoteId        String
-  number         Int
-  amountCents    Int
-  dueDate        DateTime          @db.Date
-  status         InstallmentStatus @default(PENDING)
-  paymentMethod  PaymentMethod?
+  id              String            @id @default(cuid())
+  quoteId         String
+  number          Int
+  amountCents     Int
+  dueDate         DateTime          @db.Date
+  status          InstallmentStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
   /// Asaas payment id (pay_...).
-  asaasPaymentId String?           @unique
-  paidAt         DateTime?
+  asaasPaymentId  String?           @unique
+  paidAt          DateTime?
   /// When the WhatsApp reminder with the payment link went out (one per installment).
-  reminderSentAt DateTime?
+  reminderSentAt  DateTime?
   /// When the "your installment is past due" notice went out (one per installment).
   overdueNoticeAt DateTime?
 

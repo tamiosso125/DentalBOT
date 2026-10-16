@@ -69,9 +69,10 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         },
       })
     ).id;
+    const apptIds: string[] = [];
     for (const startsAt of ["2026-10-01T13:00:00Z", "2026-10-21T13:00:00Z"]) {
       const s = new Date(startsAt);
-      await db.appointment.create({
+      const appt = await db.appointment.create({
         data: {
           clinicId,
           patientId,
@@ -82,7 +83,18 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
           status: "CONFIRMED",
         },
       });
+      apptIds.push(appt.id);
     }
+    await db.satisfactionSurvey.create({
+      data: {
+        clinicId,
+        patientId,
+        appointmentId: apptIds[0]!,
+        sentAt: new Date("2026-10-02T14:00:00Z"),
+        rating: 4,
+        answeredAt: new Date("2026-10-02T15:00:00Z"),
+      },
+    });
     await db.waitlistEntry.create({
       data: { clinicId, patientId, procedureId, until: new Date("2026-10-31T03:00:00Z") },
     });
@@ -130,6 +142,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       await db.conversation.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.waitlistEntry.deleteMany({ where: { clinicId: id } });
+      await db.satisfactionSurvey.deleteMany({ where: { clinicId: id } });
       await db.appointment.deleteMany({ where: { clinicId: id } });
       await db.consent.deleteMany({ where: { patient: { clinicId: id } } });
       await db.patient.deleteMany({ where: { clinicId: id } });
@@ -167,6 +180,14 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
     expect(out.appointments).toHaveLength(2);
     expect(out.waitlist).toEqual([
       expect.objectContaining({ procedure: "Limpeza", status: "WAITING", closedAt: null }),
+    ]);
+    expect(out.surveys).toEqual([
+      {
+        appointmentAt: "2026-10-01T13:00:00.000Z",
+        sentAt: "2026-10-02T14:00:00.000Z",
+        rating: 4,
+        answeredAt: "2026-10-02T15:00:00.000Z",
+      },
     ]);
     expect(out.quotes).toMatchObject([
       { notes: "Tratamento em duas sessões", installments: [{ number: 1, status: "PENDING" }] },

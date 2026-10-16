@@ -51,6 +51,14 @@ Quem quer um horário mais cedo do que os livres entra na lista de espera de um 
 WAITLIST_INTERVAL_MINUTES=5   # 0 desliga
 ```
 
+### Pesquisa de satisfação
+
+Depois que a recepção marca "Compareceu" no painel, o paciente recebe no dia seguinte, entre 10h e 19h (fuso da clínica), o template `pesquisa_satisfacao` com as notas de 1 a 5 em botões. Vai no máximo uma pesquisa por paciente a cada 30 dias, nunca depois de falta, e não sai enquanto a recepção estiver conversando com o paciente; se a marcação atrasar, a pesquisa ainda vai até 3 dias depois da consulta. A nota vale mesmo com a recepção na conversa e só conta uma vez. Nota 1 ou 2 responde com um pedido de desculpas e chama a recepção. O painel mostra, na Agenda, a nota média do mês, quantos responderam e as notas baixas dos últimos 30 dias. A pesquisa não pede comentário escrito: um texto livre seria confundido com as mensagens normais do paciente. Para mudar a frequência:
+
+```bash
+SURVEY_INTERVAL_MINUTES=60   # 0 desliga
+```
+
 ## Orçamentos
 
 A dentista monta (pelo painel ou pela API) o orçamento e o bot manda o PDF pelo WhatsApp. Se o paciente escreveu nas últimas 24 h, vão o PDF e os botões Aprovar / Não aprovar; senão vai o template `orcamento_disponivel`, e o botão "Ver orçamento" traz o PDF. Na aprovação o bot registra as parcelas, cria uma cobrança no Asaas para cada uma e manda ao paciente o link da primeira, onde ele escolhe Pix, boleto ou cartão. Se o paciente não tem CPF no cadastro (o Asaas exige) ou o Asaas falhar, a aprovação fica registrada e a recepção é chamada para cobrar. Com `ASAAS_ENV=mock` as cobranças são simuladas.
@@ -137,7 +145,7 @@ O topo da página lista o que ainda falta para o bot conseguir marcar consultas.
 
 O paciente pede acesso ou exclusão escrevendo MEUS DADOS no WhatsApp, ou por outro canal. Os pedidos aparecem no painel em "Dados (LGPD)", onde a recepção:
 
-- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
+- baixa a cópia dos dados em JSON (cadastro, consentimentos, consultas, lista de espera, notas da pesquisa de satisfação, orçamentos, pagamentos e conversas, com CPF e celular completos) para entregar ao próprio paciente;
 - anonimiza: apaga nome, celular, CPF, nascimento, carteirinha, observações dos orçamentos e o texto das mensagens, e cancela as consultas futuras e a lista de espera. Orçamentos, parcelas e pagamentos ficam, sem identificar a pessoa, porque a clínica precisa guardá-los. Com parcela em aberto a anonimização é recusada até a quitação ou o cancelamento da cobrança. O cliente no Asaas não é apagado: isso é feito no painel do Asaas.
 
 A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD para a resposta completa é de 15 dias.

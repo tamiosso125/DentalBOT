@@ -180,6 +180,7 @@ function setup() {
       billing: billing.billing,
       recall: recall.recall,
       waitlist: ctx.waitlist,
+      survey: ctx.survey,
       now: () => NOW,
     },
   });
@@ -770,5 +771,22 @@ describe("admin waitlist API", () => {
       app.inject({ method: "POST", url: `/admin/waitlist/${id}/remove`, headers: auth });
     expect((await remove(created.json().id)).statusCode).toBe(204);
     expect((await remove(created.json().id)).statusCode).toBe(404);
+  });
+});
+
+describe("admin surveys API", () => {
+  it("requires the bearer token and returns the clinic's summary", async () => {
+    const { app } = setup();
+    expect((await app.inject({ method: "GET", url: "/admin/surveys" })).statusCode).toBe(401);
+    const res = await app.inject({
+      method: "GET",
+      url: "/admin/surveys",
+      headers: { authorization: `Bearer ${ADMIN}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      month: { sent: 0, answers: 0, average: null, byRating: [0, 0, 0, 0, 0] },
+      low: [],
+    });
   });
 });

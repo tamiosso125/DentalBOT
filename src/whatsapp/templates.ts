@@ -76,6 +76,15 @@ export const TEMPLATES = {
     params: ["primeiro_nome", "procedimento", "clinica", "data_hora"],
     buttons: ["Quero esse horário", "Não, obrigado"],
   },
+  /** The day after an attended appointment, at most once a month per patient. */
+  pesquisa_satisfacao: {
+    name: "pesquisa_satisfacao",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Obrigado por vir à {{2}} em {{3}}. Queremos saber como foi o seu atendimento: de 1 a 5, que nota você dá?",
+    params: ["primeiro_nome", "clinica", "data"],
+    buttons: ["5 - Excelente", "4 - Bom", "3 - Regular", "2 - Ruim", "1 - Péssimo"],
+  },
   /** Marketing: only to patients with a recorded consent who did not reply "PARAR" since. */
   convite_retorno: {
     name: "convite_retorno",

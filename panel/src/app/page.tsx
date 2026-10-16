@@ -10,6 +10,7 @@ import {
   groupByDay,
 } from "@/lib/format";
 import Link from "next/link";
+import { answerRate, averageLabel, RATING_LABEL } from "@/lib/survey";
 import { markAttendance } from "./consultas/actions";
 import { Nav } from "./nav";
 
@@ -47,12 +48,14 @@ export default async function AgendaPage({
             }`
           : null;
   const from = de && /^\d{4}-\d{2}-\d{2}$/.test(de) ? de : dateKey(new Date());
-  const [rows, handoffs, attendance, billing] = await Promise.all([
+  const [rows, handoffs, attendance, billing, surveys] = await Promise.all([
     api.agenda(from, DAYS),
     api.handoffs(),
     api.attendance(),
     api.billingSummary(),
+    api.surveys(),
   ]);
+  const answered = answerRate(surveys.month);
   const back = de ? `/?de=${from}` : "/";
   const rate = noShowRate(attendance.month);
   const days = groupByDay(rows);
@@ -162,6 +165,55 @@ export default async function AgendaPage({
             {attendance.month.attended} atendidas · {attendance.month.noShow} faltas · taxa de falta{" "}
             {rate === null ? "-" : `${rate}%`}
           </p>
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Satisfação neste mês</h2>
+          <p style={{ marginBottom: surveys.low.length > 0 ? undefined : 0 }}>
+            Nota média {averageLabel(surveys.month.average)} · {surveys.month.answers} de{" "}
+            {surveys.month.sent} responderam{answered === null ? "" : ` (${answered}%)`}
+            {surveys.month.answers > 0 ? (
+              <span className="muted">
+                {" "}
+                · {[5, 4, 3, 2, 1].map((n) => `${n}: ${surveys.month.byRating[n - 1]}`).join(" · ")}
+              </span>
+            ) : null}
+          </p>
+          {surveys.low.length > 0 ? (
+            <>
+              <p className="muted">
+                Notas baixas dos últimos 30 dias. O bot já chamou a recepção: ligue para entender o
+                que aconteceu.
+              </p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Paciente</th>
+                      <th>Consulta</th>
+                      <th>Nota</th>
+                      <th>Respondeu</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {surveys.low.map((l) => (
+                      <tr key={l.surveyId}>
+                        <td>
+                          {l.patientName}
+                          <div className="muted">final {l.patientPhone.slice(-4)}</div>
+                        </td>
+                        <td>{formatDateTime(l.appointmentAt)}</td>
+                        <td>
+                          <span className="badge danger">{RATING_LABEL[l.rating] ?? l.rating}</span>
+                        </td>
+                        <td>{formatDateTime(l.answeredAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
         </section>
 
         <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>

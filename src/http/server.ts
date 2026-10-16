@@ -13,6 +13,7 @@ import { BillingError, installmentQuerySchema, type Billing } from "../panel/bil
 import { ClinicSetupError, type ClinicSetup } from "../panel/clinic-setup.js";
 import { PatientDataError, type PatientData, type SubjectRef } from "../panel/patient-data.js";
 import { RecallError, type RecallService } from "../recall/recall.js";
+import type { SurveyService } from "../survey/survey.js";
 import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
@@ -55,6 +56,8 @@ export type ServerDeps = {
     recall?: Pick<RecallService, "list" | "setConsent">;
     /** Waiting list ("Lista de espera"). Absent = routes not registered. */
     waitlist?: Pick<WaitlistService, "list" | "add" | "remove">;
+    /** Satisfaction survey summary. Absent = route not registered. */
+    survey?: Pick<SurveyService, "summary">;
     now?: () => Date;
   };
   /** Only set in sandbox mode outside production: exposes the fake outbox for dev tools. */
@@ -337,6 +340,12 @@ export function buildServer(deps: ServerDeps) {
           await waitlist.remove(admin.clinicId, req.params.id, now());
           return reply.code(204).send();
         });
+      }
+
+      const survey = admin.survey;
+      if (survey) {
+        const now = () => admin.now?.() ?? new Date();
+        scope.get("/admin/surveys", async () => survey.summary(admin.clinicId, now()));
       }
 
       const setup = admin.setup;

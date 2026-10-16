@@ -3,6 +3,7 @@ import type { Attendance } from "./attendance";
 import type { QuoteFollowUp } from "./quote-follow-up";
 import type { BillingSummary, Filter, InstallmentRow } from "./billing";
 import type { RecallList } from "./recall";
+import type { SurveySummary } from "./survey";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -248,6 +249,7 @@ export const api = {
   removeFromWaitlist: async (id: string) => {
     await call(`/admin/waitlist/${encodeURIComponent(id)}/remove`, { method: "POST" });
   },
+  surveys: () => json<SurveySummary>("/admin/surveys"),
   billingSummary: () => json<BillingSummary>("/admin/installments/summary"),
   paymentLink: (id: string) =>
     json<{ url: string }>(`/admin/installments/${encodeURIComponent(id)}/link`),
