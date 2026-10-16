@@ -1,0 +1,25 @@
+name: Quem faltou recebe a mensagem no dia seguinte e a recepção remarca
+description: >
+  A recepção marca "Faltou" na avaliação de terça 20/10 às 14h. No mesmo dia o bot não manda
+  nada. Na quarta às 11h ele manda uma vez o template consulta_perdida. Com a IA desligada,
+  "Marcar novo horário" passa o pedido para a recepção e pausa o bot.
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - advance_minutes: 1800
+  - clinic_marks_attendance: false
+  - run_no_show_follow_up: true
+    expect:
+      silent: true
+  - advance_minutes: 1200
+  - run_no_show_follow_up: true
+    expect:
+      contains: ["Sentimos sua falta", "terça-feira, 20/10 às 14:00", "novo horário"]
+  - advance_minutes: 60
+  - run_no_show_follow_up: true
+    expect:
+      silent: true
+  - button: "appt:{appointment}:rebook"
+    title: "Marcar novo horário"
+    expect:
+      contains: ["recepção"]
+      handoff: true

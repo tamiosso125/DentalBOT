@@ -30,6 +30,7 @@ import { QuoteFollowUps } from "./quotes/quote-follow-up.js";
 import { QuoteService } from "./quotes/quote-service.js";
 import { PrismaRecallRepository } from "./recall/prisma-recall.js";
 import { RecallService } from "./recall/recall.js";
+import { NoShowFollowUps, PrismaNoShowFollowUpRepository } from "./scheduling/no-show-follow-up.js";
 import { PrismaSurveyRepository } from "./survey/prisma-survey.js";
 import { SurveyService } from "./survey/survey.js";
 import { PrismaWaitlistRepository } from "./waitlist/prisma-waitlist.js";
@@ -140,9 +141,17 @@ export function createApp(env: Env, logger: Logger) {
     store: conversationStore,
     logger,
   });
+  const noShowFollowUps = new NoShowFollowUps({
+    repo: new PrismaNoShowFollowUpRepository(db, cipher),
+    channel,
+    store: conversationStore,
+    logger,
+  });
+  // The "we missed you" message after a no-show runs on the same timer.
   const runAppointmentReminders = () =>
     appointmentReminders
       .run(new Date())
+      .then(() => noShowFollowUps.run(new Date()))
       .catch((err: unknown) =>
         logger.error(
           { err: err instanceof Error ? err.message : "unknown" },

@@ -8,6 +8,8 @@ type StoredAppointment = Slot & {
   patientId: string;
   status: AppointmentInfo["status"];
   reminderSentAt: Date | null;
+  noShowNoticeAt?: Date | null;
+  createdAt?: Date;
 };
 
 export type MemoryAgendaSeed = {
@@ -23,7 +25,10 @@ export class InMemoryAgendaRepository implements AgendaRepository {
   readonly appointments: StoredAppointment[] = [];
   readonly patients: Array<PatientRef & { phone: string }> = [];
 
-  constructor(private readonly seed: MemoryAgendaSeed) {}
+  constructor(
+    private readonly seed: MemoryAgendaSeed,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   get clinicId() {
     return this.seed.clinicId;
@@ -64,6 +69,7 @@ export class InMemoryAgendaRepository implements AgendaRepository {
       patientId: input.patientId,
       status: "PENDING_CONFIRMATION",
       reminderSentAt: null,
+      createdAt: this.now(),
     });
     return id;
   }

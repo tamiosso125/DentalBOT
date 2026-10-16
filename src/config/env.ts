@@ -40,7 +40,7 @@ export const envSchema = z
     INSTALLMENT_REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
     /// Days after the due date to send the overdue notice (parcela_vencida), once; same timer.
     OVERDUE_NOTICE_DAYS: z.coerce.number().int().min(1).max(15).default(1),
-    /// How often the day-before appointment reminder job runs, in minutes. 0 turns it off.
+    /// How often the day-before appointment reminder job (and the no-show message) runs, in minutes. 0 turns it off.
     APPOINTMENT_REMINDER_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
     /// Months since the last visit before the recall invitation (patients with consent only).
     RECALL_AFTER_MONTHS: z.coerce.number().int().min(1).max(24).default(6),

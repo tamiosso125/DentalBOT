@@ -76,6 +76,15 @@ export const TEMPLATES = {
     params: ["primeiro_nome", "procedimento", "clinica", "data_hora"],
     buttons: ["Quero esse horário", "Não, obrigado"],
   },
+  /** Once per missed appointment, the day after, while nothing new is booked. */
+  consulta_perdida: {
+    name: "consulta_perdida",
+    category: "UTILITY",
+    language: "pt_BR",
+    body: "Olá, {{1}}! Sentimos sua falta na consulta de {{2}} na {{3}}. Quer marcar um novo horário?",
+    params: ["primeiro_nome", "data_hora", "clinica"],
+    buttons: ["Marcar novo horário", "Falar com a recepção"],
+  },
   /** The day after an attended appointment, at most once a month per patient. */
   pesquisa_satisfacao: {
     name: "pesquisa_satisfacao",

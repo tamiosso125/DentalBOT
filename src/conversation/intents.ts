@@ -24,10 +24,11 @@ export type Intent =
 
 export type MenuChoice = "agendar" | "orcamento" | "info";
 export type QuoteAction = "view" | "accept" | "reject";
-export type AppointmentAction = "confirm" | "reschedule";
+/** "rebook" = book again after a missed appointment (consulta_perdida). */
+export type AppointmentAction = "confirm" | "reschedule" | "rebook";
 
 const QUOTE_REPLY = /^quote:([\w-]{1,64}):(view|accept|reject)$/;
-const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule)$/;
+const APPOINTMENT_REPLY = /^appt:([\w-]{1,64}):(confirm|reschedule|rebook)$/;
 const WAITLIST_REPLY = /^wait:([\w-]{1,64}):(yes|no)$/;
 const SURVEY_REPLY = /^survey:([\w-]{1,64}):([1-5])$/;
 

@@ -265,6 +265,20 @@ async function appointmentAction(
     await send({ kind: "text", to: conv.contact, body: MESSAGES.rescheduleSoon });
     return handoff(conv, "appointment:reschedule", deps, at);
   }
+  if (action === "rebook") {
+    // The missed appointment stays as a no-show; this is a new booking.
+    if (deps.ai)
+      return aiTurn(
+        conv,
+        clinic,
+        "Faltei na minha última consulta e quero marcar um novo horário",
+        undefined,
+        deps,
+        at,
+      );
+    await send({ kind: "text", to: conv.contact, body: MESSAGES.schedulingSoon });
+    return handoff(conv, "appointment:rebook", deps, at);
+  }
 
   const agenda = await deps.agendaFor?.(clinic.id);
   const patient = agenda ? await agenda.buscarPaciente({ phone: conv.contact }) : null;

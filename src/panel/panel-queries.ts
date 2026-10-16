@@ -71,7 +71,14 @@ export type HandoffRow = {
 /** Past appointments the front desk has not marked yet, and this month's attendance. */
 export type Attendance = {
   pending: AgendaRow[];
-  month: { attended: number; noShow: number };
+  month: {
+    attended: number;
+    noShow: number;
+    /** "We missed you" messages sent this month (consulta_perdida). */
+    noShowNotices: number;
+    /** Of those, patients who booked again (not cancelled) after the message. */
+    rebooked: number;
+  };
 };
 
 export const agendaQuerySchema = z.strictObject({
@@ -140,13 +147,14 @@ export class PrismaPanelQueries implements PanelQueries {
       where: { id: clinicId },
       select: { timezone: true },
     });
-    if (!clinic) return { pending: [], month: { attended: 0, noShow: 0 } };
+    if (!clinic)
+      return { pending: [], month: { attended: 0, noShow: 0, noShowNotices: 0, rebooked: 0 } };
     const monthStart = zonedToUtc(
       `${dateInZone(now, clinic.timezone).slice(0, 7)}-01`,
       0,
       clinic.timezone,
     );
-    const [pending, counts] = await Promise.all([
+    const [pending, counts, notices] = await Promise.all([
       this.db.appointment.findMany({
         where: {
           clinicId,
@@ -166,11 +174,36 @@ export class PrismaPanelQueries implements PanelQueries {
         },
         _count: true,
       }),
+      this.db.appointment.findMany({
+        where: { clinicId, noShowNoticeAt: { gte: monthStart, lte: now } },
+        select: { id: true, patientId: true, noShowNoticeAt: true },
+      }),
     ]);
     const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
+    const later = notices.length
+      ? await this.db.appointment.findMany({
+          where: {
+            clinicId,
+            patientId: { in: notices.map((n) => n.patientId) },
+            status: { not: "CANCELLED" },
+            createdAt: { gte: monthStart },
+          },
+          select: { id: true, patientId: true, createdAt: true },
+        })
+      : [];
+    const rebooked = notices.filter((n) =>
+      later.some(
+        (a) => a.id !== n.id && a.patientId === n.patientId && a.createdAt > n.noShowNoticeAt!,
+      ),
+    ).length;
     return {
       pending: pending.map((a) => this.agendaRow(a)),
-      month: { attended: count("COMPLETED"), noShow: count("NO_SHOW") },
+      month: {
+        attended: count("COMPLETED"),
+        noShow: count("NO_SHOW"),
+        noShowNotices: notices.length,
+        rebooked,
+      },
     };
   }
 

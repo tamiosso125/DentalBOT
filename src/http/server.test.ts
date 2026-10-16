@@ -38,7 +38,7 @@ function stubPanel() {
     handoffs: async (...a) => (calls.push(["handoffs", ...a]), []),
     attendance: async (...a) => (
       calls.push(["attendance", ...a]),
-      { pending: [], month: { attended: 0, noShow: 0 } }
+      { pending: [], month: { attended: 0, noShow: 0, noShowNotices: 0, rebooked: 0 } }
     ),
     quoteFollowUp: async (...a) => (
       calls.push(["quoteFollowUp", ...a]),
@@ -498,7 +498,10 @@ describe("admin agenda API", () => {
   it("reads pending attendance and the month's counts for the clinic", async () => {
     const { app, panelCalls } = setup();
     const res = await app.inject({ method: "GET", url: "/admin/attendance", headers: auth });
-    expect(res.json()).toEqual({ pending: [], month: { attended: 0, noShow: 0 } });
+    expect(res.json()).toEqual({
+      pending: [],
+      month: { attended: 0, noShow: 0, noShowNotices: 0, rebooked: 0 },
+    });
     expect(panelCalls).toContainEqual(["attendance", CLINIC_ID, NOW]);
   });
 
