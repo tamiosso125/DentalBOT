@@ -205,6 +205,8 @@ model Appointment {
   status         AppointmentStatus @default(PENDING_CONFIRMATION)
   /// When the day-before reminder went out (cleared when the appointment moves).
   reminderSentAt DateTime?
+  /// When the "we missed you" message (consulta_perdida) went out after a no-show.
+  noShowNoticeAt DateTime?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 

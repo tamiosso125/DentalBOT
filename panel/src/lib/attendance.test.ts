@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMarkAttendance, noShowRate } from "./attendance";
+import { canMarkAttendance, noShowFollowUpLabel, noShowRate } from "./attendance";
 
 describe("noShowRate", () => {
   it("is null before anything is marked", () => {
@@ -27,6 +27,17 @@ describe("canMarkAttendance", () => {
     );
     expect(canMarkAttendance({ startsAt: "2026-10-20T12:00:00Z", status: "CANCELLED" }, now)).toBe(
       false,
+    );
+  });
+
+  it("sums up the bot's invitations to rebook after a no-show", () => {
+    const month = { attended: 3, noShow: 2, noShowNotices: 0, rebooked: 0 };
+    expect(noShowFollowUpLabel(month)).toBeNull();
+    expect(noShowFollowUpLabel({ ...month, noShowNotices: 1, rebooked: 1 })).toBe(
+      "1 paciente que faltou recebeu o convite para remarcar; 1 marcou de novo",
+    );
+    expect(noShowFollowUpLabel({ ...month, noShowNotices: 2, rebooked: 0 })).toBe(
+      "2 pacientes que faltaram receberam o convite para remarcar; 0 marcaram de novo",
     );
   });
 });

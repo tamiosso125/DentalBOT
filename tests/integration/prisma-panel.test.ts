@@ -145,7 +145,7 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
     const before = await panel.attendance(clinicId, now);
     expect(before.pending.map((a) => a.id)).toEqual([first!.id, second!.id, third!.id]);
     expect(before.pending[0]!.patientPhone).toBe("***0021");
-    expect(before.month).toEqual({ attended: 0, noShow: 0 });
+    expect(before.month).toEqual({ attended: 0, noShow: 0, noShowNotices: 0, rebooked: 0 });
 
     const repo = new PrismaAgendaRepository(db, cipher, clinicId, "America/Sao_Paulo");
     await repo.setAttendance(first!.id, true);
@@ -156,11 +156,41 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
     );
     const after = await panel.attendance(clinicId, now);
     expect(after.pending.map((a) => a.id)).toEqual([third!.id]);
-    expect(after.month).toEqual({ attended: 1, noShow: 1 });
+    expect(after.month).toEqual({ attended: 1, noShow: 1, noShowNotices: 0, rebooked: 0 });
     expect(await panel.attendance(otherClinicId, now)).toEqual({
       pending: [],
-      month: { attended: 0, noShow: 0 },
+      month: { attended: 0, noShow: 0, noShowNotices: 0, rebooked: 0 },
     });
+
+    // The bot sent "we missed you" for the no-show, and Maria booked again afterwards.
+    await db.appointment.update({
+      where: { id: second!.id },
+      // createdAt after the notice: the missed appointment itself never counts as rebooked.
+      data: {
+        noShowNoticeAt: new Date("2026-10-20T11:00:00Z"),
+        createdAt: new Date("2026-10-20T11:15:00Z"),
+      },
+    });
+    expect((await panel.attendance(clinicId, now)).month).toMatchObject({
+      noShowNotices: 1,
+      rebooked: 0,
+    });
+    const again = await db.appointment.create({
+      data: {
+        clinicId,
+        patientId,
+        dentistId: old.dentistId,
+        procedureId: old.procedureId,
+        startsAt: new Date("2026-10-27T12:00:00Z"),
+        endsAt: new Date("2026-10-27T12:45:00Z"),
+        createdAt: new Date("2026-10-20T11:30:00Z"),
+      },
+    });
+    expect((await panel.attendance(clinicId, now)).month).toMatchObject({
+      noShowNotices: 1,
+      rebooked: 1,
+    });
+    await db.appointment.delete({ where: { id: again.id } });
     await db.appointment.delete({ where: { id: old.id } });
   });
 });

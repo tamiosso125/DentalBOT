@@ -1,0 +1,41 @@
+name: Com a IA ligada, quem faltou marca um novo horário pela conversa
+description: >
+  Depois da falta de terça, o paciente toca "Marcar novo horário" na mensagem de quarta e o
+  atendente oferece os horários livres. A consulta perdida continua como falta e uma nova é
+  marcada.
+ai: true
+steps:
+  - clinic_books: { procedureId: proc_avaliacao, at: "2026-10-20T14:00" }
+  - advance_minutes: 1800
+  - clinic_marks_attendance: false
+  - advance_minutes: 1200
+  - run_no_show_follow_up: true
+    expect:
+      contains: ["Sentimos sua falta"]
+  - button: "appt:{appointment}:rebook"
+    title: "Marcar novo horário"
+    model:
+      route: agenda
+      replies:
+        - tool: listar_horarios
+          input: { procedimento: "avaliação", a_partir_de: "2026-10-22" }
+        - text: "Sem problema! Escolha um novo horário para a sua avaliação na lista abaixo."
+    expect:
+      list: true
+      contains: ["qui 22/10 08:00"]
+      handoff: false
+  - list: "slot:1"
+    title: "qui 22/10 08:00"
+    model:
+      replies:
+        - text: "Confirma a avaliação na quinta-feira, 22/10 às 08:00?"
+  - patient: "sim"
+    model:
+      route: agenda
+      replies:
+        - tool: reservar
+          input: { opcao: 1 }
+        - text: "Pronto! Sua avaliação está marcada para quinta-feira, 22/10 às 08:00."
+    expect:
+      contains: ["quinta-feira, 22/10 às 08:00"]
+      appointments: 2

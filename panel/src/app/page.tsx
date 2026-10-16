@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { noShowRate } from "@/lib/attendance";
+import { noShowFollowUpLabel, noShowRate } from "@/lib/attendance";
 import {
   APPOINTMENT_STATUS,
   dateKey,
@@ -58,6 +58,7 @@ export default async function AgendaPage({
   const answered = answerRate(surveys.month);
   const back = de ? `/?de=${from}` : "/";
   const rate = noShowRate(attendance.month);
+  const followUp = noShowFollowUpLabel(attendance.month);
   const days = groupByDay(rows);
   const shift = (n: number) => {
     const d = new Date(`${from}T12:00:00Z`);
@@ -164,6 +165,7 @@ export default async function AgendaPage({
           <p style={{ marginBottom: 0 }}>
             {attendance.month.attended} atendidas · {attendance.month.noShow} faltas · taxa de falta{" "}
             {rate === null ? "-" : `${rate}%`}
+            {followUp ? <span className="muted"> · {followUp}</span> : null}
           </p>
         </section>
 

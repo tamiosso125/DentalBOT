@@ -16,6 +16,10 @@ import {
 } from "../../src/scheduling/appointment-reminders.js";
 import { InMemoryRecallRepository } from "../../src/recall/memory-recall.js";
 import { RecallService } from "../../src/recall/recall.js";
+import {
+  InMemoryNoShowFollowUpRepository,
+  NoShowFollowUps,
+} from "../../src/scheduling/no-show-follow-up.js";
 import { InMemorySurveyRepository } from "../../src/survey/memory-survey.js";
 import { SurveyService } from "../../src/survey/survey.js";
 import { InMemoryWaitlistRepository } from "../../src/waitlist/memory-waitlist.js";
@@ -63,7 +67,7 @@ export function makeDeps(
   });
   const channel = new SandboxChannel();
   const clock = { now: opts.now ?? new Date("2026-10-19T12:00:00Z") };
-  const agendaRepo = new InMemoryAgendaRepository(demoAgendaSeed(CLINIC_ID));
+  const agendaRepo = new InMemoryAgendaRepository(demoAgendaSeed(CLINIC_ID), () => clock.now);
   const agenda = new AgendaService(agendaRepo, { now: () => clock.now });
   const seed = demoAgendaSeed(CLINIC_ID);
   const quoteRepo = new InMemoryQuoteRepository({
@@ -111,6 +115,12 @@ export function makeDeps(
   const agendaFor = async (clinicId: string) => (clinicId === CLINIC_ID ? agenda : null);
   const appointmentReminders = new AppointmentReminders({
     repo: new InMemoryAppointmentReminderRepository(agendaRepo, "Clínica Sorriso"),
+    channel,
+    store,
+    logger: silentLogger,
+  });
+  const noShowFollowUps = new NoShowFollowUps({
+    repo: new InMemoryNoShowFollowUpRepository(agendaRepo, "Clínica Sorriso"),
     channel,
     store,
     logger: silentLogger,
@@ -176,6 +186,7 @@ export function makeDeps(
     agenda,
     agendaRepo,
     appointmentReminders,
+    noShowFollowUps,
     recall,
     recallRepo,
     waitlist,
