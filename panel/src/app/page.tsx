@@ -12,6 +12,14 @@ import {
 import Link from "next/link";
 import { answerRate, averageLabel, RATING_LABEL } from "@/lib/survey";
 import { aftercareLine } from "@/lib/aftercare";
+import {
+  agendaHref,
+  dentistsOf,
+  filterAgenda,
+  isFiltered,
+  parseAgendaFilter,
+  STATUS_FILTERS,
+} from "@/lib/agenda-filter";
 import { markAttendance } from "./consultas/actions";
 import { Nav } from "./nav";
 
@@ -29,9 +37,13 @@ export default async function AgendaPage({
     cancelada?: string;
     presenca?: string;
     aviso?: string;
+    dentista?: string;
+    situacao?: string;
   }>;
 }) {
-  const { de, marcada, remarcada, cancelada, presenca, aviso } = await searchParams;
+  const { de, marcada, remarcada, cancelada, presenca, aviso, dentista, situacao } =
+    await searchParams;
+  const filter = parseAgendaFilter({ dentista, situacao });
   const done = marcada ?? remarcada;
   const notice = aviso
     ? aviso
@@ -64,7 +76,7 @@ export default async function AgendaPage({
   const back = de ? `/?de=${from}` : "/";
   const rate = noShowRate(attendance.month);
   const followUp = noShowFollowUpLabel(attendance.month);
-  const days = groupByDay(rows);
+  const days = groupByDay(filterAgenda(rows, filter));
   const shift = (n: number) => {
     const d = new Date(`${from}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -286,17 +298,51 @@ export default async function AgendaPage({
             <Link className="button" href="/consultas/nova">
               Marcar consulta
             </Link>
-            <a className="button secondary" href={`/?de=${shift(-DAYS)}`}>
+            <a className="button secondary" href={agendaHref(shift(-DAYS), filter)}>
               Semana anterior
             </a>
-            <a className="button secondary" href={`/?de=${shift(DAYS)}`}>
+            <a className="button secondary" href={agendaHref(shift(DAYS), filter)}>
               Próxima semana
             </a>
           </div>
         </div>
 
+        <form method="get" className="card" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input type="hidden" name="de" value={from} />
+          <label>
+            Dentista{" "}
+            <select name="dentista" defaultValue={filter.dentist ?? ""}>
+              <option value="">Todos</option>
+              {dentistsOf(rows).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Situação{" "}
+            <select name="situacao" defaultValue={filter.status ?? ""}>
+              <option value="">Todas</option>
+              {Object.entries(STATUS_FILTERS).map(([key, { label }]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="button secondary">
+            Filtrar
+          </button>
+          {isFiltered(filter) ? <a href={`/?de=${from}`}>Limpar filtro</a> : null}
+        </form>
+
         {days.length === 0 ? (
-          <p className="card muted">Nenhuma consulta nos próximos {DAYS} dias.</p>
+          <p className="card muted">
+            {isFiltered(filter)
+              ? "Nenhuma consulta com esse filtro nos próximos dias."
+              : `Nenhuma consulta nos próximos ${DAYS} dias.`}
+          </p>
         ) : (
           days.map(({ day, items }) => (
             <section key={day} className="card">
