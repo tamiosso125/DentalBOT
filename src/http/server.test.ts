@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { PatientNoteError } from "../panel/patient-notes.js";
+import { AttendanceCertificateError } from "../panel/attendance-certificate.js";
 import { ClinicalRecordError } from "../panel/clinical-record.js";
 import { MedicalHistoryError } from "../panel/medical-history.js";
 import { StaffError, type StaffActor } from "../staff/staff.js";
@@ -235,6 +236,23 @@ function stubClinicalRecords() {
   return { clinicalRecords, calls };
 }
 
+function stubCertificates() {
+  const calls: unknown[][] = [];
+  const certificates: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["certificates"] = {
+    pdf: async (...a) => {
+      calls.push(["pdf", ...a]);
+      if (a[1] === "nope") throw new AttendanceCertificateError(404, "Consulta não encontrada.");
+      if (a[1] === "agendada")
+        throw new AttendanceCertificateError(
+          422,
+          "O atestado só sai depois de marcar que o paciente compareceu.",
+        );
+      return Buffer.from("%PDF-1.3 stub");
+    },
+  };
+  return { certificates, calls };
+}
+
 function stubAccessLog() {
   const calls: unknown[][] = [];
   let failing = false;
@@ -323,6 +341,7 @@ function setup() {
   const notes = stubNotes();
   const history = stubMedicalHistory();
   const clinical = stubClinicalRecords();
+  const certs = stubCertificates();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -368,6 +387,7 @@ function setup() {
       notes: notes.notes,
       medicalHistory: history.medicalHistory,
       clinicalRecords: clinical.clinicalRecords,
+      certificates: certs.certificates,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -392,6 +412,7 @@ function setup() {
     noteCalls: notes.calls,
     historyCalls: history.calls,
     clinicalCalls: clinical.calls,
+    certCalls: certs.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -1078,6 +1099,42 @@ describe("admin medical history API", () => {
       ["record", CLINIC_ID, "VIEW_MEDICAL_HISTORY", "pat_1", NOW],
       ["record", CLINIC_ID, "SET_MEDICAL_HISTORY", "pat_1", NOW],
     ]);
+  });
+});
+
+describe("admin attendance certificate API", () => {
+  const url = "/admin/appointments/a1/attendance-certificate";
+  const headers = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token and serves the PDF, recording who issued it", async () => {
+    const { app, certCalls, access } = setup();
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    const res = await app.inject({ method: "GET", url, headers });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain("atestado-a1.pdf");
+    expect(res.body.startsWith("%PDF-")).toBe(true);
+    expect(certCalls).toEqual([["pdf", CLINIC_ID, "a1", NOW]]);
+    expect(access.calls).toEqual([
+      ["record", CLINIC_ID, "ISSUE_ATTENDANCE_CERTIFICATE", "a1", NOW],
+    ]);
+  });
+
+  it("passes the 404 and the 422 through and records nothing", async () => {
+    const { app, access } = setup();
+    const get = (id: string) =>
+      app.inject({
+        method: "GET",
+        url: `/admin/appointments/${id}/attendance-certificate`,
+        headers,
+      });
+    expect((await get("nope")).statusCode).toBe(404);
+    const early = await get("agendada");
+    expect(early.statusCode).toBe(422);
+    expect(early.json()).toEqual({
+      error: "O atestado só sai depois de marcar que o paciente compareceu.",
+    });
+    expect(access.calls).toEqual([]);
   });
 });
 

@@ -40,6 +40,10 @@ export const AUDITED: Record<string, AuditRule> = {
   "POST /admin/patients/:id/insurance": { action: "SET_INSURANCE", patient: "param" },
   "POST /admin/recall/:id/consent": { action: "SET_CONSENT", patient: "param" },
   "GET /admin/appointments/:id": { action: "VIEW_APPOINTMENT", target: "appointment" },
+  "GET /admin/appointments/:id/attendance-certificate": {
+    action: "ISSUE_ATTENDANCE_CERTIFICATE",
+    target: "appointment",
+  },
   "GET /admin/quotes/:id": { action: "VIEW_QUOTE", target: "quote" },
   "GET /admin/quotes/:id/pdf": { action: "VIEW_QUOTE_PDF", target: "quote" },
   "POST /admin/installments/:id/receive": { action: "RECEIVE_INSTALLMENT", target: "installment" },

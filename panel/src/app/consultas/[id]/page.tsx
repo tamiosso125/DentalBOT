@@ -162,6 +162,25 @@ export default async function AppointmentPage({
         ) : null}
 
         {a.status === "COMPLETED" ? (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Atestado de comparecimento</h2>
+            <p className="muted">
+              PDF com o nome do paciente, o dia e o horário agendado e o nome e o CRO da dentista.
+              Não leva o procedimento nem dado de saúde. Dias de afastamento ou CID são com a
+              dentista. Envie pelo WhatsApp da clínica.
+            </p>
+            <a
+              className="button secondary"
+              href={`/consultas/${encodeURIComponent(a.id)}/atestado`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Baixar atestado
+            </a>
+          </section>
+        ) : null}
+
+        {a.status === "COMPLETED" ? (
           <section className="card" id="evolucao">
             <h2 style={{ marginTop: 0 }}>Evolução clínica</h2>
             <p className="muted">
