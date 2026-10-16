@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { openClinicalEntry, type ClinicalEntryData } from "./clinical-record.js";
 import { openMedicalHistory, type MedicalHistoryData } from "./medical-history.js";
 import { maskPhone, type FieldCipher } from "../privacy/index.js";
 
@@ -92,6 +93,16 @@ export type PatientExport = {
   }>;
   /** Medical history (anamnese), every version, oldest first. */
   medicalHistory: Array<{ at: string; data: MedicalHistoryData }>;
+  /** Clinical record entries signed by the dentist, oldest first. Kept after anonymization. */
+  clinicalRecord: Array<{
+    at: string;
+    procedure: string;
+    appointmentAt: string;
+    signedBy: string | null;
+    /** True when this entry corrects an earlier one. */
+    addendum: boolean;
+    data: ClinicalEntryData;
+  }>;
   /** Staff notes on the patient record. */
   notes: Array<{ author: "RECEPTION" | "DENTIST"; text: string; createdAt: string }>;
   quotes: Array<{
@@ -306,6 +317,15 @@ export class PrismaPatientData implements PatientData {
             },
             notes: { orderBy: { createdAt: "asc" } },
             medicalHistories: { orderBy: { createdAt: "asc" } },
+            clinicalEntries: {
+              orderBy: { createdAt: "asc" },
+              include: {
+                staffUser: { select: { name: true } },
+                appointment: {
+                  select: { startsAt: true, procedure: { select: { name: true } } },
+                },
+              },
+            },
             clinicPayments: {
               where: { voidedAt: null },
               orderBy: { paidAt: "asc" },
@@ -380,6 +400,14 @@ export class PrismaPatientData implements PatientData {
       medicalHistory: (patient?.medicalHistories ?? []).map((h) => ({
         at: h.createdAt.toISOString(),
         data: openMedicalHistory(this.cipher, h.dataEncrypted),
+      })),
+      clinicalRecord: (patient?.clinicalEntries ?? []).map((e) => ({
+        at: e.createdAt.toISOString(),
+        procedure: e.appointment.procedure.name,
+        appointmentAt: e.appointment.startsAt.toISOString(),
+        signedBy: e.staffUser?.name ?? null,
+        addendum: e.amendsId !== null,
+        data: openClinicalEntry(this.cipher, e.dataEncrypted),
       })),
       notes: (patient?.notes ?? []).map((n) => ({
         author: n.author,
@@ -480,6 +508,8 @@ export class PrismaPatientData implements PatientData {
         // Staff notes may hold health information too.
         await tx.patientNote.deleteMany({ where: { patientId } });
         await tx.medicalHistory.deleteMany({ where: { patientId } });
+        // The clinical record is kept (it is the clinic's record of the treatment, a decision
+        // the clinic must confirm); with the patient anonymized above it no longer names anyone.
       }
       const { count: messages } = await tx.message.updateMany({
         where: { conversationId: { in: subject.conversationIds }, bodyEncrypted: { not: null } },

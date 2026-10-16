@@ -31,6 +31,8 @@ export const AUDITED: Record<string, AuditRule> = {
   "POST /admin/data-requests/:id/anonymize": { action: "ANONYMIZE", target: "dataRequest" },
   "GET /admin/patients/:id/medical-history": { action: "VIEW_MEDICAL_HISTORY", patient: "param" },
   "POST /admin/patients/:id/medical-history": { action: "SET_MEDICAL_HISTORY", patient: "param" },
+  "GET /admin/patients/:id/clinical-records": { action: "VIEW_CLINICAL_RECORD", patient: "param" },
+  "POST /admin/patients/:id/clinical-records": { action: "ADD_CLINICAL_ENTRY", patient: "param" },
   "GET /admin/patients/:id/notes": { action: "VIEW_NOTES", patient: "param" },
   "POST /admin/patients/:id/notes": { action: "ADD_NOTE", patient: "param" },
   "POST /admin/patients/:id/notes/:noteId/delete": { action: "DELETE_NOTE", patient: "param" },

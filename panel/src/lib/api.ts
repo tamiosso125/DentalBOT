@@ -20,6 +20,7 @@ import type { AftercareSummary } from "./aftercare";
 import type { NoteAuthor, PatientRecord } from "./patient-record";
 import type { AccessLogPage } from "./access-log";
 import type { MedicalHistoryData, MedicalHistoryView } from "./medical-history";
+import type { ClinicalEntry, ClinicalEntryBody } from "./clinical-record";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -199,6 +200,13 @@ export const api = {
     json<MedicalHistoryView>(`/admin/patients/${encodeURIComponent(patientId)}/medical-history`),
   saveMedicalHistory: (patientId: string, body: MedicalHistoryData) =>
     json<{ id: string }>(`/admin/patients/${encodeURIComponent(patientId)}/medical-history`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  clinicalRecord: (patientId: string) =>
+    json<ClinicalEntry[]>(`/admin/patients/${encodeURIComponent(patientId)}/clinical-records`),
+  addClinicalEntry: (patientId: string, body: ClinicalEntryBody) =>
+    json<{ id: string }>(`/admin/patients/${encodeURIComponent(patientId)}/clinical-records`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

@@ -48,6 +48,8 @@ export type PatientRecord = {
   medicalAlerts: string[];
   /** When the anamnese was last filled in, null if never. */
   medicalHistoryAt: string | null;
+  /** Clinical record entries signed so far (addenda included). */
+  clinicalEntries: number;
   /** Staff notes, newest first. */
   notes: Array<{
     id: string;

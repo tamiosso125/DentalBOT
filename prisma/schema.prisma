@@ -40,6 +40,7 @@ model Clinic {
   accessLogs       AccessLog[]
   staffUsers       StaffUser[]
   medicalHistories MedicalHistory[]
+  clinicalEntries  ClinicalEntry[]
 }
 
 model Dentist {
@@ -169,6 +170,7 @@ model Patient {
   clinicPayments   ClinicPayment[]
   notes            PatientNote[]
   medicalHistories MedicalHistory[]
+  clinicalEntries  ClinicalEntry[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -227,13 +229,14 @@ model Appointment {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  clinic        Clinic                  @relation(fields: [clinicId], references: [id])
-  patient       Patient                 @relation(fields: [patientId], references: [id])
-  dentist       Dentist                 @relation(fields: [dentistId], references: [id])
-  procedure     Procedure               @relation(fields: [procedureId], references: [id])
-  survey        SatisfactionSurvey?
-  authorization InsuranceAuthorization?
-  aftercare     AftercareFollowUp?
+  clinic          Clinic                  @relation(fields: [clinicId], references: [id])
+  patient         Patient                 @relation(fields: [patientId], references: [id])
+  dentist         Dentist                 @relation(fields: [dentistId], references: [id])
+  procedure       Procedure               @relation(fields: [procedureId], references: [id])
+  survey          SatisfactionSurvey?
+  authorization   InsuranceAuthorization?
+  aftercare       AftercareFollowUp?
+  clinicalEntries ClinicalEntry[]
 
   @@index([dentistId, startsAt])
   @@index([patientId])
@@ -305,6 +308,30 @@ model MedicalHistory {
   @@index([patientId, createdAt])
 }
 
+/// Clinical record entry (evolução clínica) signed by the dentist. Never updated or deleted:
+/// a correction is a new entry that points at the one it amends (amendsId).
+model ClinicalEntry {
+  id            String   @id @default(cuid())
+  clinicId      String
+  patientId     String
+  appointmentId String
+  /// Set when this entry is an addendum to an earlier one.
+  amendsId      String?
+  dataEncrypted String
+  staffUserId   String?
+  createdAt     DateTime @default(now())
+
+  clinic      Clinic          @relation(fields: [clinicId], references: [id])
+  patient     Patient         @relation(fields: [patientId], references: [id])
+  appointment Appointment     @relation(fields: [appointmentId], references: [id])
+  staffUser   StaffUser?      @relation(fields: [staffUserId], references: [id])
+  amends      ClinicalEntry?  @relation("ClinicalAmends", fields: [amendsId], references: [id])
+  addenda     ClinicalEntry[] @relation("ClinicalAmends")
+
+  @@index([patientId, createdAt])
+  @@index([appointmentId])
+}
+
 enum StaffRole {
   RECEPTION
   DENTIST
@@ -331,6 +358,7 @@ model StaffUser {
   accessLogs       AccessLog[]
   notes            PatientNote[]
   medicalHistories MedicalHistory[]
+  clinicalEntries  ClinicalEntry[]
 
   @@unique([clinicId, emailHash])
 }
@@ -359,6 +387,8 @@ enum AccessAction {
   MANAGE_STAFF
   VIEW_MEDICAL_HISTORY
   SET_MEDICAL_HISTORY
+  VIEW_CLINICAL_RECORD
+  ADD_CLINICAL_ENTRY
 }
 
 model AccessLog {

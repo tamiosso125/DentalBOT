@@ -26,6 +26,7 @@ import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
 import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
 import { StaffError, type StaffActor, type StaffService } from "../staff/staff.js";
+import { ClinicalRecordError, type ClinicalRecords } from "../panel/clinical-record.js";
 import { MedicalHistoryError, type MedicalHistories } from "../panel/medical-history.js";
 import {
   isValidSignature,
@@ -75,6 +76,8 @@ export type ServerDeps = {
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
     /** Medical history (anamnese) on the patient record. Absent = routes not registered. */
     medicalHistory?: Pick<MedicalHistories, "view" | "save">;
+    /** Clinical record entries signed by the dentist. Absent = routes not registered. */
+    clinicalRecords?: Pick<ClinicalRecords, "list" | "add">;
     /** Records access to patient data and lists it ("Acessos"). Absent = nothing recorded. */
     accessLog?: Pick<AccessLog, "record" | "list">;
     /**
@@ -232,7 +235,8 @@ export function buildServer(deps: ServerDeps) {
           err instanceof PatientNoteError ||
           err instanceof AccessLogError ||
           err instanceof StaffError ||
-          err instanceof MedicalHistoryError
+          err instanceof MedicalHistoryError ||
+          err instanceof ClinicalRecordError
         )
           return reply.code(err.status).send({ error: err.message });
         if (err instanceof BadQueryError) return reply.code(400).send({ error: "bad query" });
@@ -518,6 +522,29 @@ export function buildServer(deps: ServerDeps) {
               ),
             ),
         );
+      }
+
+      const clinical = admin.clinicalRecords;
+      if (clinical) {
+        type P = { Params: { id: string } };
+        scope.get<P>("/admin/patients/:id/clinical-records", async (req) =>
+          clinical.list(admin.clinicId, req.params.id),
+        );
+        // Signed by whoever is logged in: without a personal login there is no signature.
+        scope.post<P>("/admin/patients/:id/clinical-records", async (req, reply) => {
+          if (!req.staff) throw new ClinicalRecordError(403, "Entre com o seu login para assinar.");
+          return reply
+            .code(201)
+            .send(
+              await clinical.add(
+                admin.clinicId,
+                req.params.id,
+                req.staff,
+                req.body,
+                admin.now?.() ?? new Date(),
+              ),
+            );
+        });
       }
 
       const notes = admin.notes;

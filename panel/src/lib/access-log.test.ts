@@ -6,6 +6,7 @@ describe("access log helpers", () => {
     expect(actionLabel("VIEW_RECORD")).toBe("Abriu a ficha");
     expect(actionLabel("EXPORT_DATA")).toBe("Exportou os dados (LGPD)");
     expect(actionLabel("SET_MEDICAL_HISTORY")).toBe("Atualizou a anamnese");
+    expect(actionLabel("ADD_CLINICAL_ENTRY")).toBe("Assinou uma evolução clínica");
   });
 
   it("links to the appointment or quote, and nothing else", () => {

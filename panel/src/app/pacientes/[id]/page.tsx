@@ -147,6 +147,16 @@ export default async function PatientRecordPage({
         )}
 
         <section className="card">
+          <h2 style={{ marginTop: 0 }}>Prontuário</h2>
+          <p style={{ marginBottom: 0 }}>
+            {r.clinicalEntries === 0
+              ? "Nenhuma evolução registrada."
+              : `${r.clinicalEntries} registro${r.clinicalEntries > 1 ? "s" : ""} assinado${r.clinicalEntries > 1 ? "s" : ""} pela dentista.`}{" "}
+            <Link href={`/pacientes/${encodeURIComponent(p.id)}/prontuario`}>Abrir</Link>
+          </p>
+        </section>
+
+        <section className="card">
           <h2 style={{ marginTop: 0 }}>Consultas</h2>
           <p className="muted">{countsLabel(r.counts)}</p>
           {r.appointments.length === 0 ? (

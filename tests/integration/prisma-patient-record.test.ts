@@ -291,6 +291,7 @@ describe.skipIf(!url)("PrismaPatientRecords (Postgres)", () => {
       notes: [],
       medicalAlerts: [],
       medicalHistoryAt: null,
+      clinicalEntries: 0,
       patient: { hasCpf: false, birthDate: null },
     });
     expect(await records.record(otherClinicId, patientId, NOW)).toBeNull();
