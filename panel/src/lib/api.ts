@@ -13,6 +13,7 @@ import type { RecallList } from "./recall";
 import type { MonthlyReport } from "./report";
 import type { SurveySummary } from "./survey";
 import type { AftercareSummary } from "./aftercare";
+import type { PatientRecord } from "./patient-record";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -146,6 +147,8 @@ export const api = {
   agenda: (from: string, days: number) =>
     json<AgendaRow[]>(`/admin/agenda?from=${from}&days=${days}`),
   patients: (q: string) => json<PatientRow[]>(`/admin/patients?q=${encodeURIComponent(q)}`),
+  patientRecord: (id: string) =>
+    json<PatientRecord>(`/admin/patients/${encodeURIComponent(id)}/record`),
   catalog: () => json<Catalog>("/admin/catalog"),
   quotes: (status?: string) =>
     json<QuoteRow[]>(`/admin/quotes${status ? `?status=${status}` : ""}`),

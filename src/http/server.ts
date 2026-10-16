@@ -22,6 +22,7 @@ import { WaitlistError, type WaitlistService } from "../waitlist/waitlist.js";
 import { QuoteValidationError, type QuoteService } from "../quotes/quote-service.js";
 import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.js";
 import type { JobQueue } from "../queue/queue.js";
+import type { PatientRecords } from "../panel/patient-record.js";
 import {
   isValidSignature,
   normalizeWebhook,
@@ -64,6 +65,8 @@ export type ServerDeps = {
     clinicPayments?: Pick<ClinicPayments, "receiveInstallment" | "register" | "list" | "void">;
     /** Month at a glance for the dentist. Absent = route not registered. */
     report?: MonthlyReports;
+    /** Patient record ("Ficha do paciente"). Absent = route not registered. */
+    records?: PatientRecords;
     /** Satisfaction survey summary. Absent = route not registered. */
     survey?: Pick<SurveyService, "summary">;
     /** Post-procedure follow-ups and help requests. Absent = route not registered. */
@@ -374,6 +377,18 @@ export function buildServer(deps: ServerDeps) {
         scope.post<{ Params: { id: string } }>("/admin/waitlist/:id/remove", async (req, reply) => {
           await waitlist.remove(admin.clinicId, req.params.id, now());
           return reply.code(204).send();
+        });
+      }
+
+      const records = admin.records;
+      if (records) {
+        scope.get<{ Params: { id: string } }>("/admin/patients/:id/record", async (req, reply) => {
+          const r = await records.record(
+            admin.clinicId,
+            req.params.id,
+            admin.now?.() ?? new Date(),
+          );
+          return r ? r : reply.code(404).send();
         });
       }
 

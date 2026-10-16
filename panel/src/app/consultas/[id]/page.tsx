@@ -60,7 +60,8 @@ export default async function AppointmentPage({
       <Nav />
       <main>
         <p>
-          <Link href={`/?de=${dateKey(a.startsAt)}`}>← Agenda</Link>
+          <Link href={`/?de=${dateKey(a.startsAt)}`}>← Agenda</Link> ·{" "}
+          <Link href={`/pacientes/${encodeURIComponent(a.patientId)}`}>Ficha do paciente</Link>
         </p>
         {notice ? <p className="notice">{notice}</p> : null}
         <h1>Consulta de {a.patientName}</h1>
