@@ -23,22 +23,23 @@ model Clinic {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  dentists       Dentist[]
-  procedures     Procedure[]
-  insurancePlans InsurancePlan[]
-  patients       Patient[]
-  appointments   Appointment[]
-  quotes         Quote[]
-  conversations  Conversation[]
-  dataRequests   DataSubjectRequest[]
-  waitlist       WaitlistEntry[]
-  surveys        SatisfactionSurvey[]
-  aftercare      AftercareFollowUp[]
-  authorizations InsuranceAuthorization[]
-  clinicPayments ClinicPayment[]
-  patientNotes   PatientNote[]
-  accessLogs     AccessLog[]
-  staffUsers     StaffUser[]
+  dentists         Dentist[]
+  procedures       Procedure[]
+  insurancePlans   InsurancePlan[]
+  patients         Patient[]
+  appointments     Appointment[]
+  quotes           Quote[]
+  conversations    Conversation[]
+  dataRequests     DataSubjectRequest[]
+  waitlist         WaitlistEntry[]
+  surveys          SatisfactionSurvey[]
+  aftercare        AftercareFollowUp[]
+  authorizations   InsuranceAuthorization[]
+  clinicPayments   ClinicPayment[]
+  patientNotes     PatientNote[]
+  accessLogs       AccessLog[]
+  staffUsers       StaffUser[]
+  medicalHistories MedicalHistory[]
 }
 
 model Dentist {
@@ -155,18 +156,19 @@ model Patient {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  clinic         Clinic                   @relation(fields: [clinicId], references: [id])
-  insurancePlan  InsurancePlan?           @relation(fields: [insurancePlanId], references: [id])
-  consents       Consent[]
-  appointments   Appointment[]
-  quotes         Quote[]
-  conversations  Conversation[]
-  waitlist       WaitlistEntry[]
-  surveys        SatisfactionSurvey[]
-  aftercare      AftercareFollowUp[]
-  authorizations InsuranceAuthorization[]
-  clinicPayments ClinicPayment[]
-  notes          PatientNote[]
+  clinic           Clinic                   @relation(fields: [clinicId], references: [id])
+  insurancePlan    InsurancePlan?           @relation(fields: [insurancePlanId], references: [id])
+  consents         Consent[]
+  appointments     Appointment[]
+  quotes           Quote[]
+  conversations    Conversation[]
+  waitlist         WaitlistEntry[]
+  surveys          SatisfactionSurvey[]
+  aftercare        AftercareFollowUp[]
+  authorizations   InsuranceAuthorization[]
+  clinicPayments   ClinicPayment[]
+  notes            PatientNote[]
+  medicalHistories MedicalHistory[]
 
   @@unique([clinicId, phoneHash])
   @@index([clinicId, cpfHash])
@@ -285,6 +287,24 @@ model SatisfactionSurvey {
   @@index([patientId, sentAt])
 }
 
+/// Medical history (anamnese) filled in by the staff in the panel. Every save is a new row,
+/// so earlier versions stay; the newest is the current one. The whole form is health data:
+/// it lives encrypted as JSON (src/panel/medical-history.ts). The bot never reads it.
+model MedicalHistory {
+  id            String   @id @default(cuid())
+  clinicId      String
+  patientId     String
+  dataEncrypted String
+  staffUserId   String?
+  createdAt     DateTime @default(now())
+
+  clinic    Clinic     @relation(fields: [clinicId], references: [id])
+  patient   Patient    @relation(fields: [patientId], references: [id])
+  staffUser StaffUser? @relation(fields: [staffUserId], references: [id])
+
+  @@index([patientId, createdAt])
+}
+
 enum StaffRole {
   RECEPTION
   DENTIST
@@ -307,9 +327,10 @@ model StaffUser {
   lastLoginAt    DateTime?
   createdAt      DateTime  @default(now())
 
-  clinic     Clinic        @relation(fields: [clinicId], references: [id])
-  accessLogs AccessLog[]
-  notes      PatientNote[]
+  clinic           Clinic           @relation(fields: [clinicId], references: [id])
+  accessLogs       AccessLog[]
+  notes            PatientNote[]
+  medicalHistories MedicalHistory[]
 
   @@unique([clinicId, emailHash])
 }
@@ -336,6 +357,8 @@ enum AccessAction {
   VIEW_ACCESS_LOG
   LOGIN
   MANAGE_STAFF
+  VIEW_MEDICAL_HISTORY
+  SET_MEDICAL_HISTORY
 }
 
 model AccessLog {

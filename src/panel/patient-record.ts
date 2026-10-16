@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { maskPhone, type FieldCipher } from "../privacy/index.js";
 import type { PatientNote } from "./patient-notes.js";
+import { medicalAlerts, openMedicalHistory } from "./medical-history.js";
 
 /**
  * Patient record for the staff panel: everything the clinic has about one patient on one
@@ -68,6 +69,10 @@ export type PatientRecord = {
   waitlist: Array<{ id: string; procedure: string; until: string }>;
   /** Staff notes, newest first, at most 200. Panel only: the bot never reads them. */
   notes: PatientNote[];
+  /** From the current medical history: what the dentist must see before treating. */
+  medicalAlerts: string[];
+  /** When the medical history was last filled in; null = never. */
+  medicalHistoryAt: string | null;
 };
 
 const OPEN = ["PENDING", "BILLED", "OVERDUE"] as const;
@@ -101,79 +106,93 @@ export class PrismaPatientRecords implements PatientRecords {
     });
     if (!p) return null;
 
-    const [consent, conversation, statusCounts, appointments, quotes, payments, waitlist, notes] =
-      await Promise.all([
-        this.db.consent.findFirst({
-          where: { patientId, purpose: "MARKETING" },
-          orderBy: { createdAt: "desc" },
-          select: { granted: true, createdAt: true, source: true },
-        }),
-        this.db.conversation.findFirst({
-          where: { clinicId, contactHash: p.phoneHash },
-          select: { marketingOptOutAt: true, botPausedUntil: true },
-        }),
-        this.db.appointment.groupBy({
-          by: ["status"],
-          where: { clinicId, patientId },
-          _count: { _all: true },
-        }),
-        this.db.appointment.findMany({
-          where: { clinicId, patientId },
-          orderBy: { startsAt: "desc" },
-          take: 50,
-          select: {
-            id: true,
-            startsAt: true,
-            status: true,
-            procedure: { select: { name: true } },
-            dentist: { select: { name: true } },
-            authorization: { select: { status: true } },
-            survey: { select: { rating: true } },
-            aftercare: { select: { answer: true } },
-          },
-        }),
-        this.db.quote.findMany({
-          where: { clinicId, patientId },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-          select: {
-            id: true,
-            status: true,
-            totalCents: true,
-            createdAt: true,
-            installments: { select: { amountCents: true, status: true, dueDate: true } },
-          },
-        }),
-        this.db.clinicPayment.findMany({
-          where: { clinicId, patientId, voidedAt: null },
-          orderBy: { paidAt: "desc" },
-          take: 20,
-          select: {
-            id: true,
-            paidAt: true,
-            amountCents: true,
-            method: true,
-            procedure: { select: { name: true } },
-          },
-        }),
-        this.db.waitlistEntry.findMany({
-          where: { clinicId, patientId, status: "WAITING", until: { gt: now } },
-          orderBy: { createdAt: "asc" },
-          select: { id: true, until: true, procedure: { select: { name: true } } },
-        }),
-        this.db.patientNote.findMany({
-          where: { clinicId, patientId },
-          orderBy: { createdAt: "desc" },
-          take: 200,
-          select: {
-            id: true,
-            author: true,
-            textEncrypted: true,
-            createdAt: true,
-            staffUser: { select: { name: true } },
-          },
-        }),
-      ]);
+    const [
+      consent,
+      conversation,
+      statusCounts,
+      appointments,
+      quotes,
+      payments,
+      waitlist,
+      notes,
+      history,
+    ] = await Promise.all([
+      this.db.consent.findFirst({
+        where: { patientId, purpose: "MARKETING" },
+        orderBy: { createdAt: "desc" },
+        select: { granted: true, createdAt: true, source: true },
+      }),
+      this.db.conversation.findFirst({
+        where: { clinicId, contactHash: p.phoneHash },
+        select: { marketingOptOutAt: true, botPausedUntil: true },
+      }),
+      this.db.appointment.groupBy({
+        by: ["status"],
+        where: { clinicId, patientId },
+        _count: { _all: true },
+      }),
+      this.db.appointment.findMany({
+        where: { clinicId, patientId },
+        orderBy: { startsAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          startsAt: true,
+          status: true,
+          procedure: { select: { name: true } },
+          dentist: { select: { name: true } },
+          authorization: { select: { status: true } },
+          survey: { select: { rating: true } },
+          aftercare: { select: { answer: true } },
+        },
+      }),
+      this.db.quote.findMany({
+        where: { clinicId, patientId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          status: true,
+          totalCents: true,
+          createdAt: true,
+          installments: { select: { amountCents: true, status: true, dueDate: true } },
+        },
+      }),
+      this.db.clinicPayment.findMany({
+        where: { clinicId, patientId, voidedAt: null },
+        orderBy: { paidAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          paidAt: true,
+          amountCents: true,
+          method: true,
+          procedure: { select: { name: true } },
+        },
+      }),
+      this.db.waitlistEntry.findMany({
+        where: { clinicId, patientId, status: "WAITING", until: { gt: now } },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, until: true, procedure: { select: { name: true } } },
+      }),
+      this.db.patientNote.findMany({
+        where: { clinicId, patientId },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        select: {
+          id: true,
+          author: true,
+          textEncrypted: true,
+          createdAt: true,
+          staffUser: { select: { name: true } },
+        },
+      }),
+      this.db.medicalHistory.findFirst({
+        where: { clinicId, patientId },
+        orderBy: { createdAt: "desc" },
+        select: { dataEncrypted: true, createdAt: true },
+      }),
+    ]);
 
     const count = (s: string) => statusCounts.find((c) => c.status === s)?._count._all ?? 0;
     const upcoming = await this.db.appointment.count({
@@ -263,6 +282,10 @@ export class PrismaPatientRecords implements PatientRecords {
         createdAt: n.createdAt.toISOString(),
         staffName: n.staffUser?.name ?? null,
       })),
+      medicalAlerts: history
+        ? medicalAlerts(openMedicalHistory(this.cipher, history.dataEncrypted))
+        : [],
+      medicalHistoryAt: iso(history?.createdAt ?? null),
     };
   }
 }

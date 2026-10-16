@@ -2,6 +2,7 @@ import type { PrismaClient, QuoteStatus } from "@prisma/client";
 import { z } from "zod";
 import { maskPhone, normalizePhone, type FieldCipher } from "../privacy/index.js";
 import { addDays, dateInZone, zonedToUtc } from "../scheduling/time.js";
+import { medicalAlerts, openMedicalHistory } from "./medical-history.js";
 
 /** Read side of the staff panel. Every query is scoped by clinic id. */
 
@@ -18,7 +19,12 @@ export type AgendaRow = {
   patientPhone: string;
 };
 
-export type AppointmentDetail = AgendaRow & { procedureId: string; dentistId: string };
+export type AppointmentDetail = AgendaRow & {
+  procedureId: string;
+  dentistId: string;
+  /** From the patient's current medical history (anamnese). */
+  medicalAlerts: string[];
+};
 
 export type PatientRow = { id: string; name: string; phone: string };
 
@@ -281,7 +287,19 @@ export class PrismaPanelQueries implements PanelQueries {
       include: agendaInclude,
     });
     if (!a) return null;
-    return { ...this.agendaRow(a), procedureId: a.procedureId, dentistId: a.dentistId };
+    const history = await this.db.medicalHistory.findFirst({
+      where: { clinicId, patientId: a.patientId },
+      orderBy: { createdAt: "desc" },
+      select: { dataEncrypted: true },
+    });
+    return {
+      ...this.agendaRow(a),
+      procedureId: a.procedureId,
+      dentistId: a.dentistId,
+      medicalAlerts: history
+        ? medicalAlerts(openMedicalHistory(this.cipher, history.dataEncrypted))
+        : [],
+    };
   }
 
   async patients(clinicId: string, q: string) {

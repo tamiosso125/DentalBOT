@@ -5,6 +5,7 @@ describe("access log helpers", () => {
   it("says what was done in pt-BR", () => {
     expect(actionLabel("VIEW_RECORD")).toBe("Abriu a ficha");
     expect(actionLabel("EXPORT_DATA")).toBe("Exportou os dados (LGPD)");
+    expect(actionLabel("SET_MEDICAL_HISTORY")).toBe("Atualizou a anamnese");
   });
 
   it("links to the appointment or quote, and nothing else", () => {

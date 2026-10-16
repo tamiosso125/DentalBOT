@@ -19,6 +19,7 @@ import type { SurveySummary } from "./survey";
 import type { AftercareSummary } from "./aftercare";
 import type { NoteAuthor, PatientRecord } from "./patient-record";
 import type { AccessLogPage } from "./access-log";
+import type { MedicalHistoryData, MedicalHistoryView } from "./medical-history";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -42,7 +43,12 @@ export type AgendaRow = {
   patientName: string;
   patientPhone: string;
 };
-export type AppointmentDetail = AgendaRow & { procedureId: string; dentistId: string };
+export type AppointmentDetail = AgendaRow & {
+  procedureId: string;
+  dentistId: string;
+  /** From the patient's current anamnese: allergy, anticoagulant, pregnancy... */
+  medicalAlerts: string[];
+};
 export type StaffSlot = { dentistId: string; startsAt: string; endsAt: string };
 export type PatientRow = { id: string; name: string; phone: string };
 export type Catalog = {
@@ -189,6 +195,13 @@ export const api = {
       { method: "POST" },
     );
   },
+  medicalHistory: (patientId: string) =>
+    json<MedicalHistoryView>(`/admin/patients/${encodeURIComponent(patientId)}/medical-history`),
+  saveMedicalHistory: (patientId: string, body: MedicalHistoryData) =>
+    json<{ id: string }>(`/admin/patients/${encodeURIComponent(patientId)}/medical-history`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   accessLog: (q: { patientId?: string; from?: string; to?: string }) => {
     const params = new URLSearchParams(
       Object.entries(q).filter((e): e is [string, string] => Boolean(e[1])),

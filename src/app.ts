@@ -26,6 +26,7 @@ import { PrismaPatientRecords } from "./panel/patient-record.js";
 import { PatientNotes } from "./panel/patient-notes.js";
 import { AccessLog } from "./panel/access-log.js";
 import { StaffService } from "./staff/staff.js";
+import { MedicalHistories } from "./panel/medical-history.js";
 import { ClinicPayments } from "./payments/clinic-payments.js";
 import { PrismaClinicSetup } from "./panel/clinic-setup.js";
 import { PrismaPatientData } from "./panel/patient-data.js";
@@ -346,6 +347,7 @@ export function createApp(env: Env, logger: Logger) {
             report: new PrismaMonthlyReports(db),
             records: new PrismaPatientRecords(db, cipher),
             notes: new PatientNotes({ db, cipher, logger }),
+            medicalHistory: new MedicalHistories({ db, cipher, logger }),
             accessLog,
             staff: new StaffService({ db, cipher, logger }),
             clinicPayments: new ClinicPayments({ db, cipher, gateway: payments, logger }),

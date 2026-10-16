@@ -44,6 +44,10 @@ export type PatientRecord = {
     procedure: string | null;
   }>;
   waitlist: Array<{ id: string; procedure: string; until: string }>;
+  /** From the current anamnese, what the dentist must see before treating. */
+  medicalAlerts: string[];
+  /** When the anamnese was last filled in, null if never. */
+  medicalHistoryAt: string | null;
   /** Staff notes, newest first. */
   notes: Array<{
     id: string;

@@ -53,6 +53,16 @@ export default async function PatientRecordPage({
         </p>
         <h1>{p.name}</h1>
         {aviso ? <p className="notice">{aviso}</p> : null}
+        {r.medicalAlerts.length > 0 ? (
+          <p className="alert" role="alert">
+            <strong>Atenção:</strong>{" "}
+            {r.medicalAlerts.map((a) => (
+              <span key={a} className="badge danger" style={{ marginRight: 6 }}>
+                {a}
+              </span>
+            ))}
+          </p>
+        ) : null}
         {p.anonymizedAt ? (
           <p className="notice">
             Dados anonimizados em {day(p.anonymizedAt)} a pedido do paciente (LGPD). Ficam só os
@@ -121,6 +131,20 @@ export default async function PatientRecordPage({
             </div>
           )}
         </section>
+
+        {p.anonymizedAt ? null : (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>Anamnese</h2>
+            <p style={{ marginBottom: 0 }}>
+              {r.medicalHistoryAt
+                ? `Atualizada em ${formatDateTime(r.medicalHistoryAt)}.`
+                : "Ainda não preenchida."}{" "}
+              <Link href={`/pacientes/${encodeURIComponent(p.id)}/anamnese`}>
+                {r.medicalHistoryAt ? "Ver e atualizar" : "Preencher"}
+              </Link>
+            </p>
+          </section>
+        )}
 
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Consultas</h2>
