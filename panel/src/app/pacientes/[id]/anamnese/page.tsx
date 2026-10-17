@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { CONDITION_LABEL, CONDITIONS, EMPTY_HISTORY, historySummary } from "@/lib/medical-history";
+import { MedicalAlerts } from "../../../medical-alerts";
 import { Nav } from "../../../nav";
 import { saveHistory } from "./actions";
 
@@ -40,16 +41,7 @@ export default async function AnamnesePage({
         </p>
         <h1>Anamnese</h1>
         {aviso ? <p className="notice">{aviso}</p> : null}
-        {history.alerts.length > 0 ? (
-          <p className="alert" role="alert">
-            <strong>Atenção:</strong>{" "}
-            {history.alerts.map((a) => (
-              <span key={a} className="badge danger" style={{ marginRight: 6 }}>
-                {a}
-              </span>
-            ))}
-          </p>
-        ) : null}
+        <MedicalAlerts alerts={history.alerts} />
         <p className="muted">
           {current
             ? `Última atualização em ${formatDateTime(current.at)}${current.staffName ? ` por ${current.staffName}` : ""}.`
