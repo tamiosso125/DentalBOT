@@ -13,6 +13,7 @@ describe("access log helpers", () => {
     expect(actionLabel("PRINT_DAY_SHEET")).toBe("Imprimiu a agenda do dia");
     expect(actionLabel("UPDATE_PATIENT")).toBe("Corrigiu os dados do paciente");
     expect(actionLabel("CREATE_PATIENT")).toBe("Cadastrou um paciente");
+    expect(actionLabel("VIEW_PENDING")).toBe("Abriu a lista de pendências");
   });
 
   it("links to the appointment or quote, and nothing else", () => {

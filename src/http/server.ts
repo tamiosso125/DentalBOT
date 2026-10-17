@@ -24,6 +24,7 @@ import { StaffAgendaError, type StaffAgenda } from "../scheduling/staff-agenda.j
 import type { JobQueue } from "../queue/queue.js";
 import type { PatientRecords } from "../panel/patient-record.js";
 import { PatientNoteError, type PatientNotes } from "../panel/patient-notes.js";
+import type { PendingList } from "../panel/pending.js";
 import { PatientProfileError, type PatientProfiles } from "../panel/patient-profile.js";
 import { AccessLogError, AUDITED, type AccessLog } from "../panel/access-log.js";
 import { StaffError, type StaffActor, type StaffService } from "../staff/staff.js";
@@ -80,6 +81,8 @@ export type ServerDeps = {
     records?: PatientRecords;
     /** Staff notes on the patient record. Absent = routes not registered. */
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
+    /** Patients with something pending ("Pendências"). Absent = route not registered. */
+    pending?: Pick<PendingList, "list">;
     /** Name, birth date and CPF corrections. Absent = route not registered. */
     profiles?: Pick<PatientProfiles, "create" | "update">;
     /** Medical history (anamnese) on the patient record. Absent = routes not registered. */
@@ -620,6 +623,13 @@ export function buildServer(deps: ServerDeps) {
           await notes.remove(admin.clinicId, req.params.id, req.params.noteId);
           return reply.code(204).send();
         });
+      }
+
+      const pending = admin.pending;
+      if (pending) {
+        scope.get("/admin/pending", async () =>
+          pending.list(admin.clinicId, admin.now?.() ?? new Date()),
+        );
       }
 
       const profiles = admin.profiles;

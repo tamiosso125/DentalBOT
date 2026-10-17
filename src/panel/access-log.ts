@@ -23,6 +23,7 @@ export type AuditRule = {
 
 export const AUDITED: Record<string, AuditRule> = {
   "GET /admin/patients": { action: "SEARCH_PATIENTS" },
+  "GET /admin/pending": { action: "VIEW_PENDING" },
   "GET /admin/patients/:id": { action: "VIEW_DATA", patient: "param" },
   "GET /admin/patients/:id/record": { action: "VIEW_RECORD", patient: "param" },
   "POST /admin/patients": { action: "CREATE_PATIENT" },

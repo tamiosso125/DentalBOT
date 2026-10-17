@@ -395,6 +395,7 @@ enum AccessAction {
   PRINT_DAY_SHEET
   UPDATE_PATIENT
   CREATE_PATIENT
+  VIEW_PENDING
 }
 
 model AccessLog {
