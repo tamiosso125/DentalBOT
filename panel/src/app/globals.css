@@ -386,3 +386,37 @@ label.slot {
   padding: 6px 10px;
   cursor: pointer;
 }
+
+.med-alert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 2px solid var(--danger);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.med-alert-icon {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--bg);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.med-alert-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--danger);
+}
+.med-alert ul {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+}
+.med-alert li {
+  font-weight: 600;
+}

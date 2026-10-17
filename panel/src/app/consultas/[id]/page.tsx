@@ -13,6 +13,7 @@ import {
   formatTime,
 } from "@/lib/format";
 import { ClinicalEntryForm } from "../../clinical-entry-form";
+import { MedicalAlerts } from "../../medical-alerts";
 import { Nav } from "../../nav";
 import {
   cancelAppointment,
@@ -79,17 +80,10 @@ export default async function AppointmentPage({
         </p>
         {notice ? <p className="notice">{notice}</p> : null}
         <h1>Consulta de {a.patientName}</h1>
-        {a.medicalAlerts.length > 0 ? (
-          <p className="alert" role="alert">
-            <strong>Atenção:</strong>{" "}
-            {a.medicalAlerts.map((m) => (
-              <span key={m} className="badge danger" style={{ marginRight: 6 }}>
-                {m}
-              </span>
-            ))}{" "}
-            <Link href={`/pacientes/${encodeURIComponent(a.patientId)}/anamnese`}>Anamnese</Link>
-          </p>
-        ) : null}
+        <MedicalAlerts
+          alerts={a.medicalAlerts}
+          anamnesisHref={`/pacientes/${encodeURIComponent(a.patientId)}/anamnese`}
+        />
         <section className="card">
           <p style={{ marginTop: 0 }}>
             {formatDayHeading(a.startsAt)}, {formatTime(a.startsAt)}–{formatTime(a.endsAt)} ·{" "}

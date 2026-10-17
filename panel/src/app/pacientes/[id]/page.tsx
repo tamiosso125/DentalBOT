@@ -19,6 +19,7 @@ import {
   recallLabel,
 } from "@/lib/patient-record";
 import { currentUser } from "@/lib/current-user";
+import { MedicalAlerts } from "../../medical-alerts";
 import { Nav } from "../../nav";
 import { addNote, removeNote } from "./actions";
 
@@ -55,16 +56,7 @@ export default async function PatientRecordPage({
         </p>
         <h1>{p.name}</h1>
         {aviso ? <p className="notice">{aviso}</p> : null}
-        {r.medicalAlerts.length > 0 ? (
-          <p className="alert" role="alert">
-            <strong>Atenção:</strong>{" "}
-            {r.medicalAlerts.map((a) => (
-              <span key={a} className="badge danger" style={{ marginRight: 6 }}>
-                {a}
-              </span>
-            ))}
-          </p>
-        ) : null}
+        <MedicalAlerts alerts={r.medicalAlerts} />
         {pending.length > 0 ? (
           <div className="notice" role="status">
             <strong>Pendências:</strong>

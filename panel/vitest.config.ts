@@ -7,5 +7,6 @@ export default defineConfig({
   resolve: {
     alias: { "@": src(""), "server-only": src("test/server-only.ts") },
   },
-  test: { include: ["src/**/*.test.ts"], environment: "node" },
+  esbuild: { jsx: "automatic" },
+  test: { include: ["src/**/*.test.{ts,tsx}"], environment: "node" },
 });
