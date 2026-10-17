@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { profileFromForm } from "./patient-profile";
+import { newPatientFromForm, profileFromForm } from "./patient-profile";
 
 const form = (fields: Record<string, string>) => {
   const f = new FormData();
@@ -28,5 +28,26 @@ describe("profileFromForm", () => {
         form({ name: "Maria", birthDate: "", cpf: "529.982.247-25", removeCpf: "on" }),
       ),
     ).toEqual({ name: "Maria", birthDate: null, cpf: null });
+  });
+});
+
+describe("newPatientFromForm", () => {
+  it("keeps the phone as typed and leaves out an empty CPF", () => {
+    expect(
+      newPatientFromForm(form({ name: " Ana ", phone: "(11) 90000-0001", birthDate: "", cpf: "" })),
+    ).toEqual({ name: "Ana", phone: "(11) 90000-0001", birthDate: null });
+  });
+
+  it("sends the CPF when typed", () => {
+    expect(
+      newPatientFromForm(
+        form({ name: "Ana", phone: "11900000001", birthDate: "1990-03-15", cpf: "529.982.247-25" }),
+      ),
+    ).toEqual({
+      name: "Ana",
+      phone: "11900000001",
+      birthDate: "1990-03-15",
+      cpf: "529.982.247-25",
+    });
   });
 });

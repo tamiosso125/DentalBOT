@@ -81,7 +81,7 @@ export type ServerDeps = {
     /** Staff notes on the patient record. Absent = routes not registered. */
     notes?: Pick<PatientNotes, "list" | "add" | "remove">;
     /** Name, birth date and CPF corrections. Absent = route not registered. */
-    profiles?: Pick<PatientProfiles, "update">;
+    profiles?: Pick<PatientProfiles, "create" | "update">;
     /** Medical history (anamnese) on the patient record. Absent = routes not registered. */
     medicalHistory?: Pick<MedicalHistories, "view" | "save">;
     /** Clinical record entries signed by the dentist. Absent = routes not registered. */
@@ -624,6 +624,11 @@ export function buildServer(deps: ServerDeps) {
 
       const profiles = admin.profiles;
       if (profiles) {
+        scope.post("/admin/patients", async (req, reply) =>
+          reply
+            .code(201)
+            .send(await profiles.create(admin.clinicId, req.body, admin.now?.() ?? new Date())),
+        );
         scope.post<{ Params: { id: string } }>(
           "/admin/patients/:id/profile",
           async (req, reply) => {

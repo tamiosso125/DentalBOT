@@ -10,6 +10,8 @@ const url = process.env.TEST_DATABASE_URL;
 const NOW = new Date("2026-10-17T12:00:00Z");
 const CPF = "529.982.247-25";
 const OTHER_CPF = "111.444.777-35";
+const CPF3 = "168.995.350-09";
+const CPF2 = "390.533.447-05";
 
 describe.skipIf(!url)("PatientProfiles (Postgres)", () => {
   const cipher = new FieldCipher(randomBytes(32).toString("base64"), "p".repeat(32));
@@ -124,5 +126,59 @@ describe.skipIf(!url)("PatientProfiles (Postgres)", () => {
       (await fail(profiles.update(clinicId, anonymizedId, { name: "Volta" }, NOW))).status,
     ).toBe(422);
     expect((await db.patient.findUniqueOrThrow({ where: { id: anonymizedId } })).name).toBe("Anon");
+  });
+
+  describe("create", () => {
+    it("registers a patient with the phone normalized and the CPF protected", async () => {
+      const { id } = await profiles.create(
+        clinicId,
+        { name: " Carla Nova ", phone: "(11) 90000-0301", birthDate: "01/02/1985", cpf: CPF2 },
+        NOW,
+      );
+      const p = await db.patient.findUniqueOrThrow({ where: { id } });
+      expect(p.name).toBe("Carla Nova");
+      expect(p.phoneHash).toBe(cipher.hash("5511900000301"));
+      expect(cipher.decrypt(p.phoneEncrypted)).toBe("5511900000301");
+      expect(p.birthDate?.toISOString().slice(0, 10)).toBe("1985-02-01");
+      expect(cipher.decrypt(p.cpfEncrypted!)).toBe("39053344705");
+    });
+
+    it("registers without birth date or CPF", async () => {
+      const { id } = await profiles.create(
+        clinicId,
+        { name: "Sem Documento", phone: "11900000302" },
+        NOW,
+      );
+      const p = await db.patient.findUniqueOrThrow({ where: { id } });
+      expect([p.birthDate, p.cpfHash]).toEqual([null, null]);
+    });
+
+    it("refuses a phone already registered in the clinic, but not in another", async () => {
+      await profiles.create(clinicId, { name: "Primeiro", phone: "11900000303" }, NOW);
+      const again = await fail(
+        profiles.create(clinicId, { name: "Segundo", phone: "(11) 90000-0303" }, NOW),
+      );
+      expect(again.status).toBe(409);
+      await profiles.create(otherClinicId, { name: "Outra", phone: "11900000303" }, NOW);
+    });
+
+    it("refuses a CPF another patient has, and invalid phone, CPF or date", async () => {
+      await profiles.create(clinicId, { name: "Com CPF", phone: "11900000304", cpf: CPF3 }, NOW);
+      const bad: Array<[unknown, number]> = [
+        [{ name: "Dup", phone: "11900000305", cpf: CPF3 }, 409],
+        [{ name: "Fone", phone: "123" }, 422],
+        [{ name: "Cpf", phone: "11900000306", cpf: "111.111.111-11" }, 422],
+        [{ name: "Data", phone: "11900000307", birthDate: "2026-10-18" }, 422],
+        [{ name: "A", phone: "11900000308" }, 422],
+        [{ phone: "11900000309" }, 422],
+      ];
+      for (const [input, status] of bad)
+        expect((await fail(profiles.create(clinicId, input, NOW))).status).toBe(status);
+      expect(
+        await db.patient.count({
+          where: { clinicId, name: { in: ["Dup", "Fone", "Cpf", "Data", "A"] } },
+        }),
+      ).toBe(0);
+    });
   });
 });

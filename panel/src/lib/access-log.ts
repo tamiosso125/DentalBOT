@@ -13,6 +13,7 @@ export type AccessAction =
   | "ISSUE_ATTENDANCE_CERTIFICATE"
   | "PRINT_DAY_SHEET"
   | "UPDATE_PATIENT"
+  | "CREATE_PATIENT"
   | "VIEW_NOTES"
   | "ADD_NOTE"
   | "DELETE_NOTE"
@@ -58,6 +59,7 @@ const LABEL: Record<AccessAction, string> = {
   ISSUE_ATTENDANCE_CERTIFICATE: "Emitiu um atestado de comparecimento",
   PRINT_DAY_SHEET: "Imprimiu a agenda do dia",
   UPDATE_PATIENT: "Corrigiu os dados do paciente",
+  CREATE_PATIENT: "Cadastrou um paciente",
   VIEW_NOTES: "Viu as anotações",
   ADD_NOTE: "Escreveu uma anotação",
   DELETE_NOTE: "Apagou uma anotação",

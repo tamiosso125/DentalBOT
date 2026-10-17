@@ -257,6 +257,12 @@ function stubCertificates() {
 function stubProfiles() {
   const calls: unknown[][] = [];
   const profiles: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["profiles"] = {
+    create: async (...a) => {
+      calls.push(["create", ...a]);
+      if ((a[1] as { phone?: string }).phone === "dup")
+        throw new PatientProfileError(409, "Já existe um paciente com este celular.");
+      return { id: "pat_new" };
+    },
     update: async (...a) => {
       calls.push(["update", ...a]);
       if (a[1] === "outro") throw new PatientProfileError(404, "Paciente não encontrado.");
@@ -1130,6 +1136,24 @@ describe("admin patient profile API", () => {
     expect(profileCalls[0]).toEqual(["update", CLINIC_ID, "pat_1", body, NOW]);
     // Only the successful change is audited, and never with its content.
     expect(access.calls).toEqual([["record", CLINIC_ID, "UPDATE_PATIENT", "pat_1", NOW]]);
+  });
+});
+
+describe("admin patient registration API", () => {
+  const url = "/admin/patients";
+  const headers = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token, answers 201 with the id and audits without content", async () => {
+    const { app, profileCalls, access } = setup();
+    expect((await app.inject({ method: "POST", url, payload: {} })).statusCode).toBe(401);
+    const body = { name: "Maria Souza", phone: "(11) 90000-0001", birthDate: "1990-03-15" };
+    const res = await app.inject({ method: "POST", url, headers, payload: body });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ id: "pat_new" });
+    expect(profileCalls).toEqual([["create", CLINIC_ID, body, NOW]]);
+    const dup = await app.inject({ method: "POST", url, headers, payload: { phone: "dup" } });
+    expect(dup.statusCode).toBe(409);
+    expect(access.calls).toEqual([["record", CLINIC_ID, "CREATE_PATIENT", undefined, NOW]]);
   });
 });
 
