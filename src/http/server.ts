@@ -269,6 +269,13 @@ export function buildServer(deps: ServerDeps) {
         return reply.code(500).send({ error: "internal error" });
       });
 
+      // Sensitive overviews (who read what, the month's money) are for the dentist. A request
+      // without a personal login (token only, as before logins existed) is not restricted here.
+      const dentistOnly = (req: { staff?: StaffActor }) => {
+        if (req.staff && req.staff.role !== "DENTIST")
+          throw new StaffError(403, "Só a dentista vê esta página.");
+      };
+
       const accessLog = admin.accessLog;
       if (accessLog) {
         // Recorded before the response leaves, so whoever got patient data left a trace.
@@ -292,9 +299,10 @@ export function buildServer(deps: ServerDeps) {
           }
           return payload;
         });
-        scope.get("/admin/access-log", async (req) =>
-          accessLog.list(admin.clinicId, req.query, admin.now?.() ?? new Date()),
-        );
+        scope.get("/admin/access-log", async (req) => {
+          dentistOnly(req);
+          return accessLog.list(admin.clinicId, req.query, admin.now?.() ?? new Date());
+        });
       }
 
       const logins = admin.staff;
@@ -655,13 +663,14 @@ export function buildServer(deps: ServerDeps) {
 
       const report = admin.report;
       if (report) {
-        scope.get("/admin/report", async (req) =>
-          report.report(
+        scope.get("/admin/report", async (req) => {
+          dentistOnly(req);
+          return report.report(
             admin.clinicId,
             parse(reportQuerySchema, req.query).mes,
             admin.now?.() ?? new Date(),
-          ),
-        );
+          );
+        });
       }
 
       const survey = admin.survey;

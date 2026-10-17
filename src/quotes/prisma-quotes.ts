@@ -42,7 +42,7 @@ export class PrismaQuoteRepository
         dentistId: q.dentistId,
         totalCents: q.totalCents,
         installmentCount: q.installmentCount,
-        notes: q.notes,
+        notesEncrypted: q.notes ? this.cipher.encrypt(q.notes) : null,
         validUntil: q.validUntil ? toDate(q.validUntil) : null,
         items: {
           create: q.items.map((i) => ({
@@ -90,7 +90,7 @@ export class PrismaQuoteRepository
       })),
       totalCents: q.totalCents,
       installmentCount: q.installmentCount,
-      notes: q.notes,
+      notes: q.notesEncrypted ? this.cipher.decrypt(q.notesEncrypted) : null,
       validUntil: dateOnly(q.validUntil),
       createdAt: q.createdAt,
       sentAt: q.sentAt,

@@ -50,7 +50,7 @@ describe.skipIf(!url)("PrismaQuoteRepository (Postgres)", () => {
     await db.$disconnect();
   });
 
-  const newQuote = () =>
+  const newQuote = (notes: string | null = null) =>
     repo.create({
       clinicId,
       patientId,
@@ -73,7 +73,7 @@ describe.skipIf(!url)("PrismaQuoteRepository (Postgres)", () => {
       ],
       totalCents: 700_00,
       installmentCount: 2,
-      notes: null,
+      notes,
       validUntil: "2026-11-03",
     });
 
@@ -93,6 +93,16 @@ describe.skipIf(!url)("PrismaQuoteRepository (Postgres)", () => {
       name: "Paciente Exemplo",
       phone: PHONE,
     });
+  });
+
+  it("stores the dentist's notes encrypted and reads them back", async () => {
+    const id = await newQuote("Paciente com bruxismo");
+    const row = await db.quote.findUniqueOrThrow({ where: { id } });
+    expect(row.notesEncrypted).not.toBeNull();
+    expect(row.notesEncrypted).not.toContain("bruxismo");
+    expect((await repo.get(clinicId, id))!.notes).toBe("Paciente com bruxismo");
+    const plain = await newQuote();
+    expect((await repo.get(clinicId, plain))!.notes).toBeNull();
   });
 
   it("scopes every read by clinic", async () => {

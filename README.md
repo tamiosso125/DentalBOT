@@ -189,11 +189,15 @@ A exportação e a anonimização ficam no log só com os ids. O prazo da LGPD p
 
 ### Acessos
 
-O painel registra cada vez que a equipe mexe em dados de um paciente: busca de pacientes, abrir a ficha, os dados LGPD, uma consulta ou um orçamento (e o PDF), ver ou mudar o convênio, ver, escrever ou apagar anotações, ver ou salvar a anamnese, ver o prontuário, assinar uma evolução ou emitir um atestado, imprimir a agenda do dia, cadastrar paciente, corrigir nome, nascimento ou CPF, abrir a lista de pendências, mudar o consentimento de retorno, receber parcela ou registrar pagamento no balcão, exportar e anonimizar. Cada registro guarda só a ação, a data e hora e qual paciente ou registro foi tocado: nunca o texto buscado, o conteúdo da anotação ou qualquer outro dado. Abrir a própria página "Acessos" também fica registrado. Em "Acessos" a equipe filtra por período, e a ficha do paciente tem o botão "Acessos" com o histórico só daquele paciente, para responder se ele ou a ANPD perguntar quem mexeu nos dados. Cada registro mostra quem estava logado (os de antes dos logins individuais ficam sem nome), e a entrada no painel e as mudanças nos logins da equipe também ficam registradas. Se o registro não puder ser gravado, o painel continua funcionando e o erro vai para o log. Os registros mais antigos que o prazo são apagados uma vez por dia:
+O painel registra cada vez que a equipe mexe em dados de um paciente: busca de pacientes, abrir a ficha, os dados LGPD, uma consulta ou um orçamento (e o PDF), ver ou mudar o convênio, ver, escrever ou apagar anotações, ver ou salvar a anamnese, ver o prontuário, assinar uma evolução ou emitir um atestado, imprimir a agenda do dia, cadastrar paciente, corrigir nome, nascimento ou CPF, abrir a lista de pendências, mudar o consentimento de retorno, receber parcela ou registrar pagamento no balcão, exportar e anonimizar. Cada registro guarda só a ação, a data e hora e qual paciente ou registro foi tocado: nunca o texto buscado, o conteúdo da anotação ou qualquer outro dado. Abrir a própria página "Acessos" também fica registrado, e só a dentista a vê (o resumo do mês também é só dela). Em "Acessos" a equipe filtra por período, e a ficha do paciente tem o botão "Acessos" com o histórico só daquele paciente, para responder se ele ou a ANPD perguntar quem mexeu nos dados. Cada registro mostra quem estava logado (os de antes dos logins individuais ficam sem nome), e a entrada no painel e as mudanças nos logins da equipe também ficam registradas. Se o registro não puder ser gravado, o painel continua funcionando e o erro vai para o log. Os registros mais antigos que o prazo são apagados uma vez por dia:
 
 ```bash
 ACCESS_LOG_RETENTION_DAYS=365   # mínimo 180 (Marco Civil: 6 meses de registros de acesso)
 ```
+
+## Revisão de LGPD e piloto
+
+[`docs/revisao-lgpd-seguranca.md`](docs/revisao-lgpd-seguranca.md) lista o que é gravado, logado e criptografado e quem pode o quê em cada rota. [`docs/roteiro-piloto.md`](docs/roteiro-piloto.md) é o roteiro de testes e do primeiro dia para a equipe da clínica.
 
 ## Produção (VPS)
 

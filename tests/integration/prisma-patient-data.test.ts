@@ -153,7 +153,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
         dentistId,
         totalCents: 300_00,
         status: "ACCEPTED",
-        notes: "Tratamento em duas sessões",
+        notesEncrypted: cipher.encrypt("Tratamento em duas sessões"),
         items: { create: { description: "Restauração", unitPriceCents: 300_00 } },
         installments: {
           create: { number: 1, amountCents: 300_00, dueDate: new Date("2026-10-20") },
@@ -353,7 +353,7 @@ describe.skipIf(!url)("PrismaPatientData (Postgres)", () => {
       where: { patientId },
       include: { installments: true },
     });
-    expect(quote).toMatchObject({ notes: null, totalCents: 300_00 });
+    expect(quote).toMatchObject({ notesEncrypted: null, totalCents: 300_00 });
     expect(await db.patientNote.count({ where: { patientId } })).toBe(0);
     expect(await db.medicalHistory.count({ where: { patientId } })).toBe(0);
     // The clinical record is kept, now attached to an anonymized patient.

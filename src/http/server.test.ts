@@ -1426,6 +1426,15 @@ describe("admin staff logins", () => {
     expect(access.calls).toEqual([["record", CLINIC_ID, "LOGIN", undefined, NOW, "u_rec"]]);
   });
 
+  it("keeps the access log and the month report for the dentist", async () => {
+    const { app } = setup();
+    const get = (url: string, id: string) => app.inject({ method: "GET", url, headers: as(id) });
+    for (const url of ["/admin/access-log", "/admin/report"]) {
+      expect((await get(url, "u_rec")).statusCode).toBe(403);
+      expect((await get(url, "u_dent")).statusCode).toBe(200);
+    }
+  });
+
   it("lets only the signed-in dentist manage logins", async () => {
     const { app, staffCalls } = setup();
     const get = (id?: string) =>

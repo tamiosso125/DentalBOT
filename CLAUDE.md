@@ -34,6 +34,7 @@ Painel da equipe em Next.js 15 (`panel/`, workspace pnpm). IA: Claude Sonnet 5.5
 - `src/staff/`: logins da equipe (`staff.ts`: primeiro acesso da dentista, login com trava após 5 erros, só a dentista cria e desativa logins; `password.ts`: scrypt). O painel manda `x-staff-user` e a API confere a cada pedido se o login está ativo.
 - `src/privacy/`: `redact()`, criptografia de campo e normalização de CPF/telefone.
 - `tests/conversations/*.yaml`: casos de eval. `tools/mcp/`: MCP servers de desenvolvimento.
+- `docs/revisao-lgpd-seguranca.md` (o que é gravado, logado, criptografado e quem pode o quê; atualizar ao criar rota ou coluna com dado de paciente) e `docs/roteiro-piloto.md` (testes e primeiro dia da equipe).
 - `deploy/`: produção na VPS (`compose.yml` com Caddy/HTTPS, API, painel, Postgres, Redis e backup criptografado com age). Guia em `docs/deploy-vps.md`. Imagens: `Dockerfile` (API) e `panel/Dockerfile`.
 
 ## Regras inegociáveis
