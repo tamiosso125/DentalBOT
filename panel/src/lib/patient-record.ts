@@ -1,3 +1,5 @@
+import { dateKey, formatCents, formatDate } from "./format";
+
 /** Display helpers for the patient record. Data comes from GET /admin/patients/:id/record. */
 
 export type PatientRecord = {
@@ -104,4 +106,39 @@ export function birthLabel(birthDate: string, today: string): string {
   const [ty, tm, td] = today.split("-").map(Number) as [number, number, number];
   const age = ty - y - (tm < m || (tm === m && td < d) ? 1 : 0);
   return `${birthDate.split("-").reverse().join("/")} (${age} anos)`;
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * What the front desk should look at first on a record, from data the page already has:
+ * overdue installments, visits still unconfirmed this week, past visits nobody marked
+ * attended or missed, a denied insurance authorization, and no anamnese before a visit.
+ */
+export function pendingNotices(
+  r: Pick<PatientRecord, "balance" | "appointments" | "counts" | "medicalHistoryAt">,
+  now: Date,
+): string[] {
+  const out: string[] = [];
+  if (r.balance.overdueCents > 0)
+    out.push(`Parcelas vencidas: ${formatCents(r.balance.overdueCents)}.`);
+
+  const when = (a: { startsAt: string }) => formatDate(dateKey(a.startsAt));
+  const t = now.getTime();
+  const future = r.appointments.filter((a) => new Date(a.startsAt).getTime() >= t);
+  const active = (a: { status: string }) =>
+    a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED";
+
+  for (const a of future) {
+    if (a.status === "PENDING_CONFIRMATION" && new Date(a.startsAt).getTime() - t <= WEEK_MS)
+      out.push(`Consulta de ${when(a)} ainda sem confirmação.`);
+    if (active(a) && a.authorization === "DENIED")
+      out.push(`O convênio negou a consulta de ${when(a)}.`);
+  }
+  for (const a of r.appointments)
+    if (active(a) && new Date(a.startsAt).getTime() < t)
+      out.push(`Consulta de ${when(a)} sem marcação de compareceu ou faltou.`);
+  if (r.medicalHistoryAt === null && future.some(active))
+    out.push("Anamnese ainda não preenchida e há consulta marcada.");
+  return out;
 }

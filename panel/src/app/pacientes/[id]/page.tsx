@@ -15,6 +15,7 @@ import {
   authorLabel,
   birthLabel,
   countsLabel,
+  pendingNotices,
   recallLabel,
 } from "@/lib/patient-record";
 import { currentUser } from "@/lib/current-user";
@@ -42,6 +43,7 @@ export default async function PatientRecordPage({
   const p = r.patient;
   const user = await currentUser();
   const now = new Date().toISOString();
+  const pending = p.anonymizedAt ? [] : pendingNotices(r, new Date(now));
   const pick = `paciente=${encodeURIComponent(p.id)}&nome=${encodeURIComponent(p.name)}`;
 
   return (
@@ -62,6 +64,16 @@ export default async function PatientRecordPage({
               </span>
             ))}
           </p>
+        ) : null}
+        {pending.length > 0 ? (
+          <div className="notice" role="status">
+            <strong>Pendências:</strong>
+            <ul style={{ margin: "4px 0 0", paddingLeft: 20 }}>
+              {pending.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </div>
         ) : null}
         {p.anonymizedAt ? (
           <p className="notice">
