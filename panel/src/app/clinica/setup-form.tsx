@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useKeptForm } from "@/lib/use-kept-form";
 import type { FormState } from "./actions";
+import { ErrorSummary } from "../error-summary";
 
 /** A cadastro form: shows the errors the action returns and disables itself while saving. */
 export function SetupForm(props: {
@@ -15,13 +16,7 @@ export function SetupForm(props: {
   return (
     <form onSubmit={onSubmit} className={props.className ?? "stack"}>
       {props.children}
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending}>
           {pending ? "Salvando..." : props.submit}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useKeptForm, type FormErrors } from "@/lib/use-kept-form";
+import { ErrorSummary } from "../../../error-summary";
 
 /** Name, birth date and CPF. Keeps what was typed when the API refuses it. */
 export function ProfileForm(props: {
@@ -29,13 +30,7 @@ export function ProfileForm(props: {
           <input name="removeCpf" type="checkbox" /> Remover o CPF cadastrado
         </label>
       ) : null}
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending}>
           {pending ? "Salvando..." : "Salvar"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ErrorSummary } from "../error-summary";
 import { firstAccess, login, type FirstAccessState, type LoginState } from "../actions";
 
 export function LoginForm() {
@@ -22,7 +23,7 @@ export function LoginForm() {
         Senha
         <input type="password" name="password" required autoComplete="current-password" />
       </label>
-      {state.error ? <p className="errors">{state.error}</p> : null}
+      <ErrorSummary errors={state.error ? [state.error] : []} />
       <button type="submit" disabled={pending}>
         {pending ? "Entrando..." : "Entrar"}
       </button>
@@ -73,7 +74,7 @@ export function FirstAccessForm() {
         Repita a senha
         <input type="password" name="confirm" required minLength={10} autoComplete="new-password" />
       </label>
-      {state.error ? <p className="errors">{state.error}</p> : null}
+      <ErrorSummary errors={state.error ? [state.error] : []} />
       <button type="submit" disabled={pending}>
         {pending ? "Criando..." : "Criar login e entrar"}
       </button>
