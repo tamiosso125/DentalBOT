@@ -21,6 +21,7 @@ import type { NoteAuthor, PatientRecord } from "./patient-record";
 import type { AccessLogPage } from "./access-log";
 import type { MedicalHistoryData, MedicalHistoryView } from "./medical-history";
 import type { ClinicalEntry, ClinicalEntryBody } from "./clinical-record";
+import type { PendingRow } from "./pending";
 import type { NewPatientBody, ProfileBody } from "./patient-profile";
 import type { WaitlistList } from "./waitlist";
 import type {
@@ -262,6 +263,7 @@ export const api = {
       method: "POST",
     });
   },
+  pending: () => json<PendingRow[]>("/admin/pending"),
   attendance: () => json<Attendance>("/admin/attendance"),
   setAttendance: async (id: string, attended: boolean) => {
     await call(`/admin/appointments/${encodeURIComponent(id)}/attendance`, {

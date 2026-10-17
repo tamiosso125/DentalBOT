@@ -254,6 +254,23 @@ function stubCertificates() {
   return { certificates, calls };
 }
 
+function stubPending() {
+  const calls: unknown[][] = [];
+  const pending: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["pending"] = {
+    list: async (...a) => {
+      calls.push(["list", ...a]);
+      return [
+        {
+          patientId: "pat_1",
+          patientName: "Maria",
+          items: [{ kind: "OVERDUE", amountCents: 30000, count: 1 }],
+        },
+      ];
+    },
+  };
+  return { pending, calls };
+}
+
 function stubProfiles() {
   const calls: unknown[][] = [];
   const profiles: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["profiles"] = {
@@ -377,6 +394,7 @@ function setup() {
   const certs = stubCertificates();
   const sheets = stubDaySheets();
   const profiles = stubProfiles();
+  const pendingList = stubPending();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -425,6 +443,7 @@ function setup() {
       certificates: certs.certificates,
       daySheets: sheets.daySheets,
       profiles: profiles.profiles,
+      pending: pendingList.pending,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -452,6 +471,7 @@ function setup() {
     certCalls: certs.calls,
     sheetCalls: sheets.calls,
     profileCalls: profiles.calls,
+    pendingCalls: pendingList.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -1136,6 +1156,29 @@ describe("admin patient profile API", () => {
     expect(profileCalls[0]).toEqual(["update", CLINIC_ID, "pat_1", body, NOW]);
     // Only the successful change is audited, and never with its content.
     expect(access.calls).toEqual([["record", CLINIC_ID, "UPDATE_PATIENT", "pat_1", NOW]]);
+  });
+});
+
+describe("admin pending API", () => {
+  it("requires the bearer token, lists the clinic's pending patients and audits the view", async () => {
+    const { app, pendingCalls, access } = setup();
+    const url = "/admin/pending";
+    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
+    const res = await app.inject({
+      method: "GET",
+      url,
+      headers: { authorization: `Bearer ${ADMIN}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([
+      {
+        patientId: "pat_1",
+        patientName: "Maria",
+        items: [{ kind: "OVERDUE", amountCents: 30000, count: 1 }],
+      },
+    ]);
+    expect(pendingCalls).toEqual([["list", CLINIC_ID, NOW]]);
+    expect(access.calls).toEqual([["record", CLINIC_ID, "VIEW_PENDING", undefined, NOW]]);
   });
 });
 
