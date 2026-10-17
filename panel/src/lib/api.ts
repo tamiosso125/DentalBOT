@@ -21,6 +21,7 @@ import type { NoteAuthor, PatientRecord } from "./patient-record";
 import type { AccessLogPage } from "./access-log";
 import type { MedicalHistoryData, MedicalHistoryView } from "./medical-history";
 import type { ClinicalEntry, ClinicalEntryBody } from "./clinical-record";
+import type { ProfileBody } from "./patient-profile";
 import type { WaitlistList } from "./waitlist";
 import type {
   BlockBody,
@@ -190,6 +191,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updatePatientProfile: async (patientId: string, body: ProfileBody) => {
+    await call(`/admin/patients/${encodeURIComponent(patientId)}/profile`, post(body));
+  },
   removePatientNote: async (patientId: string, noteId: string) => {
     await call(
       `/admin/patients/${encodeURIComponent(patientId)}/notes/${encodeURIComponent(noteId)}/delete`,
