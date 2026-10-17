@@ -50,7 +50,7 @@ export default async function PatientRecordPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href="/pacientes">← Pacientes</Link>
         </p>

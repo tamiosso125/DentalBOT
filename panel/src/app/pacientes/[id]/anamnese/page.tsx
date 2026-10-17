@@ -35,7 +35,7 @@ export default async function AnamnesePage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href={ficha}>← Ficha de {p.name}</Link>
         </p>

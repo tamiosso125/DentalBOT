@@ -26,7 +26,7 @@ export default async function ClinicPaymentsPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href="/cobrancas">← Cobranças</Link>
         </p>

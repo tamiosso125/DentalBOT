@@ -37,7 +37,7 @@ export default async function ClinicPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <h1>Cadastro da clínica</h1>
         {gaps.length ? (

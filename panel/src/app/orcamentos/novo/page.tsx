@@ -20,7 +20,7 @@ export default async function NewQuotePage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <h1>Novo orçamento</h1>
         {!paciente ? (
           <section className="card">

@@ -11,7 +11,7 @@ export default async function PendingPage() {
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <h1>Pendências</h1>
         <p className="muted">
           {pendingSummary(rows)} Parcelas vencidas, consultas dos próximos 7 dias sem confirmação e

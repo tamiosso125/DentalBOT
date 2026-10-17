@@ -26,7 +26,7 @@ export default async function WaitlistPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <h1>Lista de espera</h1>
         <p className="muted">

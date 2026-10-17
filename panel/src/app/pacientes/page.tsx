@@ -17,7 +17,7 @@ export default async function PatientsPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <h1>Pacientes</h1>
         <p>
           <Link className="button secondary" href="/pacientes/novo">

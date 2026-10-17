@@ -38,7 +38,7 @@ export default async function DataSubjectPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href="/dados">← Voltar</Link>
         </p>
