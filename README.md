@@ -201,6 +201,8 @@ ACCESS_LOG_RETENTION_DAYS=365   # mínimo 180 (Marco Civil: 6 meses de registros
 
 ## Produção (VPS)
 
+Para abrir as contas, [`docs/passo-a-passo-vps-meta.md`](docs/passo-a-passo-vps-meta.md) dá a ordem da VPS e da Meta (WhatsApp).
+
 `deploy/compose.yml` sobe a pilha inteira com HTTPS automático (Caddy), API, painel, Postgres, Redis e backup diário criptografado. Só as portas 80 e 443 ficam abertas, e a API da equipe (`/admin/*`) não é exposta. Passo a passo em [`docs/deploy-vps.md`](docs/deploy-vps.md).
 
 ## Verificações
