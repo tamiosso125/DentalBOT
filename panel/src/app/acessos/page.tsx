@@ -18,7 +18,7 @@ export default async function AccessLogPage({
   try {
     page = await api.accessLog({ patientId: paciente, from: de, to: ate });
   } catch (err) {
-    if (!(err instanceof ApiError && err.status === 400)) throw err;
+    if (!(err instanceof ApiError && (err.status === 400 || err.status === 403))) throw err;
     error = err.detail;
   }
   const name = page?.entries.find((e) => e.patientId === paciente)?.patientName;

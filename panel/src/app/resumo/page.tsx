@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { formatCents } from "@/lib/format";
 import {
   delta,
@@ -21,7 +21,21 @@ export default async function ReportPage({
   searchParams: Promise<{ mes?: string }>;
 }) {
   const { mes } = await searchParams;
-  const r = await api.report(isMonth(mes) ? mes : undefined);
+  let r;
+  try {
+    r = await api.report(isMonth(mes) ? mes : undefined);
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 403)) throw err;
+    return (
+      <>
+        <Nav />
+        <main>
+          <h1>Resumo do mês</h1>
+          <p className="muted">{err.detail}</p>
+        </main>
+      </>
+    );
+  }
   const n = r.numbers;
   const p = r.previous;
   const before = monthLabel(shiftMonth(r.month, -1)).split(" ")[0];

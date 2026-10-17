@@ -418,7 +418,7 @@ export class PrismaPatientData implements PatientData {
         status: q.status,
         totalCents: q.totalCents,
         installmentCount: q.installmentCount,
-        notes: q.notes,
+        notes: q.notesEncrypted ? this.cipher.decrypt(q.notesEncrypted) : null,
         validUntil: q.validUntil ? dateOnly(q.validUntil) : null,
         createdAt: q.createdAt.toISOString(),
         items: q.items.map((i) => ({
@@ -504,7 +504,7 @@ export class PrismaPatientData implements PatientData {
           },
         });
         // Free text from the dentist may describe the treatment.
-        await tx.quote.updateMany({ where: { patientId }, data: { notes: null } });
+        await tx.quote.updateMany({ where: { patientId }, data: { notesEncrypted: null } });
         // Staff notes may hold health information too.
         await tx.patientNote.deleteMany({ where: { patientId } });
         await tx.medicalHistory.deleteMany({ where: { patientId } });

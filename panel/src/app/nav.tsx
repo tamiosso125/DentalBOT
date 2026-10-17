@@ -12,14 +12,14 @@ export async function Nav() {
         <Link href="/">Agenda</Link>
         <Link href="/pendencias">Pendências</Link>
         <Link href="/pacientes">Pacientes</Link>
-        <Link href="/resumo">Resumo</Link>
+        {user?.role === "DENTIST" ? <Link href="/resumo">Resumo</Link> : null}
         <Link href="/orcamentos">Orçamentos</Link>
         <Link href="/cobrancas">Cobranças</Link>
         <Link href="/autorizacoes">Autorizações</Link>
         <Link href="/espera">Lista de espera</Link>
         <Link href="/retorno">Retorno</Link>
         <Link href="/dados">Dados (LGPD)</Link>
-        <Link href="/acessos">Acessos</Link>
+        {user?.role === "DENTIST" ? <Link href="/acessos">Acessos</Link> : null}
         <Link href="/clinica">Clínica</Link>
         {user?.role === "DENTIST" ? <Link href="/equipe">Equipe</Link> : null}
       </nav>

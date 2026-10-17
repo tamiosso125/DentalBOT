@@ -553,7 +553,8 @@ model Quote {
   /// Number of monthly installments offered for the private total.
   installmentCount Int         @default(1)
   /// Free text from the dentist shown on the PDF (no diagnosis details).
-  notes            String?
+  /// Free text from the dentist shown on the PDF; may describe the treatment, so encrypted.
+  notesEncrypted   String?
   validUntil       DateTime?   @db.Date
   sentAt           DateTime?
   respondedAt      DateTime?
