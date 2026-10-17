@@ -19,6 +19,11 @@ export default async function PatientsPage({
       <Nav />
       <main>
         <h1>Pacientes</h1>
+        <p>
+          <Link className="button secondary" href="/pacientes/novo">
+            Cadastrar paciente
+          </Link>
+        </p>
         <section className="card">
           <form className="row" method="get">
             <label>

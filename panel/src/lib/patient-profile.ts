@@ -7,6 +7,13 @@ export type ProfileBody = {
   cpf?: string | null;
 };
 
+export type NewPatientBody = {
+  name: string;
+  phone: string;
+  birthDate: string | null;
+  cpf?: string;
+};
+
 const text = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 
 export function profileFromForm(form: FormData): ProfileBody {
@@ -17,5 +24,17 @@ export function profileFromForm(form: FormData): ProfileBody {
   };
   if (form.get("removeCpf") === "on") body.cpf = null;
   else if (cpf) body.cpf = cpf;
+  return body;
+}
+
+/** The registration form: the phone is required, the CPF is sent only when typed. */
+export function newPatientFromForm(form: FormData): NewPatientBody {
+  const cpf = text(form, "cpf");
+  const body: NewPatientBody = {
+    name: text(form, "name"),
+    phone: text(form, "phone"),
+    birthDate: text(form, "birthDate") || null,
+  };
+  if (cpf) body.cpf = cpf;
   return body;
 }
