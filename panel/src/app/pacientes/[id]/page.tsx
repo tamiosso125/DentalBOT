@@ -113,6 +113,12 @@ export default async function PatientRecordPage({
               <Link className="button secondary" href={`/orcamentos/novo?${pick}`}>
                 Criar orçamento
               </Link>
+              <Link
+                className="button secondary"
+                href={`/pacientes/${encodeURIComponent(p.id)}/editar`}
+              >
+                Corrigir dados
+              </Link>
               <Link className="button secondary" href={`/espera?${pick}`}>
                 Lista de espera
               </Link>

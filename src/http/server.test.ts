@@ -18,6 +18,7 @@ import type { MonthlyReport, MonthlyReports } from "../panel/monthly-report.js";
 import type { PatientRecord, PatientRecords } from "../panel/patient-record.js";
 import { ClinicPaymentError } from "../payments/clinic-payments.js";
 import { PatientNoteError } from "../panel/patient-notes.js";
+import { PatientProfileError } from "../panel/patient-profile.js";
 import { AttendanceCertificateError } from "../panel/attendance-certificate.js";
 import { ClinicalRecordError } from "../panel/clinical-record.js";
 import { MedicalHistoryError } from "../panel/medical-history.js";
@@ -253,6 +254,21 @@ function stubCertificates() {
   return { certificates, calls };
 }
 
+function stubProfiles() {
+  const calls: unknown[][] = [];
+  const profiles: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["profiles"] = {
+    update: async (...a) => {
+      calls.push(["update", ...a]);
+      if (a[1] === "outro") throw new PatientProfileError(404, "Paciente não encontrado.");
+      if ((a[2] as { cpf?: string }).cpf === "dup")
+        throw new PatientProfileError(409, "Já existe outro paciente com este CPF.");
+      if ((a[2] as { name?: string }).name === "")
+        throw new PatientProfileError(422, "Confira o nome, o nascimento e o CPF.");
+    },
+  };
+  return { profiles, calls };
+}
+
 function stubDaySheets() {
   const calls: unknown[][] = [];
   const daySheets: NonNullable<Parameters<typeof buildServer>[0]["admin"]>["daySheets"] = {
@@ -354,6 +370,7 @@ function setup() {
   const clinical = stubClinicalRecords();
   const certs = stubCertificates();
   const sheets = stubDaySheets();
+  const profiles = stubProfiles();
   const access = stubAccessLog();
   const staff = stubStaff();
   const recall = stubRecall();
@@ -401,6 +418,7 @@ function setup() {
       clinicalRecords: clinical.clinicalRecords,
       certificates: certs.certificates,
       daySheets: sheets.daySheets,
+      profiles: profiles.profiles,
       accessLog: access.accessLog,
       staff: staff.staff,
       clinicPayments: desk.desk,
@@ -427,6 +445,7 @@ function setup() {
     clinicalCalls: clinical.calls,
     certCalls: certs.calls,
     sheetCalls: sheets.calls,
+    profileCalls: profiles.calls,
     access,
     staffCalls: staff.calls,
   };
@@ -1089,6 +1108,28 @@ describe("admin patient notes API", () => {
       ["remove", CLINIC_ID, "pat_1", "note_1"],
       ["remove", CLINIC_ID, "pat_1", "nope"],
     ]);
+  });
+});
+
+describe("admin patient profile API", () => {
+  const url = "/admin/patients/pat_1/profile";
+  const headers = { authorization: `Bearer ${ADMIN}` };
+
+  it("requires the bearer token and corrects the data within the clinic", async () => {
+    const { app, profileCalls, access } = setup();
+    expect((await app.inject({ method: "POST", url, payload: {} })).statusCode).toBe(401);
+    const body = { name: "Maria Souza", birthDate: "1990-03-15", cpf: "529.982.247-25" };
+    expect((await app.inject({ method: "POST", url, headers, payload: body })).statusCode).toBe(
+      204,
+    );
+    const status = async (u: string, payload: object) =>
+      (await app.inject({ method: "POST", url: u, headers, payload })).statusCode;
+    expect(await status("/admin/patients/outro/profile", body)).toBe(404);
+    expect(await status(url, { cpf: "dup" })).toBe(409);
+    expect(await status(url, { name: "" })).toBe(422);
+    expect(profileCalls[0]).toEqual(["update", CLINIC_ID, "pat_1", body, NOW]);
+    // Only the successful change is audited, and never with its content.
+    expect(access.calls).toEqual([["record", CLINIC_ID, "UPDATE_PATIENT", "pat_1", NOW]]);
   });
 });
 

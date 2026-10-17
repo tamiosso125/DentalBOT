@@ -25,6 +25,7 @@ export const AUDITED: Record<string, AuditRule> = {
   "GET /admin/patients": { action: "SEARCH_PATIENTS" },
   "GET /admin/patients/:id": { action: "VIEW_DATA", patient: "param" },
   "GET /admin/patients/:id/record": { action: "VIEW_RECORD", patient: "param" },
+  "POST /admin/patients/:id/profile": { action: "UPDATE_PATIENT", patient: "param" },
   "GET /admin/patients/:id/export": { action: "EXPORT_DATA", patient: "param" },
   "POST /admin/patients/:id/anonymize": { action: "ANONYMIZE", patient: "param" },
   "GET /admin/data-requests/:id/export": { action: "EXPORT_DATA", target: "dataRequest" },
