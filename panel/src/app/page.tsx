@@ -20,6 +20,7 @@ import {
   parseAgendaFilter,
   STATUS_FILTERS,
 } from "@/lib/agenda-filter";
+import { appointmentTone, homeSummary } from "@/lib/home-summary";
 import { markAttendance } from "./consultas/actions";
 import { Nav } from "./nav";
 
@@ -77,6 +78,15 @@ export default async function AgendaPage({
   const rate = noShowRate(attendance.month);
   const followUp = noShowFollowUpLabel(attendance.month);
   const days = groupByDay(filterAgenda(rows, filter));
+  const summary = homeSummary({
+    rows,
+    today: dateKey(new Date()),
+    dayOf: (iso) => dateKey(new Date(iso)),
+    waitingForReception: handoffs.length,
+    attendanceToMark: attendance.pending.length,
+    installmentsToCall: billing.toCallCount,
+    authorizationsPending: authorizations.pending.length,
+  });
   const shift = (n: number) => {
     const d = new Date(`${from}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -88,8 +98,19 @@ export default async function AgendaPage({
       <Nav />
       <main>
         {notice ? <p className="notice">{notice}</p> : null}
+        <h1>Hoje</h1>
+        <ul className="summary" aria-label="Resumo do dia">
+          {summary.map((item) => (
+            <li key={item.label}>
+              <a href={item.href} className={`summary-item ${item.tone}`}>
+                <span className="summary-n">{item.value}</span>
+                <span>{item.label}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
         {handoffs.length > 0 ? (
-          <section className="card">
+          <section className="card" id="recepcao">
             <h2 style={{ marginTop: 0 }}>Esperando a recepção ({handoffs.length})</h2>
             <p className="muted">
               O bot está pausado nestas conversas. Responda pelo app WhatsApp Business.
@@ -144,7 +165,7 @@ export default async function AgendaPage({
         ) : null}
 
         {attendance.pending.length > 0 ? (
-          <section className="card">
+          <section className="card" id="sem-marcacao">
             <h2 style={{ marginTop: 0 }}>Consultas sem marcação ({attendance.pending.length})</h2>
             <p className="muted">
               Já passaram do horário. Marque se o paciente veio: falta não conta como visita para o
@@ -189,6 +210,122 @@ export default async function AgendaPage({
           </section>
         ) : null}
 
+        <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
+          <h2 id="agenda" style={{ margin: 0 }}>
+            Agenda a partir de {formatDate(from)}
+          </h2>
+          <div style={{ flex: "0 0 auto", display: "flex", gap: 8 }}>
+            <Link className="button" href="/consultas/nova">
+              Marcar consulta
+            </Link>
+            <a className="button secondary" href={agendaHref(shift(-DAYS), filter)}>
+              Semana anterior
+            </a>
+            <a className="button secondary" href={agendaHref(shift(DAYS), filter)}>
+              Próxima semana
+            </a>
+          </div>
+        </div>
+
+        <form method="get" className="card" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input type="hidden" name="de" value={from} />
+          <label>
+            Dentista{" "}
+            <select name="dentista" defaultValue={filter.dentist ?? ""}>
+              <option value="">Todos</option>
+              {dentistsOf(rows).map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Situação{" "}
+            <select name="situacao" defaultValue={filter.status ?? ""}>
+              <option value="">Todas</option>
+              {Object.entries(STATUS_FILTERS).map(([key, { label }]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="button secondary">
+            Filtrar
+          </button>
+          {isFiltered(filter) ? <a href={`/?de=${from}`}>Limpar filtro</a> : null}
+        </form>
+
+        {days.length === 0 ? (
+          <p className="card muted">
+            {isFiltered(filter)
+              ? "Nenhuma consulta com esse filtro nos próximos dias."
+              : `Nenhuma consulta nos próximos ${DAYS} dias.`}
+          </p>
+        ) : (
+          days.map(({ day, items }) => (
+            <section key={day} className="card">
+              <h2 style={{ marginTop: 0 }}>{formatDayHeading(items[0]!.startsAt)}</h2>
+              <p className="muted">
+                <a
+                  href={`/agenda-do-dia?dia=${encodeURIComponent(day)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Imprimir a agenda do dia
+                </a>{" "}
+                (leva os alertas de saúde da anamnese; guarde com cuidado)
+              </p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Horário</th>
+                      <th>Paciente</th>
+                      <th>Procedimento</th>
+                      <th>Dentista</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((a) => (
+                      <tr key={a.id} className={a.status === "CANCELLED" ? "muted" : undefined}>
+                        <td>
+                          {formatTime(a.startsAt)}–{formatTime(a.endsAt)}
+                        </td>
+                        <td>
+                          <Link href={`/pacientes/${encodeURIComponent(a.patientId)}`}>
+                            {a.patientName}
+                          </Link>
+                          <div className="muted">final {a.patientPhone.slice(-4)}</div>
+                        </td>
+                        <td>{a.procedureName}</td>
+                        <td>{a.dentistName}</td>
+                        <td>
+                          <span className={`badge ${appointmentTone(a.status)}`}>
+                            {APPOINTMENT_STATUS[a.status] ?? a.status}
+                          </span>
+                        </td>
+                        <td>
+                          {a.status === "CANCELLED" ? null : (
+                            <Link href={`/consultas/${encodeURIComponent(a.id)}`}>
+                              {a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED"
+                                ? "Alterar"
+                                : "Abrir"}
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))
+        )}
+        <h2>Acompanhamento do mês</h2>
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Comparecimento neste mês</h2>
           <p style={{ marginBottom: 0 }}>
@@ -291,128 +428,6 @@ export default async function AgendaPage({
             ) : null}
           </section>
         ) : null}
-
-        <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
-          <h1 style={{ margin: 0 }}>Agenda a partir de {formatDate(from)}</h1>
-          <div style={{ flex: "0 0 auto", display: "flex", gap: 8 }}>
-            <Link className="button" href="/consultas/nova">
-              Marcar consulta
-            </Link>
-            <a className="button secondary" href={agendaHref(shift(-DAYS), filter)}>
-              Semana anterior
-            </a>
-            <a className="button secondary" href={agendaHref(shift(DAYS), filter)}>
-              Próxima semana
-            </a>
-          </div>
-        </div>
-
-        <form method="get" className="card" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input type="hidden" name="de" value={from} />
-          <label>
-            Dentista{" "}
-            <select name="dentista" defaultValue={filter.dentist ?? ""}>
-              <option value="">Todos</option>
-              {dentistsOf(rows).map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Situação{" "}
-            <select name="situacao" defaultValue={filter.status ?? ""}>
-              <option value="">Todas</option>
-              {Object.entries(STATUS_FILTERS).map(([key, { label }]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="button secondary">
-            Filtrar
-          </button>
-          {isFiltered(filter) ? <a href={`/?de=${from}`}>Limpar filtro</a> : null}
-        </form>
-
-        {days.length === 0 ? (
-          <p className="card muted">
-            {isFiltered(filter)
-              ? "Nenhuma consulta com esse filtro nos próximos dias."
-              : `Nenhuma consulta nos próximos ${DAYS} dias.`}
-          </p>
-        ) : (
-          days.map(({ day, items }) => (
-            <section key={day} className="card">
-              <h2 style={{ marginTop: 0 }}>{formatDayHeading(items[0]!.startsAt)}</h2>
-              <p className="muted">
-                <a
-                  href={`/agenda-do-dia?dia=${encodeURIComponent(day)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Imprimir a agenda do dia
-                </a>{" "}
-                (leva os alertas de saúde da anamnese; guarde com cuidado)
-              </p>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Horário</th>
-                      <th>Paciente</th>
-                      <th>Procedimento</th>
-                      <th>Dentista</th>
-                      <th>Status</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((a) => (
-                      <tr key={a.id} className={a.status === "CANCELLED" ? "muted" : undefined}>
-                        <td>
-                          {formatTime(a.startsAt)}–{formatTime(a.endsAt)}
-                        </td>
-                        <td>
-                          <Link href={`/pacientes/${encodeURIComponent(a.patientId)}`}>
-                            {a.patientName}
-                          </Link>
-                          <div className="muted">final {a.patientPhone.slice(-4)}</div>
-                        </td>
-                        <td>{a.procedureName}</td>
-                        <td>{a.dentistName}</td>
-                        <td>
-                          <span
-                            className={`badge ${
-                              a.status === "CONFIRMED"
-                                ? "ok"
-                                : a.status === "CANCELLED" || a.status === "NO_SHOW"
-                                  ? "danger"
-                                  : "warn"
-                            }`}
-                          >
-                            {APPOINTMENT_STATUS[a.status] ?? a.status}
-                          </span>
-                        </td>
-                        <td>
-                          {a.status === "CANCELLED" ? null : (
-                            <Link href={`/consultas/${encodeURIComponent(a.id)}`}>
-                              {a.status === "PENDING_CONFIRMATION" || a.status === "CONFIRMED"
-                                ? "Alterar"
-                                : "Abrir"}
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))
-        )}
       </main>
     </>
   );

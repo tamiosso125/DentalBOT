@@ -208,6 +208,61 @@ th.num {
   font-size: 12px;
   border: 1px solid var(--border);
 }
+.badge::before {
+  margin-right: 4px;
+  font-weight: 700;
+}
+.badge.ok::before {
+  content: "✓";
+}
+.badge.warn::before {
+  content: "◔";
+}
+.badge.danger::before {
+  content: "✕";
+}
+.badge.done {
+  color: var(--muted);
+}
+.badge.done::before {
+  content: "✓✓";
+}
+.summary {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+}
+.summary-item:hover {
+  border-color: var(--accent);
+}
+.summary-item.warn {
+  border-left-color: var(--warn);
+}
+.summary-item.danger {
+  border-left-color: var(--danger);
+}
+.summary-n {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
 .badge.ok {
   color: var(--ok);
   border-color: currentColor;
