@@ -6,6 +6,7 @@ import { formatCents } from "@/lib/format";
 import { ITEM_ROWS } from "@/lib/quote-form";
 import { useKeptForm } from "@/lib/use-kept-form";
 import { createQuote } from "../actions";
+import { ErrorSummary } from "../../error-summary";
 
 export function QuoteForm(props: {
   patientId: string;
@@ -99,13 +100,7 @@ export function QuoteForm(props: {
         <textarea name="notes" rows={3} maxLength={500} />
       </label>
 
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending}>
           {pending ? "Criando..." : "Criar orçamento"}

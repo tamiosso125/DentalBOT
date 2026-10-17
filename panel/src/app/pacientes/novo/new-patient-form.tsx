@@ -1,6 +1,7 @@
 "use client";
 
 import { useKeptForm, type FormErrors } from "@/lib/use-kept-form";
+import { ErrorSummary } from "../../error-summary";
 
 /** Name, mobile, birth date and CPF. Keeps what was typed when the API refuses it. */
 export function NewPatientForm(props: {
@@ -25,13 +26,7 @@ export function NewPatientForm(props: {
         CPF (opcional)
         <input name="cpf" inputMode="numeric" autoComplete="off" maxLength={14} />
       </label>
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending}>
           {pending ? "Salvando..." : "Cadastrar"}

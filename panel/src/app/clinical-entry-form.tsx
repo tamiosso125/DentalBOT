@@ -1,6 +1,7 @@
 "use client";
 
 import { useKeptForm, type FormErrors } from "@/lib/use-kept-form";
+import { ErrorSummary } from "./error-summary";
 
 /** The visit's clinical entry (or an addendum). Keeps what was typed when the API refuses it. */
 export function ClinicalEntryForm(props: {
@@ -24,13 +25,7 @@ export function ClinicalEntryForm(props: {
         Observações
         <textarea name="notes" rows={2} maxLength={2000} />
       </label>
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending}>
           {pending ? "Assinando..." : props.label}

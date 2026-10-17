@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { FormState } from "./actions";
+import { ErrorSummary } from "../error-summary";
 
 export function AnonymizeForm(props: {
   action: (prev: FormState, form: FormData) => Promise<FormState>;
@@ -20,13 +21,7 @@ export function AnonymizeForm(props: {
         <input type="checkbox" name="confirm" />
         Confirmo que o paciente pediu a exclusão dos dados
       </label>
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" className="secondary" disabled={pending}>
           {pending ? "Anonimizando..." : "Anonimizar dados"}

@@ -338,6 +338,32 @@ button.secondary,
     grid-template-columns: 1fr 1fr;
   }
 }
+.error-summary {
+  border: 2px solid var(--danger);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 10px 14px;
+}
+.error-summary-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--danger);
+}
+.error-summary-title span {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--bg);
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.error-summary ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
 .errors {
   color: var(--danger);
   margin: 0;

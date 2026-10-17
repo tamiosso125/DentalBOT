@@ -5,6 +5,7 @@ import type { StaffSlot } from "@/lib/api";
 import { slotValue } from "@/lib/appointment-form";
 import { formatTime } from "@/lib/format";
 import type { FormState } from "./actions";
+import { ErrorSummary } from "../error-summary";
 
 /**
  * Radio list of free times plus the "avisar o paciente" checkbox. `hidden` fields carry
@@ -55,13 +56,7 @@ export function SlotPicker(props: {
         <input type="checkbox" name="notify" defaultChecked />
         Avisar o paciente pelo WhatsApp (com os botões Confirmar e Remarcar)
       </label>
-      {state.errors?.length ? (
-        <ul className="errors">
-          {state.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      ) : null}
+      <ErrorSummary errors={state.errors} />
       <div>
         <button type="submit" disabled={pending || props.slots.length === 0}>
           {pending ? "Salvando..." : props.submitLabel}
