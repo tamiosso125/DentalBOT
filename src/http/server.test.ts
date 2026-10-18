@@ -1247,6 +1247,13 @@ describe("admin day sheet API", () => {
     expect(access.calls).toEqual([["record", CLINIC_ID, "PRINT_DAY_SHEET", undefined, NOW]]);
   });
 
+  it("records opening the agenda, since it shows health alerts", async () => {
+    const { app, access } = setup();
+    const res = await app.inject({ method: "GET", url: "/admin/agenda?from=2026-10-19", headers });
+    expect(res.statusCode).toBe(200);
+    expect(access.calls).toEqual([["record", CLINIC_ID, "VIEW_AGENDA", undefined, NOW]]);
+  });
+
   it("answers 400 to a missing or malformed day, without recording", async () => {
     const { app, sheetCalls, access } = setup();
     for (const bad of ["", "?day=amanha", "?day=2026-10-20&x=1"]) {
@@ -1360,10 +1367,13 @@ describe("admin access log", () => {
     await app.inject({ method: "GET", url: "/admin/patients?q=maria", headers });
     await app.inject({ method: "POST", url: "/admin/patients/pat_1/notes/note_1/delete", headers });
     await app.inject({ method: "GET", url: "/admin/agenda?from=2026-10-19&days=7", headers });
+    await app.inject({ method: "GET", url: "/admin/handoffs", headers }); // no patient data: not recorded
     expect(access.calls).toEqual([
       ["record", CLINIC_ID, "VIEW_RECORD", "pat_1", NOW],
       ["record", CLINIC_ID, "SEARCH_PATIENTS", undefined, NOW],
       ["record", CLINIC_ID, "DELETE_NOTE", "pat_1", NOW],
+      // The agenda now carries health alerts, so opening it is recorded too.
+      ["record", CLINIC_ID, "VIEW_AGENDA", undefined, NOW],
     ]);
   });
 

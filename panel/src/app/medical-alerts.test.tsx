@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MedicalAlerts } from "./medical-alerts";
+import { AgendaAlerts, MedicalAlerts } from "./medical-alerts";
 
 describe("MedicalAlerts", () => {
   it("renders nothing when there is no alert", () => {
@@ -22,5 +22,18 @@ describe("MedicalAlerts", () => {
       <MedicalAlerts alerts={["Gestante"]} anamnesisHref="/pacientes/p1/anamnese" />,
     );
     expect(html).toContain('href="/pacientes/p1/anamnese"');
+  });
+});
+
+describe("AgendaAlerts", () => {
+  it("renders nothing when there is no alert", () => {
+    expect(renderToStaticMarkup(<AgendaAlerts alerts={[]} />)).toBe("");
+  });
+
+  it("lists each alert as text under the patient", () => {
+    const html = renderToStaticMarkup(<AgendaAlerts alerts={["Usa anticoagulante", "Gestante"]} />);
+    expect(html).toContain('aria-label="Alertas de saúde"');
+    expect(html).toContain("Usa anticoagulante");
+    expect(html).toContain("Gestante");
   });
 });

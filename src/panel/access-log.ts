@@ -47,6 +47,7 @@ export const AUDITED: Record<string, AuditRule> = {
     action: "ISSUE_ATTENDANCE_CERTIFICATE",
     target: "appointment",
   },
+  "GET /admin/agenda": { action: "VIEW_AGENDA" },
   "GET /admin/agenda/day-sheet": { action: "PRINT_DAY_SHEET" },
   "GET /admin/quotes/:id": { action: "VIEW_QUOTE", target: "quote" },
   "GET /admin/quotes/:id/pdf": { action: "VIEW_QUOTE_PDF", target: "quote" },

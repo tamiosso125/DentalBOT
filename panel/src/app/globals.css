@@ -452,6 +452,39 @@ label.slot {
   font-weight: 600;
 }
 
+ul.agenda-alerts {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.agenda-alerts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  background: var(--surface);
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+}
+.agenda-alerts li::before {
+  content: "!";
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--bg);
+  font-size: 0.6875rem;
+  align-items: center;
+  justify-content: center;
+}
+
 .skip-link {
   position: absolute;
   left: 8px;
