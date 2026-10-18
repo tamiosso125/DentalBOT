@@ -26,6 +26,8 @@ Texto puro que sobra é dado da clínica (endereço, motivo de bloqueio de agend
 - O código loga ids, nomes de campos alterados e códigos de erro, nunca valores.
 - Registro de acessos (tabela `AccessLog`): cada rota que toca dado de paciente grava ação, data, hora, quem e qual paciente, sem conteúdo. Fica 365 dias por padrão (mínimo 180).
 
+A agenda (`GET /admin/agenda`) mostra, para cada consulta que não foi cancelada, os alertas de saúde da anamnese atual (alergia, anticoagulante, coagulação, coração, gestação): só essas frases curtas, nunca o formulário. Por isso abrir a agenda entra no registro de acessos como `VIEW_AGENDA`.
+
 ## Quem pode o quê
 
 Toda rota `/admin/*` exige o token Bearer, que só o painel (servidor Next.js) conhece; o navegador nunca fala com a API. O painel exige login por pessoa (cookie assinado, trava após 5 erros) e a API confere a cada pedido se o login ainda está ativo.

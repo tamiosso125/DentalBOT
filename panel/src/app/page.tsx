@@ -22,6 +22,7 @@ import {
 } from "@/lib/agenda-filter";
 import { appointmentTone, homeSummary } from "@/lib/home-summary";
 import { markAttendance } from "./consultas/actions";
+import { AgendaAlerts } from "./medical-alerts";
 import { Nav } from "./nav";
 
 export const dynamic = "force-dynamic";
@@ -300,6 +301,7 @@ export default async function AgendaPage({
                             {a.patientName}
                           </Link>
                           <div className="muted">final {a.patientPhone.slice(-4)}</div>
+                          <AgendaAlerts alerts={a.medicalAlerts} />
                         </td>
                         <td>{a.procedureName}</td>
                         <td>{a.dentistName}</td>

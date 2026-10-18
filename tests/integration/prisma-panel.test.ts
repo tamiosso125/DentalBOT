@@ -67,6 +67,15 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
         data: { clinicId, patientId, dentistId, procedureId, ...at(iso, 45) },
       });
     }
+    await db.medicalHistory.create({
+      data: {
+        clinicId,
+        patientId,
+        dataEncrypted: cipher.encrypt(
+          JSON.stringify({ allergies: "penicilina", anticoagulant: true }),
+        ),
+      },
+    });
     await db.quote.create({
       data: { clinicId, patientId, dentistId, totalCents: 250_00, status: "SENT" },
     });
@@ -85,6 +94,7 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
   afterAll(async () => {
     for (const id of [clinicId, otherClinicId]) {
       await db.conversation.deleteMany({ where: { clinicId: id } });
+      await db.medicalHistory.deleteMany({ where: { clinicId: id } });
       await db.quote.deleteMany({ where: { clinicId: id } });
       await db.appointment.deleteMany({ where: { clinicId: id } });
       await db.patient.deleteMany({ where: { clinicId: id } });
@@ -107,6 +117,7 @@ describe.skipIf(!url)("PrismaPanelQueries (Postgres)", () => {
       procedureName: "Limpeza",
       dentistName: "Dra. Painel",
     });
+    expect(monday[0]!.medicalAlerts).toEqual(["Alergia: penicilina", "Usa anticoagulante"]);
     expect(await panel.agenda(clinicId, { from: "2026-10-19", days: 2 })).toHaveLength(3);
     expect(await panel.agenda(otherClinicId, { from: "2026-10-19", days: 7 })).toEqual([]);
   });

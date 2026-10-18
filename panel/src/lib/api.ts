@@ -46,6 +46,7 @@ export type AgendaRow = {
   patientName: string;
   patientPhone: string;
 };
+export type AgendaDayRow = AgendaRow & { medicalAlerts: string[] };
 export type AppointmentDetail = AgendaRow & {
   procedureId: string;
   dentistId: string;
@@ -183,7 +184,7 @@ export const api = {
     await call("/admin/me/password", post({ current, password }));
   },
   agenda: (from: string, days: number) =>
-    json<AgendaRow[]>(`/admin/agenda?from=${from}&days=${days}`),
+    json<AgendaDayRow[]>(`/admin/agenda?from=${from}&days=${days}`),
   patients: (q: string) => json<PatientRow[]>(`/admin/patients?q=${encodeURIComponent(q)}`),
   patientRecord: (id: string) =>
     json<PatientRecord>(`/admin/patients/${encodeURIComponent(id)}/record`),

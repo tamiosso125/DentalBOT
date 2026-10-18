@@ -20,6 +20,9 @@ export type AgendaRow = {
   patientPhone: string;
 };
 
+/** An agenda row with the health warnings from the patient's current anamnesis. */
+export type AgendaDayRow = AgendaRow & { medicalAlerts: string[] };
+
 export type AppointmentDetail = AgendaRow & {
   procedureId: string;
   dentistId: string;
@@ -100,7 +103,7 @@ export const quoteQuerySchema = z.strictObject({
 });
 
 export interface PanelQueries {
-  agenda(clinicId: string, q: z.infer<typeof agendaQuerySchema>): Promise<AgendaRow[]>;
+  agenda(clinicId: string, q: z.infer<typeof agendaQuerySchema>): Promise<AgendaDayRow[]>;
   appointment(clinicId: string, id: string): Promise<AppointmentDetail | null>;
   patients(clinicId: string, q: string): Promise<PatientRow[]>;
   catalog(clinicId: string): Promise<Catalog | null>;
@@ -149,7 +152,29 @@ export class PrismaPanelQueries implements PanelQueries {
       orderBy: { startsAt: "asc" },
       include: agendaInclude,
     });
-    return rows.map((a) => this.agendaRow(a));
+    const alerts = await this.alertsByPatient(clinicId, [
+      ...new Set(rows.filter((a) => a.status !== "CANCELLED").map((a) => a.patient.id)),
+    ]);
+    return rows.map((a) => ({
+      ...this.agendaRow(a),
+      medicalAlerts: alerts.get(a.patient.id) ?? [],
+    }));
+  }
+
+  /** Warnings from each patient's newest anamnesis; patients without one are left out. */
+  private async alertsByPatient(clinicId: string, patientIds: string[]) {
+    const out = new Map<string, string[]>();
+    if (patientIds.length === 0) return out;
+    const versions = await this.db.medicalHistory.findMany({
+      where: { clinicId, patientId: { in: patientIds } },
+      orderBy: { createdAt: "desc" },
+      select: { patientId: true, dataEncrypted: true },
+    });
+    for (const v of versions) {
+      if (out.has(v.patientId)) continue;
+      out.set(v.patientId, medicalAlerts(openMedicalHistory(this.cipher, v.dataEncrypted)));
+    }
+    return out;
   }
 
   async attendance(clinicId: string, now: Date): Promise<Attendance> {

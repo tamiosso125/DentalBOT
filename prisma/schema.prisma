@@ -396,6 +396,7 @@ enum AccessAction {
   UPDATE_PATIENT
   CREATE_PATIENT
   VIEW_PENDING
+  VIEW_AGENDA
 }
 
 model AccessLog {
