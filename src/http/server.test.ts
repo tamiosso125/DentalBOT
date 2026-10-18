@@ -383,7 +383,8 @@ function stubDesk() {
   return { desk, calls };
 }
 
-function setup() {
+/** `logins`: personal staff logins on, as in production (then the token alone is not enough). */
+function setup(opts: { logins?: boolean } = {}) {
   const { panel, calls } = stubPanel();
   const desk = stubDesk();
   const report = stubReport();
@@ -445,7 +446,7 @@ function setup() {
       profiles: profiles.profiles,
       pending: pendingList.pending,
       accessLog: access.accessLog,
-      staff: staff.staff,
+      staff: opts.logins ? staff.staff : undefined,
       clinicPayments: desk.desk,
       now: () => NOW,
     },
@@ -1314,7 +1315,7 @@ describe("admin clinical record API", () => {
   });
 
   it("requires the bearer token and lists within the clinic", async () => {
-    const { app, clinicalCalls } = setup();
+    const { app, clinicalCalls } = setup({ logins: true });
     expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
     expect((await app.inject({ method: "POST", url, payload: body })).statusCode).toBe(401);
     const res = await app.inject({ method: "GET", url, headers: as("u_rec") });
@@ -1323,7 +1324,7 @@ describe("admin clinical record API", () => {
   });
 
   it("is signed by the logged-in dentist, and the access is recorded", async () => {
-    const { app, clinicalCalls, access } = setup();
+    const { app, clinicalCalls, access } = setup({ logins: true });
     const res = await app.inject({ method: "POST", url, headers: as("u_dent"), payload: body });
     expect(res.statusCode).toBe(201);
     expect(res.json()).toEqual({ id: "ce_1" });
@@ -1334,11 +1335,11 @@ describe("admin clinical record API", () => {
   });
 
   it("refuses without a personal login or for the front desk, and logs nothing", async () => {
-    const { app, clinicalCalls, access } = setup();
+    const { app, clinicalCalls, access } = setup({ logins: true });
     const noLogin = { authorization: `Bearer ${ADMIN}` };
     expect(
       (await app.inject({ method: "POST", url, headers: noLogin, payload: body })).statusCode,
-    ).toBe(403);
+    ).toBe(401);
     expect(
       (await app.inject({ method: "POST", url, headers: as("u_rec"), payload: body })).statusCode,
     ).toBe(403);
@@ -1347,7 +1348,7 @@ describe("admin clinical record API", () => {
   });
 
   it("passes the 404 and the 422 through", async () => {
-    const { app } = setup();
+    const { app } = setup({ logins: true });
     const post = (u: string, payload: object) =>
       app.inject({ method: "POST", url: u, headers: as("u_dent"), payload });
     expect((await post(url, { appointmentId: "apt_1" })).statusCode).toBe(422);
@@ -1407,8 +1408,32 @@ describe("admin staff logins", () => {
       ? { authorization: `Bearer ${ADMIN}`, "x-staff-user": id }
       : { authorization: `Bearer ${ADMIN}` };
 
+  it("does not open anything but the sign-in routes to the API token alone", async () => {
+    const { app } = setup({ logins: true });
+    const token = as();
+    for (const url of [
+      "/admin/handoffs",
+      "/admin/agenda?from=2026-10-19",
+      "/admin/patients?q=ma",
+    ]) {
+      const res = await app.inject({ method: "GET", url, headers: token });
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toEqual({ error: "session" });
+    }
+    expect(
+      (await app.inject({ method: "GET", url: "/admin/staff/status", headers: token })).statusCode,
+    ).toBe(200);
+    const login = await app.inject({
+      method: "POST",
+      url: "/admin/auth/login",
+      headers: token,
+      payload: { email: "bia@clinica.test", password: "senha-certa-123" },
+    });
+    expect(login.statusCode).toBe(200);
+  });
+
   it("cuts off an unknown or deactivated person, even with the API token", async () => {
-    const { app } = setup();
+    const { app } = setup({ logins: true });
     const res = await app.inject({ method: "GET", url: "/admin/handoffs", headers: as("u_old") });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual({ error: "session" });
@@ -1417,7 +1442,7 @@ describe("admin staff logins", () => {
   });
 
   it("logs in and records who it was", async () => {
-    const { app, access } = setup();
+    const { app, access } = setup({ logins: true });
     const wrong = await app.inject({
       method: "POST",
       url: "/admin/auth/login",
@@ -1437,7 +1462,7 @@ describe("admin staff logins", () => {
   });
 
   it("keeps the access log and the month report for the dentist", async () => {
-    const { app } = setup();
+    const { app } = setup({ logins: true });
     const get = (url: string, id: string) => app.inject({ method: "GET", url, headers: as(id) });
     for (const url of ["/admin/access-log", "/admin/report"]) {
       expect((await get(url, "u_rec")).statusCode).toBe(403);
@@ -1446,7 +1471,7 @@ describe("admin staff logins", () => {
   });
 
   it("lets only the signed-in dentist manage logins", async () => {
-    const { app, staffCalls } = setup();
+    const { app, staffCalls } = setup({ logins: true });
     const get = (id?: string) =>
       app.inject({ method: "GET", url: "/admin/staff", headers: as(id) });
     expect((await get()).statusCode).toBe(401);
@@ -1474,7 +1499,7 @@ describe("admin staff logins", () => {
   });
 
   it("records who filled in the medical history", async () => {
-    const { app, historyCalls } = setup();
+    const { app, historyCalls } = setup({ logins: true });
     const res = await app.inject({
       method: "POST",
       url: "/admin/patients/pat_1/medical-history",
@@ -1486,7 +1511,7 @@ describe("admin staff logins", () => {
   });
 
   it("signs the note with whoever is logged in", async () => {
-    const { app, noteCalls, access } = setup();
+    const { app, noteCalls, access } = setup({ logins: true });
     const res = await app.inject({
       method: "POST",
       url: "/admin/patients/pat_1/notes",

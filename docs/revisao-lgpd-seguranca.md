@@ -30,7 +30,7 @@ A agenda (`GET /admin/agenda`) mostra, para cada consulta que não foi cancelada
 
 ## Quem pode o quê
 
-Toda rota `/admin/*` exige o token Bearer, que só o painel (servidor Next.js) conhece; o navegador nunca fala com a API. O painel exige login por pessoa (cookie assinado, trava após 5 erros) e a API confere a cada pedido se o login ainda está ativo.
+Toda rota `/admin/*` exige o token Bearer, que só o painel (servidor Next.js) conhece; o navegador nunca fala com a API. O painel exige login por pessoa (cookie assinado, trava após 5 erros) e a API confere a cada pedido se o login ainda está ativo. Com os logins ligados, o token sozinho só abre as rotas de entrada (`GET /admin/staff/status`, `POST /admin/staff/bootstrap`, `POST /admin/auth/login`): qualquer outra rota sem `x-staff-user` recebe 401, então uma sessão ausente nunca vira acesso total.
 
 | Só a dentista                                                                 | Dentista e recepção                                                                                 |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
