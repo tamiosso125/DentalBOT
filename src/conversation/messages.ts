@@ -30,6 +30,10 @@ export const MESSAGES = {
     "Pelo que você descreveu, pode ser uma urgência. Se houver dificuldade para respirar ou engolir, " +
     "sangramento que não para ou febre alta, procure agora um pronto-socorro ou ligue 192 (SAMU). " +
     "Já avisei a nossa equipe para falar com você.",
+  unsupportedMedia:
+    "Por aqui eu não consigo ouvir áudios nem abrir fotos, vídeos ou arquivos. " +
+    "Já avisei a recepção, que te responde em breve. Se for uma urgência, com dificuldade para respirar ou engolir, " +
+    "sangramento que não para ou febre alta, procure agora um pronto-socorro ou ligue 192 (SAMU).",
   optOut:
     "Pronto, você não vai mais receber lembretes de retorno nem novidades. " +
     "Avisos das suas consultas e pagamentos continuam chegando. Se mudar de ideia, é só pedir.",

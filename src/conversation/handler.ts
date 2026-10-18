@@ -14,6 +14,8 @@ import { detectIntent, type AppointmentAction } from "./intents.js";
 import { MESSAGES } from "./messages.js";
 import type { ClinicInfo, ConversationRecord, ConversationStore } from "./store.js";
 
+const UNREADABLE_MEDIA = new Set(["audio", "voice", "image", "video", "document"]);
+
 export type HandlerDeps = {
   store: ConversationStore;
   channel: WhatsAppChannel;
@@ -249,6 +251,12 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent, deps: HandlerDep
       });
       return handoff(conv, `menu:${intent.choice}`, deps, now());
     case "other":
+      // Audio, photos and files cannot be read by the bot, and may hold an emergency: warn the
+      // patient and hand over to the front desk instead of showing the menu.
+      if (!event.text && !event.replyId && UNREADABLE_MEDIA.has(event.type)) {
+        await send({ kind: "text", to: conv.contact, body: MESSAGES.unsupportedMedia });
+        return handoff(conv, "media", deps, now());
+      }
       if (deps.ai && (event.text || event.replyId))
         return aiTurn(conv, clinic, event.text ?? "", event.replyId, deps, now());
       return sendMenu(conv, deps);

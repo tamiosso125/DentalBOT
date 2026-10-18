@@ -14,6 +14,7 @@ import {
   echoPayload,
   listPayload,
   makeDeps,
+  mediaPayload,
   OTHER_PATIENT,
   PATIENT,
   textPayload,
@@ -72,6 +73,8 @@ const step = z.union([
   z.object({ patient: z.string(), ...turn }).strict(),
   z.object({ button: z.string(), title: z.string(), ...turn }).strict(),
   z.object({ list: z.string(), title: z.string(), ...turn }).strict(),
+  /** The patient sends a message without text: audio, image, video or document. */
+  z.object({ media: z.string(), ...turn }).strict(),
   z.object({ reception: z.string() }).strict(),
   /** The dentist creates and sends a quote (staff API) to the case's patient. */
   z
@@ -420,7 +423,11 @@ export async function runCase(
   async function deliver(
     s: Extract<
       Step,
-      { patient: string } | { button: string } | { list: string } | { reception: string }
+      | { patient: string }
+      | { button: string }
+      | { list: string }
+      | { media: string }
+      | { reception: string }
     >,
     where: string,
   ) {
@@ -450,7 +457,9 @@ export async function runCase(
             )
           : "list" in s
             ? listPayload(s.list, s.title)
-            : echoPayload(s.reception);
+            : "media" in s
+              ? mediaPayload(s.media)
+              : echoPayload(s.reception);
     if (scripted && "model" in s && s.model) {
       if (s.model.route) scripted.route(s.model.route);
       scripted.push(...s.model.replies);

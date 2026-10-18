@@ -33,6 +33,7 @@ import {
   fakeAppEcho,
   fakeButtonReply,
   fakeListReply,
+  fakeMediaMessage,
   fakeTextMessage,
   SandboxChannel,
   signBody,
@@ -247,6 +248,9 @@ export function makeDeps(
 
 export const textPayload = (text: string, from = PATIENT) =>
   fakeTextMessage({ phoneNumberId: PHONE_NUMBER_ID, from, text });
+
+export const mediaPayload = (type: string, from = PATIENT) =>
+  fakeMediaMessage({ phoneNumberId: PHONE_NUMBER_ID, from, type });
 
 export const buttonPayload = (replyId: string, title: string, from = PATIENT) =>
   fakeButtonReply({ phoneNumberId: PHONE_NUMBER_ID, from, replyId, title });

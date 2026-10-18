@@ -1,0 +1,8 @@
+name: Áudio do paciente avisa que o bot não ouve, orienta urgência e chama a recepção
+critical: true
+steps:
+  - media: audio
+    expect:
+      contains: ["não consigo ouvir", "pronto-socorro", "192"]
+      not_contains: ["Como posso ajudar"]
+      handoff: true
