@@ -45,6 +45,7 @@ Decisão que fica para a dentista: exportar e anonimizar dados e mexer no cadast
 - Webhooks da Meta e do Asaas validam assinatura ou token, respondem 200 rápido e processam na fila, com idempotência.
 - `/dev/sandbox/*` só existe com `WHATSAPP_MODE=sandbox`; em produção a rota não é registrada.
 - A API `/admin/*` não é exposta pelo Caddy; só 80 e 443 ficam abertas na VPS.
+- Dependências: o CI roda `pnpm audit --prod --audit-level=high`. Fastify e Next ficam em versões corrigidas; `postcss` e `yaml` têm piso no `pnpm.overrides`. Um aviso aceito: `deepmerge-ts` dentro do CLI do Prisma (só lê o arquivo de configuração da casa, sem entrada externa), registrado em `pnpm.auditConfig.ignoreGhsas`; reavaliar quando o Prisma atualizar.
 - Mensagem iniciada pela clínica só sai por template; marketing exige consentimento e respeita `PARAR`.
 - A guarda de saída do atendente bloqueia horário ou preço que nenhuma ferramenta devolveu, e intenção clínica vira atendimento humano.
 
