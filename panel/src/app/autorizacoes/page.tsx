@@ -19,7 +19,7 @@ export default async function AuthorizationsPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <h1>Autorizações de convênio</h1>
         <p className="muted">

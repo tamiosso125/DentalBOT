@@ -53,7 +53,7 @@ export default async function ClinicalRecordPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href={`/pacientes/${encodeURIComponent(p.id)}`}>← Ficha de {p.name}</Link>
         </p>

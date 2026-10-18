@@ -27,7 +27,7 @@ export default async function QuotePage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href="/orcamentos">← Orçamentos</Link>
         </p>

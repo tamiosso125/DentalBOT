@@ -23,7 +23,7 @@ export default async function StaffPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <h1>Equipe</h1>
         {aviso ? <p className="notice">{aviso}</p> : null}
         {rows === null ? (

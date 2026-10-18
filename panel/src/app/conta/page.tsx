@@ -16,7 +16,7 @@ export default async function AccountPage({
   return (
     <>
       <Nav />
-      <main style={{ maxWidth: 480 }}>
+      <main id="conteudo" style={{ maxWidth: 480 }}>
         <h1>Minha senha</h1>
         {user ? (
           <p className="muted">

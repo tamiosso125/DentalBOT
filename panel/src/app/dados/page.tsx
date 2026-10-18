@@ -21,7 +21,7 @@ export default async function DataRequestsPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <h1>Dados dos pacientes (LGPD)</h1>
         <p className="muted">

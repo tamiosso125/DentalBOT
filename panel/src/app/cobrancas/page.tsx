@@ -19,7 +19,7 @@ export default async function BillingPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {sp.aviso ? <p className="notice">{sp.aviso}</p> : null}
         <h1>Cobranças</h1>
         <div className="row" style={{ marginBottom: 16 }}>

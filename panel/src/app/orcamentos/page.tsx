@@ -18,7 +18,7 @@ export default async function QuotesPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <div className="row" style={{ alignItems: "center", marginBottom: 12 }}>
           <h1 style={{ margin: 0 }}>Orçamentos</h1>
           <div style={{ flex: "0 0 auto" }}>

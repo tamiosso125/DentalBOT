@@ -26,7 +26,7 @@ export default async function AccessLogPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <h1>Acessos aos dados dos pacientes</h1>
         <p className="muted">
           O painel registra quando alguém da equipe abre, exporta ou muda dados de um paciente: o

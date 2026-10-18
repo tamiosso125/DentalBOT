@@ -16,7 +16,7 @@ export default async function ProcedurePage({ params }: { params: Promise<{ id: 
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href="/clinica">← Cadastro da clínica</Link>
         </p>

@@ -24,7 +24,7 @@ export default async function PlanPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <p>
           <Link href="/clinica">← Cadastro da clínica</Link>

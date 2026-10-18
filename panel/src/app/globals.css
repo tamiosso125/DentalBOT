@@ -10,6 +10,7 @@
   --ok: #067647;
   --warn: #b54708;
   --nav-active: #d9efec;
+  --field-border: #7b8794;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -25,6 +26,7 @@
     --ok: #47cd89;
     --warn: #fdb022;
     --nav-active: #123a37;
+    --field-border: #76838f;
     color-scheme: dark;
   }
 }
@@ -40,6 +42,7 @@
   --ok: #47cd89;
   --warn: #fdb022;
   --nav-active: #123a37;
+  --field-border: #76838f;
   color-scheme: dark;
 }
 * {
@@ -291,9 +294,10 @@ textarea {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px 10px;
+  min-height: 40px;
   min-width: 0;
 }
 button,
@@ -308,12 +312,13 @@ button,
   border: 0;
   border-radius: 8px;
   padding: 9px 16px;
+  min-height: 40px;
 }
 button.secondary,
 .button.secondary {
   background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
 }
 .row {
   display: flex;
@@ -407,7 +412,7 @@ label.check {
   font-size: 15px;
 }
 label.slot {
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
@@ -445,4 +450,35 @@ label.slot {
 }
 .med-alert li {
   font-weight: 600;
+}
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 10;
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 8px;
+}
+@media (pointer: coarse) {
+  button,
+  .button,
+  input,
+  select,
+  header.top nav a {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
 }

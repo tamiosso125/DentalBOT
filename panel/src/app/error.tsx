@@ -2,7 +2,7 @@
 
 export default function ErrorPage({ reset }: { error: Error; reset: () => void }) {
   return (
-    <main>
+    <main id="conteudo">
       <h1>Algo deu errado</h1>
       <p className="muted">
         O painel não conseguiu falar com o DentalBOT. Confira se a API está no ar e tente de novo.

@@ -21,7 +21,7 @@ export default async function RecallPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         {aviso ? <p className="notice">{aviso}</p> : null}
         <h1>Retorno</h1>
         <p className="muted">

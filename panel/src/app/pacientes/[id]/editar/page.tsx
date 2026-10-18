@@ -20,7 +20,7 @@ export default async function EditPatientPage({ params }: { params: Promise<{ id
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p>
           <Link href={`/pacientes/${encodeURIComponent(p.id)}`}>← {p.name}</Link>
         </p>

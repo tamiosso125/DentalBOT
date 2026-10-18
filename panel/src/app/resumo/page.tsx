@@ -29,7 +29,7 @@ export default async function ReportPage({
     return (
       <>
         <Nav />
-        <main>
+        <main id="conteudo">
           <h1>Resumo do mês</h1>
           <p className="muted">{err.detail}</p>
         </main>
@@ -49,7 +49,7 @@ export default async function ReportPage({
   return (
     <>
       <Nav />
-      <main>
+      <main id="conteudo">
         <p style={{ display: "flex", gap: 16 }}>
           <Link href={`/resumo?mes=${shiftMonth(r.month, -1)}`}>← {before}</Link>
           {r.current ? null : (
