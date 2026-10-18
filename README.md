@@ -143,10 +143,13 @@ DEFAULT_CLINIC_ID=clinic_dev
 
 As rotas de leitura alimentam o painel da equipe e mostram só os 4 últimos dígitos do celular.
 
+Com os logins pessoais ligados, o token sozinho só abre as rotas de entrada; as demais pedem também a pessoa logada em `x-staff-user`. Entre uma vez para pegar o id (`POST /admin/auth/login` com `{"email","password"}` devolve `{"id",...}`) e use-o nas chamadas.
+
 Exemplo com o paciente fictício do seed:
 
 ```bash
 curl -X POST localhost:3000/admin/quotes -H "authorization: Bearer $ADMIN_API_TOKEN" \
+  -H "x-staff-user: $STAFF_ID" \
   -H "content-type: application/json" \
   -d '{"patientId":"patient_dev","dentistId":"dentist_dev","items":[{"procedureId":"<id da limpeza>"}],"installmentCount":2}'
 ```

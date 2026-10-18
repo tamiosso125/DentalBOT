@@ -134,6 +134,13 @@ declare module "fastify" {
   }
 }
 
+/** Reachable with the API token alone, because they are how a person gets a session. */
+const SIGN_IN_ROUTES = new Set([
+  "GET /admin/staff/status",
+  "POST /admin/staff/bootstrap",
+  "POST /admin/auth/login",
+]);
+
 function safeEqual(a: string | undefined, b: string): boolean {
   if (a === undefined) return false;
   const ab = Buffer.from(a);
@@ -234,6 +241,14 @@ export function buildServer(deps: ServerDeps) {
           if (!actor) return reply.code(401).send({ error: "session" });
           req.staff = actor;
         }
+        // With personal logins on, the token alone opens only the sign-in routes: everything
+        // else needs a signed-in person, so a missing session can never mean full access.
+        if (
+          admin.staff &&
+          !req.staff &&
+          !SIGN_IN_ROUTES.has(`${req.method} ${req.routeOptions.url}`)
+        )
+          return reply.code(401).send({ error: "session" });
       });
       scope.setErrorHandler((err, _req, reply) => {
         if (err instanceof QuoteValidationError)

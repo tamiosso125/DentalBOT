@@ -59,6 +59,8 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
   let patientId = "";
   let dentistId = "";
   let procedureId = "";
+  /** The signed-in dentist: with personal logins on, the API token alone opens no staff route. */
+  let staffId = "";
 
   beforeAll(async () => {
     // The staff API needs the clinic id up front, so create the clinic with a fixed id.
@@ -90,11 +92,23 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
     await app.server.listen({ port: 0, host: "127.0.0.1" });
     const addr = app.server.addresses()[0]!;
     base = `http://127.0.0.1:${addr.port}`;
+    const first = await fetch(`${base}/admin/staff/bootstrap`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${ADMIN_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Dra. E2E",
+        email: "dentista@e2e.test",
+        password: "senha-e2e-1234567",
+      }),
+    });
+    expect(first.status).toBe(201);
+    staffId = ((await first.json()) as { id: string }).id;
   });
 
   afterAll(async () => {
     const { db } = app;
     await db.accessLog.deleteMany({ where: { clinicId } });
+    await db.staffUser.deleteMany({ where: { clinicId } });
     await db.quoteItem.deleteMany({ where: { quote: { clinicId } } });
     await db.quote.deleteMany({ where: { clinicId } });
     await db.dataSubjectRequest.deleteMany({ where: { clinicId } });
@@ -218,7 +232,11 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
   });
 
   it("runs a quote from the staff API to the patient's approval and the Asaas payment", async () => {
-    const auth = { authorization: `Bearer ${ADMIN_TOKEN}`, "content-type": "application/json" };
+    const auth = {
+      authorization: `Bearer ${ADMIN_TOKEN}`,
+      "x-staff-user": staffId,
+      "content-type": "application/json",
+    };
     const created = await fetch(`${base}/admin/quotes`, {
       method: "POST",
       headers: auth,
@@ -349,6 +367,7 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
         ...init,
         headers: {
           authorization: `Bearer ${ADMIN_TOKEN}`,
+          "x-staff-user": staffId,
           ...(init.body ? { "content-type": "application/json" } : {}),
         },
       });
@@ -407,7 +426,10 @@ describe.skipIf(!url)("WhatsApp end to end (HTTP → fila → Postgres → saíd
 
   it("takes a MEUS DADOS request to the export and the anonymization", async () => {
     const admin = async (path: string, method = "GET") =>
-      fetch(`${base}${path}`, { method, headers: { authorization: `Bearer ${ADMIN_TOKEN}` } });
+      fetch(`${base}${path}`, {
+        method,
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}`, "x-staff-user": staffId },
+      });
     await webhook(text("oi", REQUESTER));
     await replies(1, REQUESTER);
     await webhook(text("MEUS DADOS", REQUESTER));
