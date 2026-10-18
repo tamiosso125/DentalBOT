@@ -31,7 +31,7 @@
     "@anthropic-ai/sdk": "0.134.0",
     "@prisma/client": "6.19.3",
     "bullmq": "5.63.0",
-    "fastify": "5.6.2",
+    "fastify": "5.12.7",
     "ioredis": "5.8.2",
     "pdfkit": "0.20.2",
     "pino": "10.1.0",
@@ -52,6 +52,15 @@
     "vitest": "3.2.4"
   },
   "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ggr8-5vv4-36mx"
+      ]
+    },
+    "overrides": {
+      "postcss": ">=8.5.23",
+      "yaml": ">=2.8.3"
+    },
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",

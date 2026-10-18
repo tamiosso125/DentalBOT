@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createSession, SESSION_COOKIE, type SessionUser } from "./lib/session";
-import { middleware } from "./middleware";
+import { config, middleware } from "./middleware";
 
 const SECRET = "s".repeat(32);
 const BIA: SessionUser = { id: "u2", name: "Bia", role: "RECEPTION" };
@@ -41,5 +41,17 @@ describe("middleware", () => {
     const cookie = await createSession(SECRET, BIA);
     delete process.env.PANEL_SESSION_SECRET;
     expect((await middleware(request(cookie))).status).toBe(307);
+  });
+
+  it("leaves only /login and static assets out of the check", () => {
+    const covered = new RegExp(`^${config.matcher[0]}$`);
+    expect(covered.test("/login")).toBe(false);
+    expect(covered.test("/login/")).toBe(false);
+    expect(covered.test("/_next/static/chunk.js")).toBe(false);
+    expect(covered.test("/")).toBe(true);
+    expect(covered.test("/pacientes/p1")).toBe(true);
+    // Only the exact /login page is open, not any path that merely starts with "login".
+    expect(covered.test("/loginx")).toBe(true);
+    expect(covered.test("/login-admin/x")).toBe(true);
   });
 });
