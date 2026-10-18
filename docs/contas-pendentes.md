@@ -9,6 +9,8 @@ O código da Fase 1 roda inteiro sem nenhuma conta externa. Cada conta abaixo tr
 | Meta Business verificada + número em coexistência | `WHATSAPP_MODE=sandbox`: mensagens ficam em `GET /dev/sandbox/outbox`; MCP `whatsapp-sandbox` simula paciente e recepção | `WHATSAPP_MODE=cloud`, webhook cadastrado em `/webhooks/whatsapp` (campos `messages` e `smb_message_echoes`), templates submetidos             | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` |
 | Anthropic (API)                                   | `AI_MODE=off`: menu e regras fixas; testes e `pnpm eval` usam um modelo roteirizado                                      | `AI_MODE=anthropic`: roteador (Haiku 5.5) + atendente (Sonnet 5.5) agendam pela conversa; `pnpm eval --live` testa com o modelo real           | `AI_MODE`, `ANTHROPIC_API_KEY`, `AI_ATTENDANT_EFFORT`                                               |
 
+Passo a passo: VPS e Meta em `docs/passo-a-passo-vps-meta.md`; Asaas e Anthropic em `docs/passo-a-passo-asaas-anthropic.md`.
+
 ## Ordem sugerida
 
 1. **VPS**: precisa existir antes da Meta, porque o webhook exige uma URL pública com HTTPS.
