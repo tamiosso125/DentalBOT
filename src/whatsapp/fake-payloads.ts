@@ -52,6 +52,21 @@ export function fakeTextMessage(base: Base & { from: string; text: string; id?: 
   });
 }
 
+/** A message with no text the bot can read (audio, image, video, document). */
+export function fakeMediaMessage(base: Base & { from: string; type: string }) {
+  return envelope(base, "messages", {
+    messages: [
+      {
+        id: nextId("in"),
+        from: base.from,
+        timestamp: nowTs(),
+        type: base.type,
+        [base.type]: { id: "media-1" },
+      },
+    ],
+  });
+}
+
 export function fakeButtonReply(base: Base & { from: string; replyId: string; title: string }) {
   return envelope(base, "messages", {
     messages: [

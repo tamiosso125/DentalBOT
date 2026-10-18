@@ -1,0 +1,6 @@
+name: Foto do paciente chama a recepção em vez de mostrar o menu
+steps:
+  - media: image
+    expect:
+      contains: ["não consigo ouvir", "recepção"]
+      handoff: true
